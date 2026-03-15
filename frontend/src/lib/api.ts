@@ -1,7 +1,7 @@
 // API client — talks to the Cloudflare Worker
 
 const BASE = import.meta.env.PROD
-  ? 'https://forzachang-api.REPLACE.workers.dev'
+  ? 'https://forzachang-api.DIT-NAVN.workers.dev'
   : '/api';
 
 function getToken(): string | null {
