@@ -1,0 +1,36 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth';
+import Login from './pages/Login';
+import Layout from './components/Layout';
+import Matches from './pages/Matches';
+import Stats from './pages/Stats';
+import Fines from './pages/Fines';
+import Admin from './pages/Admin';
+import './index.css';
+
+function Protected({ children }: { children: React.ReactNode }) {
+  const { player } = useAuth();
+  if (!player) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Protected><Layout /></Protected>}>
+            <Route index element={<Navigate to="/kampe" replace />} />
+            <Route path="kampe" element={<Matches />} />
+            <Route path="statistik" element={<Stats />} />
+            <Route path="bødekasse" element={<Fines />} />
+            <Route path="admin" element={<Admin />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>
+);
