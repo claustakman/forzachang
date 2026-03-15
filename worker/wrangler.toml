@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "forzachang-db"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "badbf6cb-6774-42ab-94d2-fa66fa885be2"
 
 [vars]
 APP_URL = "https://forzachang.pages.dev"
