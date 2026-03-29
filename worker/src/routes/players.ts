@@ -167,11 +167,13 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   const url = new URL(request.url);
   const id = url.pathname.split('/')[3];
 
-  // GET /api/players
+  // GET /api/players — admin kan hente passive med ?include_inactive=1
   if (request.method === 'GET') {
-    const players = await env.DB.prepare(
-      `SELECT id, name, email, role, active FROM players WHERE active=1 AND role != 'admin' ORDER BY name`
-    ).all();
+    const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
+    const query = includeInactive
+      ? `SELECT id, name, email, role, active FROM players WHERE role != 'admin' ORDER BY active DESC, name`
+      : `SELECT id, name, email, role, active FROM players WHERE active=1 AND role != 'admin' ORDER BY name`;
+    const players = await env.DB.prepare(query).all();
     return json(players.results, 200, env.APP_URL);
   }
 
@@ -195,16 +197,22 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
       const hash = await hashPassword(body.password);
       await env.DB.prepare('UPDATE players SET password_hash=? WHERE id=?').bind(hash, id).run();
     }
+    if (body.name !== undefined && user.role === 'admin') {
+      await env.DB.prepare('UPDATE players SET name=? WHERE id=?').bind(body.name, id).run();
+    }
     if (body.email !== undefined) {
       await env.DB.prepare('UPDATE players SET email=? WHERE id=?').bind(body.email, id).run();
     }
-    if (body.role && user.role === 'admin') {
+    if (body.role !== undefined && user.role === 'admin') {
       await env.DB.prepare('UPDATE players SET role=? WHERE id=?').bind(body.role, id).run();
+    }
+    if (body.active !== undefined && user.role === 'admin') {
+      await env.DB.prepare('UPDATE players SET active=? WHERE id=?').bind(body.active ? 1 : 0, id).run();
     }
     return json({ ok: true }, 200, env.APP_URL);
   }
 
-  // DELETE /api/players/:id — admin only (soft delete)
+  // DELETE /api/players/:id — admin only (soft delete / deaktiver)
   if (request.method === 'DELETE' && id && user.role === 'admin') {
     await env.DB.prepare('UPDATE players SET active=0 WHERE id=?').bind(id).run();
     return json({ ok: true }, 200, env.APP_URL);

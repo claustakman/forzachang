@@ -33,11 +33,14 @@ export const api = {
     req<{ token: string; player: Player }>('POST', '/auth/login', { username, password }),
 
   // Players
-  getPlayers: () => req<Player[]>('GET', '/players'),
+  getPlayers: (includeInactive?: boolean) =>
+    req<Player[]>('GET', `/players${includeInactive ? '?include_inactive=1' : ''}`),
   createPlayer: (data: Partial<Player> & { password: string }) =>
     req<{ ok: boolean }>('POST', '/players', data),
   updatePlayer: (id: string, data: Partial<Player> & { password?: string }) =>
     req<{ ok: boolean }>('PUT', `/players/${id}`, data),
+  deletePlayer: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/players/${id}`),
 
   // Matches
   getMatches: (season?: string) =>
