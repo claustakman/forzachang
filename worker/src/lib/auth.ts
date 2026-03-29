@@ -1,10 +1,22 @@
 // JWT and auth helpers for Cloudflare Workers
 
-export function corsHeaders(origin?: string) {
+const ALLOWED_ORIGINS = [
+  'https://forzachang.pages.dev',
+  /^https:\/\/[a-z0-9-]+\.forzachang\.pages\.dev$/,
+  'http://localhost:5173',
+  'http://localhost:4173',
+];
+
+export function corsHeaders(requestOrigin?: string | null) {
+  const origin = requestOrigin && ALLOWED_ORIGINS.some(o =>
+    typeof o === 'string' ? o === requestOrigin : o.test(requestOrigin)
+  ) ? requestOrigin : 'https://forzachang.pages.dev';
+
   return {
-    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Vary': 'Origin',
   };
 }
 
