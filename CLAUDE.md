@@ -51,11 +51,54 @@ forzachang/
 
 ## Roller
 
-| Rolle       | Rettigheder                                              |
-|-------------|----------------------------------------------------------|
-| `player`    | Se kampe, tilmelde sig, se statistik og bøder            |
-| `treasurer` | Alt ovenstående + give og markere bøder betalt           |
-| `admin`     | Alt + oprette spillere og kampe, redigere statistik      |
+| Rolle     | Rettigheder                                                        |
+|-----------|--------------------------------------------------------------------|
+| `spiller` | Se kampe, tilmelde sig, se statistik og bøder                      |
+| `træner`  | Alt ovenstående + tilmelde spillere, føre statistik, give bøder    |
+| `admin`   | Alt + oprette/redigere spillere og kampe, tildele roller           |
+
+---
+
+## Datamodel
+
+### Spiller (`players`)
+Repræsenterer alle der nogensinde har spillet for CFC — også historiske/passive.
+
+| Felt             | Type    | Beskrivelse                           |
+|------------------|---------|---------------------------------------|
+| `id`             | TEXT    | UUID                                  |
+| `name`           | TEXT    | Fulde navn                            |
+| `birth_date`     | TEXT    | Fødselsdato (ISO 8601)                |
+| `email`          | TEXT    | Email                                 |
+| `phone`          | TEXT    | Telefonnummer                         |
+| `shirt_number`   | INTEGER | Trøjenummer                           |
+| `license_number` | TEXT    | DBU licensnummer                      |
+| `status`         | TEXT    | `aktiv` eller `passiv`                |
+| `created_at`     | TEXT    | Oprettelsestidspunkt                  |
+
+### Bruger (`users`)
+Kun aktive spillere har en bruger. Knyttet til `players` via foreign key.
+
+| Felt            | Type | Beskrivelse                                  |
+|-----------------|------|----------------------------------------------|
+| `id`            | TEXT | UUID                                         |
+| `player_id`     | TEXT | FK → players.id                              |
+| `email`         | TEXT | Login-email (samme som spillerens email)     |
+| `password_hash` | TEXT | Bcrypt hash                                  |
+| `role`          | TEXT | `admin`, `træner` eller `spiller`            |
+| `status`        | TEXT | `aktiv` eller `deaktiveret`                  |
+| `created_at`    | TEXT | Oprettelsestidspunkt                         |
+
+### Regler
+- Alle brugere er spillere, men ikke alle spillere har en bruger
+- Når en spiller sættes til `passiv` → bruger sættes til `deaktiveret` automatisk
+- Velkomst-email sendes **manuelt** af admin (knap på spillerkortet) — ikke automatisk ved oprettelse
+- Password reset sker via email-link (Resend)
+
+### Admin — spilleroversigt
+- To separate faner: **Aktive** og **Passive** — ingen samlet liste med filter
+- Aktive spillere viser: navn, trøjenummer, rolle, og knapper til redigér / send velkomst-email / sæt passiv
+- Passive spillere viser: navn og knap til at genaktivere
 
 ---
 
