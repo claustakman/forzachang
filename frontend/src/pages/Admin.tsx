@@ -24,9 +24,9 @@ export default function Admin() {
             onClick={() => setTab(t)}
             className="btn btn-sm"
             style={{
-              background: tab === t ? 'var(--green)' : '#fff',
-              color: tab === t ? '#fff' : 'var(--text-muted)',
-              border: '1px solid var(--border)',
+              background: tab === t ? 'var(--cfc-bg-hover)' : 'transparent',
+              color: tab === t ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+              border: `0.5px solid ${tab === t ? 'var(--cfc-border)' : 'transparent'}`,
             }}
           >
             {{ players: 'Spillere', matches: 'Kampe', stats: 'Statistik' }[t]}
@@ -46,53 +46,133 @@ export default function Admin() {
 function AdminPlayers() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editPlayer, setEditPlayer] = useState<Player | null>(null);
+  const [subTab, setSubTab] = useState<'active' | 'inactive'>('active');
 
   useEffect(() => { load(); }, []);
+
   async function load() {
     setLoading(true);
-    setPlayers(await api.getPlayers());
+    setPlayers(await api.getPlayers(true));
     setLoading(false);
+  }
+
+  const active = players.filter(p => p.active === 1);
+  const inactive = players.filter(p => p.active === 0);
+  const shown = subTab === 'active' ? active : inactive;
+
+  async function deactivate(id: string) {
+    if (!confirm('Deaktiver spiller? De kan ikke længere logge ind.')) return;
+    await api.deletePlayer(id);
+    load();
+  }
+
+  async function reactivate(id: string) {
+    await api.updatePlayer(id, { active: 1 } as any);
+    load();
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
 
   return (
     <>
-      <button className="btn btn-primary" style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }} onClick={() => setShowModal(true)}>
+      <button
+        className="btn btn-primary"
+        style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
+        onClick={() => setShowAdd(true)}
+      >
         + Tilføj spiller
       </button>
+
+      {/* Sub-tabs: Aktive / Passive */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+        {(['active', 'inactive'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className="btn btn-sm"
+            style={{
+              background: subTab === t ? 'var(--cfc-bg-hover)' : 'transparent',
+              color: subTab === t ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+              border: `0.5px solid ${subTab === t ? 'var(--cfc-border)' : 'transparent'}`,
+            }}
+          >
+            {t === 'active' ? `Aktive (${active.length})` : `Passive (${inactive.length})`}
+          </button>
+        ))}
+      </div>
+
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {players.map((p, i) => (
-          <div key={p.id} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 14px',
-            borderBottom: i < players.length - 1 ? '1px solid var(--border)' : 'none',
-          }}>
+        {shown.length === 0 && (
+          <div className="empty">
+            Ingen {subTab === 'active' ? 'aktive' : 'passive'} spillere
+          </div>
+        )}
+        {shown.map((p, i) => (
+          <div
+            key={p.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px',
+              borderBottom: i < shown.length - 1 ? '0.5px solid var(--cfc-border)' : 'none',
+            }}
+          >
+            {/* Avatar */}
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: 'var(--green-light)', color: 'var(--green-dark)',
+              background: 'var(--cfc-bg-hover)',
+              color: 'var(--cfc-text-muted)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 600, flexShrink: 0,
+              opacity: p.active === 0 ? 0.5 : 1,
             }}>
-              {p.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+              {p.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0, opacity: p.active === 0 ? 0.6 : 1 }}>
               <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.id} · {p.email || 'ingen email'}</div>
+              <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+                {p.id} · {p.email || 'ingen email'}
+              </div>
             </div>
-            <span style={{
-              fontSize: 11, padding: '2px 7px', borderRadius: 100,
-              background: p.role === 'admin' ? 'var(--green-light)' : p.role === 'treasurer' ? '#fef9c3' : '#f3f4f6',
-              color: p.role === 'admin' ? 'var(--green-dark)' : p.role === 'treasurer' ? '#854d0e' : 'var(--text-muted)',
-            }}>
-              {p.role === 'admin' ? 'Admin' : p.role === 'treasurer' ? 'Kasserer' : 'Spiller'}
-            </span>
+
+            {/* Rolle-badge */}
+            <RoleBadge role={p.role} />
+
+            {/* Handlinger */}
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              {p.active === 1 ? (
+                <>
+                  <button className="btn btn-sm btn-secondary" onClick={() => setEditPlayer(p)}>Rediger</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => deactivate(p.id)}>Deaktiver</button>
+                </>
+              ) : (
+                <button className="btn btn-sm btn-secondary" onClick={() => reactivate(p.id)}>Genaktiver</button>
+              )}
+            </div>
           </div>
         ))}
       </div>
-      {showModal && <AddPlayerModal onClose={() => { setShowModal(false); load(); }} />}
+
+      {showAdd && <AddPlayerModal onClose={() => { setShowAdd(false); load(); }} />}
+      {editPlayer && <EditPlayerModal player={editPlayer} onClose={() => { setEditPlayer(null); load(); }} />}
     </>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const styles: Record<string, { bg: string; color: string; label: string }> = {
+    admin:     { bg: '#162416', color: '#5a9e5a', label: 'Admin' },
+    treasurer: { bg: '#1a1500', color: '#c4a000', label: 'Kasserer' },
+    player:    { bg: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-muted)', label: 'Spiller' },
+  };
+  const s = styles[role] ?? styles.player;
+  return (
+    <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: s.bg, color: s.color, flexShrink: 0 }}>
+      {s.label}
+    </span>
   );
 }
 
@@ -120,10 +200,10 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Tilføj spiller</h2>
         {[
-          { key: 'id', label: 'Brugernavn (login)', placeholder: 'fx anders' },
-          { key: 'name', label: 'Fulde navn', placeholder: 'fx Anders Møller' },
-          { key: 'email', label: 'Email (til reminders)', placeholder: 'anders@email.dk' },
-          { key: 'password', label: 'Startadgangskode', placeholder: '' },
+          { key: 'id',       label: 'Brugernavn (login)', placeholder: 'fx anders' },
+          { key: 'name',     label: 'Fulde navn',          placeholder: 'fx Anders Møller' },
+          { key: 'email',    label: 'Email (til reminders)', placeholder: 'anders@email.dk' },
+          { key: 'password', label: 'Startadgangskode',    placeholder: '' },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="form-row">
             <label className="form-label">{label}</label>
@@ -138,10 +218,70 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
             <option value="admin">Admin</option>
           </select>
         </div>
-        {error && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : 'Opret'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name:     player.name,
+    email:    player.email || '',
+    role:     player.role,
+    password: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function submit() {
+    if (!form.name) { setError('Navn må ikke være tomt'); return; }
+    setSaving(true);
+    try {
+      const update: any = { name: form.name, email: form.email, role: form.role };
+      if (form.password) update.password = form.password;
+      await api.updatePlayer(player.id, update);
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>Rediger {player.name}</h2>
+        <div className="form-row">
+          <label className="form-label">Navn</label>
+          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Email</label>
+          <input className="input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="anders@email.dk" />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Rolle</label>
+          <select className="input" value={form.role} onChange={e => set('role', e.target.value)}>
+            <option value="player">Spiller</option>
+            <option value="treasurer">Kasserer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div className="form-row">
+          <label className="form-label">Nyt kodeord (lad stå tomt for uændret)</label>
+          <input className="input" type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Lad stå tomt" />
+        </div>
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : 'Gem'}</button>
         </div>
       </div>
     </div>
@@ -179,7 +319,7 @@ function AdminMatches() {
         <div key={m.id} className="card" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 500, fontSize: 14 }}>{m.opponent}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
               {m.date} {m.time} · {m.venue === 'home' ? 'Hjemme' : 'Ude'}
             </div>
           </div>
@@ -222,7 +362,7 @@ function AddMatchModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="form-row"><label className="form-label">Adresse</label><input className="input" value={form.address} onChange={e => set('address', e.target.value)} placeholder="fx CFC Banen, Christiansfeld" /></div>
         <div className="form-row"><label className="form-label">Sæson</label><input className="input" value={form.season} onChange={e => set('season', e.target.value)} /></div>
-        {error && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : 'Tilføj'}</button>
@@ -312,7 +452,7 @@ function AdminStats() {
                           type="number" min={0} max={20}
                           value={rows[p.id]?.[k] || 0}
                           onChange={e => setRow(p.id, k, parseInt(e.target.value) || 0)}
-                          style={{ width: 44, textAlign: 'center', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 4px', fontSize: 13 }}
+                          style={{ width: 44, textAlign: 'center', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', borderRadius: 4, padding: '3px 4px', fontSize: 13, color: 'var(--cfc-text-primary)' }}
                         />
                       </td>
                     ))}
