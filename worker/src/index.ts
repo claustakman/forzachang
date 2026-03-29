@@ -18,39 +18,46 @@ export interface Env {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
+    const origin = request.headers.get('Origin');
 
-    // CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders(env.APP_URL) });
+    try {
+      const url = new URL(request.url);
+      const path = url.pathname;
+
+      // CORS preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: corsHeaders(origin) });
+      }
+
+      // Public routes (no auth needed)
+      if (path.startsWith('/api/auth')) {
+        return handleAuth(request, env);
+      }
+
+      // All other routes require JWT
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return json({ error: 'Unauthorized' }, 401, origin);
+      }
+
+      const token = authHeader.slice(7);
+      const payload = await verifyJWT(token, env.JWT_SECRET);
+      if (!payload) {
+        return json({ error: 'Invalid token' }, 401, origin);
+      }
+
+      // Route to handlers
+      if (path.startsWith('/api/matches')) return handleMatches(request, env, payload);
+      if (path.startsWith('/api/signups')) return handleSignups(request, env, payload);
+      if (path.startsWith('/api/stats'))   return handleStats(request, env, payload);
+      if (path.startsWith('/api/fines'))   return handleFines(request, env, payload);
+      if (path.startsWith('/api/players')) return handlePlayers(request, env, payload);
+
+      return json({ error: 'Not found' }, 404, origin);
+    } catch (e) {
+      console.error('Unhandled error:', e);
+      return json({ error: 'Internal server error' }, 500, origin);
     }
-
-    // Public routes (no auth needed)
-    if (path.startsWith('/api/auth')) {
-      return handleAuth(request, env);
-    }
-
-    // All other routes require JWT
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return json({ error: 'Unauthorized' }, 401, env.APP_URL);
-    }
-
-    const token = authHeader.slice(7);
-    const payload = await verifyJWT(token, env.JWT_SECRET);
-    if (!payload) {
-      return json({ error: 'Invalid token' }, 401, env.APP_URL);
-    }
-
-    // Route to handlers
-    if (path.startsWith('/api/matches')) return handleMatches(request, env, payload);
-    if (path.startsWith('/api/signups')) return handleSignups(request, env, payload);
-    if (path.startsWith('/api/stats'))   return handleStats(request, env, payload);
-    if (path.startsWith('/api/fines'))   return handleFines(request, env, payload);
-    if (path.startsWith('/api/players')) return handlePlayers(request, env, payload);
-
-    return json({ error: 'Not found' }, 404, env.APP_URL);
   },
 
   // Scheduled job: send reminders 3 days before each match
