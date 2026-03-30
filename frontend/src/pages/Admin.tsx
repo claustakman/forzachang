@@ -54,7 +54,11 @@ function AdminPlayers() {
 
   async function load() {
     setLoading(true);
-    setPlayers(await api.getPlayers(true));
+    try {
+      setPlayers(await api.getPlayers(true));
+    } catch (e: any) {
+      alert('Fejl ved hentning af spillere: ' + e.message);
+    }
     setLoading(false);
   }
 

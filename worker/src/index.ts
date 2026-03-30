@@ -54,7 +54,8 @@ export default {
       return json({ error: 'Not found' }, 404);
     } catch (e) {
       console.error('Unhandled error:', e);
-      return json({ error: 'Internal server error' }, 500);
+      const msg = e instanceof Error ? e.message : String(e);
+      return json({ error: msg }, 500);
     }
   },
 
