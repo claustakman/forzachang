@@ -9,8 +9,8 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive
-      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players ORDER BY active DESC, name`
-      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players WHERE active=1 ORDER BY name`;
+      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
+      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
     const players = await env.DB.prepare(query).all();
     return json(players.results);
   }

@@ -128,16 +128,16 @@ function AdminPlayers() {
               borderBottom: i < shown.length - 1 ? '0.5px solid var(--cfc-border)' : 'none',
             }}
           >
-            {/* Avatar */}
+            {/* Trøjenummer */}
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
               background: 'var(--cfc-bg-hover)',
-              color: 'var(--cfc-text-muted)',
+              color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 600, flexShrink: 0,
               opacity: p.active === 0 ? 0.5 : 1,
             }}>
-              {p.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+              {p.shirt_number ?? '—'}
             </div>
 
             {/* Info */}
