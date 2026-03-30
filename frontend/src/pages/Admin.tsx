@@ -120,58 +120,80 @@ function AdminPlayers() {
           </div>
         )}
         {shown.map((p, i) => (
-          <div
+          <PlayerRow
             key={p.id}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 14px',
-              borderBottom: i < shown.length - 1 ? '0.5px solid var(--cfc-border)' : 'none',
-            }}
-          >
-            {/* Trøjenummer */}
-            <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: 'var(--cfc-bg-hover)',
-              color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 600, flexShrink: 0,
-              opacity: p.active === 0 ? 0.5 : 1,
-            }}>
-              {p.shirt_number ?? '—'}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0, opacity: p.active === 0 ? 0.6 : 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
-                {p.id} · {p.email || 'ingen email'}
-              </div>
-            </div>
-
-            {/* Rolle-badge */}
-            <RoleBadge role={p.role} />
-
-            {/* Handlinger */}
-            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-              {p.active === 1 ? (
-                <>
-                  <button className="btn btn-sm btn-secondary" onClick={() => setEditPlayer(p)}>Rediger</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => deactivate(p.id)}>Deaktiver</button>
-                </>
-              ) : (
-                <>
-                  <button className="btn btn-sm btn-secondary" onClick={() => reactivate(p.id)}>Genaktiver</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => deletePermanently(p.id, p.name)}>Slet</button>
-                </>
-              )}
-            </div>
-          </div>
+            player={p}
+            isLast={i === shown.length - 1}
+            onEdit={() => setEditPlayer(p)}
+            onDeactivate={() => deactivate(p.id)}
+            onReactivate={() => reactivate(p.id)}
+            onDelete={() => deletePermanently(p.id, p.name)}
+          />
         ))}
       </div>
 
       {showAdd && <AddPlayerModal onClose={() => { setShowAdd(false); load(); }} />}
       {editPlayer && <EditPlayerModal player={editPlayer} onClose={() => { setEditPlayer(null); load(); }} />}
     </>
+  );
+}
+
+function PlayerRow({ player: p, isLast, onEdit, onDeactivate, onReactivate, onDelete }: {
+  player: Player;
+  isLast: boolean;
+  onEdit: () => void;
+  onDeactivate: () => void;
+  onReactivate: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ borderBottom: isLast ? 'none' : '0.5px solid var(--cfc-border)', opacity: p.active === 0 ? 0.7 : 1 }}>
+      {/* Hovedrække */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: 'var(--cfc-bg-hover)',
+          color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 600, flexShrink: 0,
+        }}>
+          {p.shirt_number ?? '—'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {p.name}
+        </div>
+        <RoleBadge role={p.role} />
+        <button className="btn btn-sm btn-secondary" onClick={onEdit}>Rediger</button>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+          aria-label="Vis detaljer"
+        >
+          {open ? '▲' : '▼'}
+        </button>
+      </div>
+      {/* Detaljer */}
+      {open && (
+        <div style={{ padding: '0 14px 12px 56px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+            <span style={{ color: 'var(--cfc-text-subtle)' }}>Brugernavn</span> {p.id}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+            <span style={{ color: 'var(--cfc-text-subtle)' }}>Email</span> {p.email || '—'}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            {p.active === 1
+              ? <button className="btn btn-sm btn-danger" onClick={onDeactivate}>Deaktiver</button>
+              : <>
+                  <button className="btn btn-sm btn-secondary" onClick={onReactivate}>Genaktiver</button>
+                  <button className="btn btn-sm btn-danger" onClick={onDelete}>Slet permanent</button>
+                </>
+            }
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
