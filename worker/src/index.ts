@@ -18,15 +18,13 @@ export interface Env {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const origin = request.headers.get('Origin');
-
     try {
       const url = new URL(request.url);
       const path = url.pathname;
 
       // CORS preflight
       if (request.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders(origin) });
+        return new Response(null, { headers: corsHeaders() });
       }
 
       // Public routes (no auth needed)
@@ -37,13 +35,13 @@ export default {
       // All other routes require JWT
       const authHeader = request.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
-        return json({ error: 'Unauthorized' }, 401, origin);
+        return json({ error: 'Unauthorized' }, 401);
       }
 
       const token = authHeader.slice(7);
       const payload = await verifyJWT(token, env.JWT_SECRET);
       if (!payload) {
-        return json({ error: 'Invalid token' }, 401, origin);
+        return json({ error: 'Invalid token' }, 401);
       }
 
       // Route to handlers
@@ -53,10 +51,10 @@ export default {
       if (path.startsWith('/api/fines'))   return handleFines(request, env, payload);
       if (path.startsWith('/api/players')) return handlePlayers(request, env, payload);
 
-      return json({ error: 'Not found' }, 404, origin);
+      return json({ error: 'Not found' }, 404);
     } catch (e) {
       console.error('Unhandled error:', e);
-      return json({ error: 'Internal server error' }, 500, origin);
+      return json({ error: 'Internal server error' }, 500);
     }
   },
 
@@ -129,9 +127,9 @@ async function sendReminderEmail(env: Env, player: { name: string; email: string
   });
 }
 
-export function json(data: unknown, status = 200, origin?: string): Response {
+export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) }
+    headers: { 'Content-Type': 'application/json', ...corsHeaders() }
   });
 }
