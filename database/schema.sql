@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS players (
   birth_date TEXT,
   shirt_number INTEGER,
   license_number TEXT,
+  phone TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -87,3 +88,4 @@ INSERT OR IGNORE INTO players (id, name, email, password_hash, role) VALUES
 -- ALTER TABLE players ADD COLUMN birth_date TEXT;
 -- ALTER TABLE players ADD COLUMN shirt_number INTEGER;
 -- ALTER TABLE players ADD COLUMN license_number TEXT;
+-- ALTER TABLE players ADD COLUMN phone TEXT;
