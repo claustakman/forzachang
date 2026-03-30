@@ -9,18 +9,18 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive
-      ? `SELECT id, name, email, role, active FROM players WHERE role != 'admin' ORDER BY active DESC, name`
-      : `SELECT id, name, email, role, active FROM players WHERE active=1 AND role != 'admin' ORDER BY name`;
+      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players WHERE role != 'admin' ORDER BY active DESC, name`
+      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players WHERE active=1 AND role != 'admin' ORDER BY name`;
     const players = await env.DB.prepare(query).all();
     return json(players.results);
   }
 
   if (request.method === 'POST' && user.role === 'admin') {
-    const { id: newId, name, email, role, password } = await request.json() as any;
+    const { id: newId, name, email, role, password, birth_date, shirt_number, license_number } = await request.json() as any;
     const hash = await hashPassword(password || 'forzachang123');
     await env.DB.prepare(
-      'INSERT INTO players (id,name,email,password_hash,role) VALUES(?,?,?,?,?)'
-    ).bind(newId.toLowerCase(), name, email || null, hash, role || 'player').run();
+      'INSERT INTO players (id,name,email,password_hash,role,birth_date,shirt_number,license_number) VALUES(?,?,?,?,?,?,?,?)'
+    ).bind(newId.toLowerCase(), name, email || null, hash, role || 'player', birth_date || null, shirt_number || null, license_number || null).run();
     return json({ ok: true }, 201);
   }
 
@@ -44,6 +44,15 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
     }
     if (body.active !== undefined && user.role === 'admin') {
       await env.DB.prepare('UPDATE players SET active=? WHERE id=?').bind(body.active ? 1 : 0, id).run();
+    }
+    if (body.birth_date !== undefined && user.role === 'admin') {
+      await env.DB.prepare('UPDATE players SET birth_date=? WHERE id=?').bind(body.birth_date || null, id).run();
+    }
+    if (body.shirt_number !== undefined && user.role === 'admin') {
+      await env.DB.prepare('UPDATE players SET shirt_number=? WHERE id=?').bind(body.shirt_number || null, id).run();
+    }
+    if (body.license_number !== undefined && user.role === 'admin') {
+      await env.DB.prepare('UPDATE players SET license_number=? WHERE id=?').bind(body.license_number || null, id).run();
     }
     return json({ ok: true });
   }

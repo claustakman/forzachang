@@ -173,9 +173,9 @@ function AdminPlayers() {
 
 function RoleBadge({ role }: { role: string }) {
   const styles: Record<string, { bg: string; color: string; label: string }> = {
-    admin:     { bg: '#162416', color: '#5a9e5a', label: 'Admin' },
-    treasurer: { bg: '#1a1500', color: '#c4a000', label: 'Kasserer' },
-    player:    { bg: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-muted)', label: 'Spiller' },
+    admin:   { bg: '#162416', color: '#5a9e5a', label: 'Admin' },
+    trainer: { bg: '#1a1500', color: '#c4a000', label: 'Træner' },
+    player:  { bg: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-muted)', label: 'Spiller' },
   };
   const s = styles[role] ?? styles.player;
   return (
@@ -186,7 +186,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 function AddPlayerModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({ id: '', name: '', email: '', password: 'forzachang123', role: 'player' });
+  const [form, setForm] = useState({ id: '', name: '', email: '', password: 'forzachang123', role: 'player', birth_date: '', shirt_number: '', license_number: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -196,7 +196,7 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
     if (!form.id || !form.name) { setError('Udfyld brugernavn og navn'); return; }
     setSaving(true);
     try {
-      await api.createPlayer(form as any);
+      await api.createPlayer({ ...form, shirt_number: form.shirt_number ? Number(form.shirt_number) : undefined } as any);
       onClose();
     } catch (e: any) {
       setError(e.message);
@@ -209,10 +209,13 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Tilføj spiller</h2>
         {[
-          { key: 'id',       label: 'Brugernavn (login)', placeholder: 'fx anders' },
-          { key: 'name',     label: 'Fulde navn',          placeholder: 'fx Anders Møller' },
-          { key: 'email',    label: 'Email (til reminders)', placeholder: 'anders@email.dk' },
-          { key: 'password', label: 'Startadgangskode',    placeholder: '' },
+          { key: 'id',             label: 'Brugernavn (login)',    placeholder: 'fx anders' },
+          { key: 'name',           label: 'Fulde navn',            placeholder: 'fx Anders Møller' },
+          { key: 'email',          label: 'Email',                 placeholder: 'anders@email.dk' },
+          { key: 'birth_date',     label: 'Fødselsdato',           placeholder: 'YYYY-MM-DD' },
+          { key: 'shirt_number',   label: 'Trøjenummer',           placeholder: 'fx 10' },
+          { key: 'license_number', label: 'DBU-licensnummer',      placeholder: '' },
+          { key: 'password',       label: 'Startadgangskode',      placeholder: '' },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="form-row">
             <label className="form-label">{label}</label>
@@ -223,7 +226,7 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
           <label className="form-label">Rolle</label>
           <select className="input" value={form.role} onChange={e => set('role', e.target.value)}>
             <option value="player">Spiller</option>
-            <option value="treasurer">Kasserer</option>
+            <option value="trainer">Træner</option>
             <option value="admin">Admin</option>
           </select>
         </div>
@@ -239,10 +242,13 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
 
 function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => void }) {
   const [form, setForm] = useState({
-    name:     player.name,
-    email:    player.email || '',
-    role:     player.role,
-    password: '',
+    name:           player.name,
+    email:          player.email || '',
+    role:           player.role,
+    password:       '',
+    birth_date:     player.birth_date || '',
+    shirt_number:   player.shirt_number?.toString() || '',
+    license_number: player.license_number || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -253,7 +259,12 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     if (!form.name) { setError('Navn må ikke være tomt'); return; }
     setSaving(true);
     try {
-      const update: any = { name: form.name, email: form.email, role: form.role };
+      const update: any = {
+        name: form.name, email: form.email, role: form.role,
+        birth_date: form.birth_date || null,
+        shirt_number: form.shirt_number ? Number(form.shirt_number) : null,
+        license_number: form.license_number || null,
+      };
       if (form.password) update.password = form.password;
       await api.updatePlayer(player.id, update);
       onClose();
@@ -267,19 +278,23 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Rediger {player.name}</h2>
-        <div className="form-row">
-          <label className="form-label">Navn</label>
-          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Email</label>
-          <input className="input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="anders@email.dk" />
-        </div>
+        {[
+          { key: 'name',           label: 'Navn',             placeholder: '' },
+          { key: 'email',          label: 'Email',            placeholder: 'anders@email.dk' },
+          { key: 'birth_date',     label: 'Fødselsdato',      placeholder: 'YYYY-MM-DD' },
+          { key: 'shirt_number',   label: 'Trøjenummer',      placeholder: 'fx 10' },
+          { key: 'license_number', label: 'DBU-licensnummer', placeholder: '' },
+        ].map(({ key, label, placeholder }) => (
+          <div key={key} className="form-row">
+            <label className="form-label">{label}</label>
+            <input className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} />
+          </div>
+        ))}
         <div className="form-row">
           <label className="form-label">Rolle</label>
           <select className="input" value={form.role} onChange={e => set('role', e.target.value)}>
             <option value="player">Spiller</option>
-            <option value="treasurer">Kasserer</option>
+            <option value="trainer">Træner</option>
             <option value="admin">Admin</option>
           </select>
         </div>

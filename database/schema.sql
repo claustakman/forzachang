@@ -6,8 +6,11 @@ CREATE TABLE IF NOT EXISTS players (
   name TEXT NOT NULL,
   email TEXT,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'player', -- 'player' | 'admin' | 'treasurer'
+  role TEXT NOT NULL DEFAULT 'player', -- 'player' | 'admin' | 'trainer'
   active INTEGER NOT NULL DEFAULT 1,
+  birth_date TEXT,
+  shirt_number INTEGER,
+  license_number TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -78,3 +81,9 @@ INSERT OR IGNORE INTO fine_types (id, name, amount) VALUES
 -- password_hash is bcrypt of 'admin123'
 INSERT OR IGNORE INTO players (id, name, email, password_hash, role) VALUES
   ('admin', 'Admin', 'admin@forzachang.dk', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin');
+
+-- Migrations (safe to re-run — ignored if column already exists)
+-- Run these once against the existing DB via Cloudflare D1 dashboard console:
+-- ALTER TABLE players ADD COLUMN birth_date TEXT;
+-- ALTER TABLE players ADD COLUMN shirt_number INTEGER;
+-- ALTER TABLE players ADD COLUMN license_number TEXT;

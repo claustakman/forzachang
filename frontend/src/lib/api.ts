@@ -81,8 +81,11 @@ export interface Player {
   id: string;
   name: string;
   email?: string;
-  role: 'player' | 'admin' | 'treasurer';
+  role: 'player' | 'admin' | 'trainer';
   active: number;
+  birth_date?: string;
+  shirt_number?: number;
+  license_number?: string;
 }
 
 export interface Match {

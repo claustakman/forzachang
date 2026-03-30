@@ -24,7 +24,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
     return json({ fines: fines.results, types: types.results, totals: totals.results });
   }
 
-  if (request.method === 'POST' && (user.role === 'admin' || user.role === 'treasurer')) {
+  if (request.method === 'POST' && (user.role === 'admin' || user.role === 'trainer')) {
     const { player_id, fine_type_id, reason } = await request.json() as any;
     const fineType = await env.DB.prepare('SELECT amount FROM fine_types WHERE id=?').bind(fine_type_id).first();
     if (!fineType) return json({ error: 'Ukendt bødetype' }, 400);
@@ -34,7 +34,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
     return json({ ok: true }, 201);
   }
 
-  if (request.method === 'PUT' && id && (user.role === 'admin' || user.role === 'treasurer')) {
+  if (request.method === 'PUT' && id && (user.role === 'admin' || user.role === 'trainer')) {
     await env.DB.prepare('UPDATE fines SET paid=1 WHERE id=?').bind(id).run();
     return json({ ok: true });
   }
