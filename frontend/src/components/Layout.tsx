@@ -4,9 +4,9 @@ import { useAuth } from '../lib/auth';
 import logo from '../assets/logo.svg';
 
 const NAV_ITEMS = [
-  { to: '/kampe',     label: 'Kampe',     icon: '⚽' },
-  { to: '/statistik', label: 'Statistik', icon: '📊' },
-  { to: '/bødekasse', label: 'Bødekasse', icon: '💰' },
+  { to: '/kampe',     label: 'Kampe',     icon: '⚽', comingSoon: true },
+  { to: '/statistik', label: 'Statistik', icon: '📊', comingSoon: true },
+  { to: '/bødekasse', label: 'Bødekasse', icon: '💰', comingSoon: true },
 ];
 
 export default function Layout() {
@@ -14,9 +14,9 @@ export default function Layout() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const allItems = [
+  const allItems: { to: string; label: string; icon: string; comingSoon: boolean }[] = [
     ...NAV_ITEMS,
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️' }] : []),
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️', comingSoon: false }] : []),
   ];
 
   function doLogout() {
@@ -66,22 +66,54 @@ export default function Layout() {
 
           {/* Desktop navigation */}
           <nav className="cfc-nav-desktop" style={{ display: 'flex', gap: 4, marginLeft: 24 }}>
-            {allItems.map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                style={({ isActive }) => ({
-                  padding: '6px 14px',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-                  background: isActive ? 'var(--cfc-bg-hover)' : 'transparent',
-                  transition: 'all 0.15s',
-                })}
-              >
-                {label}
-              </NavLink>
+            {allItems.map(({ to, label, comingSoon = false }) => (
+              comingSoon ? (
+                <span
+                  key={to}
+                  title="Coming soon"
+                  style={{
+                    position: 'relative',
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: 'var(--cfc-text-subtle)',
+                    cursor: 'default',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {label}
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--cfc-text-subtle)',
+                    border: '0.5px solid var(--cfc-border)',
+                    borderRadius: 4,
+                    padding: '1px 4px',
+                    lineHeight: 1.4,
+                  }}>snart</span>
+                </span>
+              ) : (
+                <NavLink
+                  key={to}
+                  to={to}
+                  style={({ isActive }) => ({
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+                    background: isActive ? 'var(--cfc-bg-hover)' : 'transparent',
+                    transition: 'all 0.15s',
+                  })}
+                >
+                  {label}
+                </NavLink>
+              )
             ))}
           </nav>
 
@@ -157,25 +189,56 @@ export default function Layout() {
             background: 'var(--cfc-bg-card)',
             padding: '8px 16px 16px',
           }}>
-            {allItems.map(({ to, label, icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMenuOpen(false)}
-                style={({ isActive }) => ({
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '12px 8px',
-                  borderBottom: '0.5px solid var(--cfc-border)',
-                  fontSize: 15,
-                  fontWeight: 500,
-                  color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-                })}
-              >
-                <span style={{ fontSize: 20 }}>{icon}</span>
-                {label}
-              </NavLink>
+            {allItems.map(({ to, label, icon, comingSoon = false }) => (
+              comingSoon ? (
+                <div
+                  key={to}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 8px',
+                    borderBottom: '0.5px solid var(--cfc-border)',
+                    fontSize: 15,
+                    fontWeight: 500,
+                    color: 'var(--cfc-text-subtle)',
+                  }}
+                >
+                  <span style={{ fontSize: 20, opacity: 0.4 }}>{icon}</span>
+                  {label}
+                  <span style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--cfc-text-subtle)',
+                    border: '0.5px solid var(--cfc-border)',
+                    borderRadius: 4,
+                    padding: '1px 5px',
+                    lineHeight: 1.4,
+                    marginLeft: 'auto',
+                  }}>snart</span>
+                </div>
+              ) : (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setMenuOpen(false)}
+                  style={({ isActive }) => ({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 8px',
+                    borderBottom: '0.5px solid var(--cfc-border)',
+                    fontSize: 15,
+                    fontWeight: 500,
+                    color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+                  })}
+                >
+                  <span style={{ fontSize: 20 }}>{icon}</span>
+                  {label}
+                </NavLink>
+              )
             ))}
             <div style={{ padding: '12px 8px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>{player?.name}</span>
@@ -205,7 +268,29 @@ export default function Layout() {
         zIndex: 50,
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}>
-        {allItems.map(({ to, label, icon }) => (
+        {allItems.map(({ to, label, icon, comingSoon }) => (
+          comingSoon ? (
+            <div
+              key={to}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px 4px',
+                fontSize: 11,
+                fontWeight: 500,
+                color: 'var(--cfc-text-subtle)',
+                gap: 2,
+                borderTop: '2px solid transparent',
+              }}
+            >
+              <span style={{ fontSize: 20, opacity: 0.3 }}>{icon}</span>
+              <span>{label}</span>
+              <span style={{ fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>snart</span>
+            </div>
+          ) : (
           <NavLink
             key={to}
             to={to}
@@ -227,6 +312,7 @@ export default function Layout() {
             <span style={{ fontSize: 20 }}>{icon}</span>
             {label}
           </NavLink>
+          )
         ))}
       </nav>
 
