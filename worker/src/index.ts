@@ -127,7 +127,8 @@ async function sendReminderEmail(env: Env, player: { name: string; email: string
   });
 }
 
-export function json(data: unknown, status = 200): Response {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function json(data: unknown, status = 200, _origin?: string): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders() }
