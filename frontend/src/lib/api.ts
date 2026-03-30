@@ -43,6 +43,14 @@ export const api = {
     req<{ ok: boolean }>('DELETE', `/players/${id}`),
   deletePlayerPermanently: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/players/${id}?permanent=1`),
+  sendInvite: (playerId: string) =>
+    req<{ ok: boolean }>('POST', '/auth/invite', { player_id: playerId }),
+  requestPasswordReset: (email: string) =>
+    req<{ ok: boolean }>('POST', '/auth/reset-request', { email }),
+  resetPassword: (token: string, password: string) =>
+    req<{ ok: boolean }>('POST', '/auth/reset', { token, password }),
+  changePassword: (id: string, current: string, next: string) =>
+    req<{ ok: boolean }>('POST', '/auth/change-password', { id, current, next }),
 
   // Matches
   getMatches: (season?: string) =>
@@ -81,6 +89,7 @@ export interface Player {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
   role: 'player' | 'admin' | 'trainer';
   active: number;
   birth_date?: string;

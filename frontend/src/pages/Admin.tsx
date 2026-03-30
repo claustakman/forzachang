@@ -77,6 +77,15 @@ function AdminPlayers() {
     load();
   }
 
+  async function sendInvite(id: string, name: string) {
+    try {
+      await api.sendInvite(id);
+      alert(`Velkomst-email sendt til ${name}`);
+    } catch (e: any) {
+      alert('Fejl: ' + e.message);
+    }
+  }
+
   async function deletePermanently(id: string, name: string) {
     if (!confirm(`Slet ${name} permanent? Dette kan ikke fortrydes.`)) return;
     await api.deletePlayerPermanently(id);
@@ -125,6 +134,7 @@ function AdminPlayers() {
             player={p}
             isLast={i === shown.length - 1}
             onEdit={() => setEditPlayer(p)}
+            onInvite={() => sendInvite(p.id, p.name)}
             onDeactivate={() => deactivate(p.id)}
             onReactivate={() => reactivate(p.id)}
             onDelete={() => deletePermanently(p.id, p.name)}
@@ -138,10 +148,11 @@ function AdminPlayers() {
   );
 }
 
-function PlayerRow({ player: p, isLast, onEdit, onDeactivate, onReactivate, onDelete }: {
+function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReactivate, onDelete }: {
   player: Player;
   isLast: boolean;
   onEdit: () => void;
+  onInvite: () => void;
   onDeactivate: () => void;
   onReactivate: () => void;
   onDelete: () => void;
@@ -182,9 +193,12 @@ function PlayerRow({ player: p, isLast, onEdit, onDeactivate, onReactivate, onDe
           <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Email</span> {p.email || '—'}
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
             {p.active === 1
-              ? <button className="btn btn-sm btn-danger" onClick={onDeactivate}>Deaktiver</button>
+              ? <>
+                  <button className="btn btn-sm btn-secondary" onClick={onInvite}>Send velkomst-email</button>
+                  <button className="btn btn-sm btn-danger" onClick={onDeactivate}>Deaktiver</button>
+                </>
               : <>
                   <button className="btn btn-sm btn-secondary" onClick={onReactivate}>Genaktiver</button>
                   <button className="btn btn-sm btn-danger" onClick={onDelete}>Slet permanent</button>

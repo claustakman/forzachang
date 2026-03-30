@@ -54,6 +54,9 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
     if (body.license_number !== undefined && user.role === 'admin') {
       await env.DB.prepare('UPDATE players SET license_number=? WHERE id=?').bind(body.license_number || null, id).run();
     }
+    if (body.phone !== undefined) {
+      await env.DB.prepare('UPDATE players SET phone=? WHERE id=?').bind(body.phone || null, id).run();
+    }
     return json({ ok: true });
   }
 

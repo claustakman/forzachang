@@ -33,9 +33,9 @@ export interface JWTPayload {
   exp: number;
 }
 
-export async function createJWT(payload: Omit<JWTPayload, 'exp'>, secret: string): Promise<string> {
+export async function createJWT(payload: Omit<JWTPayload, 'exp'>, secret: string, expiresInSeconds = 60 * 60 * 24 * 30): Promise<string> {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30; // 30 days
+  const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const body = btoa(JSON.stringify({ ...payload, exp }));
   const sig = await sign(`${header}.${body}`, secret);
   return `${header}.${body}.${sig}`;

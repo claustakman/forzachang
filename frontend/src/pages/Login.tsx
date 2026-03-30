@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import logo from '../assets/logo.svg';
 
 export default function Login() {
   const { login } = useAuth();
@@ -32,25 +33,13 @@ export default function Login() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '1.5rem',
-      background: 'var(--bg)'
+      background: 'var(--cfc-bg-primary)',
     }}>
       <div style={{ width: '100%', maxWidth: 360 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: 72, height: 72,
-            background: 'var(--green)',
-            borderRadius: '50%',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 22,
-            fontWeight: 700,
-            marginBottom: 12,
-          }}>CFC</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Forza Chang FC</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 4 }}>Log ind for at se kampprogram</p>
+          <img src={logo} alt="CFC" style={{ width: 80, height: 80, objectFit: 'contain', marginBottom: 14 }} />
+          <h1 style={{ fontSize: 22, fontWeight: 700, fontFamily: 'Georgia, serif' }}>Copenhagen Forza Chang</h1>
+          <p style={{ color: 'var(--cfc-text-muted)', fontSize: 14, marginTop: 4 }}>Log ind for at se kampprogram</p>
         </div>
 
         <form onSubmit={submit} className="card" style={{ padding: '1.5rem' }}>
@@ -62,7 +51,7 @@ export default function Login() {
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="dit brugernavn"
+              placeholder="dit.brugernavn"
               autoFocus
             />
           </div>
@@ -78,16 +67,28 @@ export default function Login() {
             />
           </div>
           {error && (
-            <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 10 }}>{error}</p>
+            <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>
           )}
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
+            style={{
+              width: '100%', marginTop: 8,
+              padding: '10px 16px',
+              background: '#ffffff', color: '#000000',
+              border: 'none', borderRadius: 6,
+              fontSize: 14, fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+            }}
             disabled={loading}
           >
             {loading ? 'Logger ind...' : 'Log ind'}
           </button>
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            <Link to="/reset" style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>
+              Glemt kodeord?
+            </Link>
+          </div>
         </form>
       </div>
     </div>

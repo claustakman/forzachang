@@ -140,9 +140,9 @@ export default function Layout() {
             }}>
               {player?.name?.charAt(0).toUpperCase()}
             </div>
-            <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <NavLink to="/profil" style={{ fontSize: 13, color: 'var(--cfc-text-primary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {player?.name}
-            </span>
+            </NavLink>
             <button
               onClick={doLogout}
               style={{
@@ -241,7 +241,9 @@ export default function Layout() {
               )
             ))}
             <div style={{ padding: '12px 8px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>{player?.name}</span>
+              <NavLink to="/profil" onClick={() => setMenuOpen(false)} style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>
+                {player?.name} · Min profil
+              </NavLink>
               <button
                 onClick={doLogout}
                 style={{ background: 'none', border: '0.5px solid var(--cfc-border)', borderRadius: 6, color: 'var(--cfc-text-muted)', fontSize: 13, padding: '6px 12px', cursor: 'pointer' }}
