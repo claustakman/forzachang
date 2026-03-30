@@ -142,7 +142,7 @@ function AdminPlayers() {
 
             {/* Info */}
             <div style={{ flex: 1, minWidth: 0, opacity: p.active === 0 ? 0.6 : 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
+              <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
               <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
                 {p.id} · {p.email || 'ingen email'}
               </div>
