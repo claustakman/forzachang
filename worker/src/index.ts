@@ -29,7 +29,7 @@ export default {
 
       // Public routes (no auth needed)
       if (path.startsWith('/api/auth')) {
-        return handleAuth(request, env);
+        return await handleAuth(request, env);
       }
 
       // All other routes require JWT
@@ -45,11 +45,11 @@ export default {
       }
 
       // Route to handlers
-      if (path.startsWith('/api/matches')) return handleMatches(request, env, payload);
-      if (path.startsWith('/api/signups')) return handleSignups(request, env, payload);
-      if (path.startsWith('/api/stats'))   return handleStats(request, env, payload);
-      if (path.startsWith('/api/fines'))   return handleFines(request, env, payload);
-      if (path.startsWith('/api/players')) return handlePlayers(request, env, payload);
+      if (path.startsWith('/api/matches')) return await handleMatches(request, env, payload);
+      if (path.startsWith('/api/signups')) return await handleSignups(request, env, payload);
+      if (path.startsWith('/api/stats'))   return await handleStats(request, env, payload);
+      if (path.startsWith('/api/fines'))   return await handleFines(request, env, payload);
+      if (path.startsWith('/api/players')) return await handlePlayers(request, env, payload);
 
       return json({ error: 'Not found' }, 404);
     } catch (e) {

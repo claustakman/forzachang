@@ -41,6 +41,8 @@ export const api = {
     req<{ ok: boolean }>('PUT', `/players/${id}`, data),
   deletePlayer: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/players/${id}`),
+  deletePlayerPermanently: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/players/${id}?permanent=1`),
 
   // Matches
   getMatches: (season?: string) =>

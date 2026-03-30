@@ -73,6 +73,12 @@ function AdminPlayers() {
     load();
   }
 
+  async function deletePermanently(id: string, name: string) {
+    if (!confirm(`Slet ${name} permanent? Dette kan ikke fortrydes.`)) return;
+    await api.deletePlayerPermanently(id);
+    load();
+  }
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
 
   return (
@@ -149,7 +155,10 @@ function AdminPlayers() {
                   <button className="btn btn-sm btn-danger" onClick={() => deactivate(p.id)}>Deaktiver</button>
                 </>
               ) : (
-                <button className="btn btn-sm btn-secondary" onClick={() => reactivate(p.id)}>Genaktiver</button>
+                <>
+                  <button className="btn btn-sm btn-secondary" onClick={() => reactivate(p.id)}>Genaktiver</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => deletePermanently(p.id, p.name)}>Slet</button>
+                </>
               )}
             </div>
           </div>

@@ -49,7 +49,11 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   }
 
   if (request.method === 'DELETE' && id && user.role === 'admin') {
-    await env.DB.prepare('UPDATE players SET active=0 WHERE id=?').bind(id).run();
+    if (url.searchParams.get('permanent') === '1') {
+      await env.DB.prepare('DELETE FROM players WHERE id=?').bind(id).run();
+    } else {
+      await env.DB.prepare('UPDATE players SET active=0 WHERE id=?').bind(id).run();
+    }
     return json({ ok: true });
   }
 
