@@ -2,7 +2,7 @@ import { json, Env } from '../index';
 import { nanoid, hashPassword } from '../lib/auth';
 import type { JWTPayload } from '../lib/auth';
 
-const AVATAR_PUBLIC_BASE = 'https://pub-forzachang-avatars.r2.dev';
+const AVATAR_PUBLIC_BASE = 'https://pub-afc843d1587d4ae3a4aa8f3d76547493.r2.dev';
 
 export async function handlePlayers(request: Request, env: Env, user: JWTPayload): Promise<Response> {
   const url = new URL(request.url);
