@@ -107,8 +107,10 @@ export const api = {
     req<{ ok: boolean }>('PUT', `/events/${id}`, data),
   deleteEvent: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/events/${id}`),
-  setEventSignup: (id: string, status: 'tilmeldt' | 'afmeldt', message?: string) =>
-    req<{ ok: boolean }>('POST', `/events/${id}/signup`, { status, message }),
+  setEventSignup: (id: string, status: 'tilmeldt' | 'afmeldt', message?: string, player_id?: string) =>
+    req<{ ok: boolean }>('POST', `/events/${id}/signup`, { status, message, player_id }),
+  deleteEventSignup: (id: string, player_id?: string) =>
+    req<{ ok: boolean }>('DELETE', `/events/${id}/signup${player_id ? `?player_id=${player_id}` : ''}`),
 
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),

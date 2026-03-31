@@ -15,24 +15,38 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
 
   // ── POST /api/events/:id/signup ──────────────────────────────────────────
   if (request.method === 'POST' && id && sub === 'signup') {
-    const { status, message } = await request.json() as any;
+    const { status, message, player_id: targetPlayerId } = await request.json() as any;
     if (status !== 'tilmeldt' && status !== 'afmeldt') {
       return json({ error: 'Ugyldig status' }, 400);
     }
 
+    // Trainer/admin kan tilmelde på vegne af andre spillere
+    const playerId = (isTrainer && targetPlayerId) ? targetPlayerId : user.sub;
+
     const existing = await env.DB.prepare(
       'SELECT id FROM event_signups WHERE event_id=? AND player_id=?'
-    ).bind(id, user.sub).first();
+    ).bind(id, playerId).first();
 
     if (existing) {
       await env.DB.prepare(
         'UPDATE event_signups SET status=?, message=?, created_at=datetime("now") WHERE event_id=? AND player_id=?'
-      ).bind(status, message || null, id, user.sub).run();
+      ).bind(status, message || null, id, playerId).run();
     } else {
       await env.DB.prepare(
         'INSERT INTO event_signups (id, event_id, player_id, status, message) VALUES (?,?,?,?,?)'
-      ).bind(nanoid(), id, user.sub, status, message || null).run();
+      ).bind(nanoid(), id, playerId, status, message || null).run();
     }
+    return json({ ok: true });
+  }
+
+  // ── DELETE /api/events/:id/signup — slet tilmelding (annuller) ───────────
+  if (request.method === 'DELETE' && id && sub === 'signup') {
+    const url2 = new URL(request.url);
+    const targetPlayerId = url2.searchParams.get('player_id');
+    const playerId = (isTrainer && targetPlayerId) ? targetPlayerId : user.sub;
+    await env.DB.prepare(
+      'DELETE FROM event_signups WHERE event_id=? AND player_id=?'
+    ).bind(id, playerId).run();
     return json({ ok: true });
   }
 

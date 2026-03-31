@@ -118,12 +118,14 @@ export async function syncWebcal(env: Env): Promise<void> {
           ev.season || now, ev.uid).run();
       }
     } else {
+      const meetingTime = addMinutes(ev.start_time, -40);
+      const signupDeadline = addDays(ev.start_time, -7);
       await env.DB.prepare(`
-        INSERT INTO events (id, type, title, location, start_time, end_time, webcal_uid, season)
-        VALUES (?,?,?,?,?,?,?,?)
+        INSERT INTO events (id, type, title, location, start_time, end_time, meeting_time, signup_deadline, webcal_uid, season)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
       `).bind(
         crypto.randomUUID(), ev.type, ev.title, ev.location || null,
-        ev.start_time, ev.end_time || null, ev.uid, ev.season || now
+        ev.start_time, ev.end_time || null, meetingTime, signupDeadline, ev.uid, ev.season || now
       ).run();
     }
   }
@@ -189,6 +191,14 @@ function parseIcal(text: string): IcalEvent[] {
   }
 
   return events;
+}
+
+function addMinutes(iso: string, mins: number): string {
+  return new Date(new Date(iso).getTime() + mins * 60 * 1000).toISOString();
+}
+
+function addDays(iso: string, days: number): string {
+  return new Date(new Date(iso).getTime() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function icalDateToISO(dt: string): string {
