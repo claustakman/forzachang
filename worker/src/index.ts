@@ -77,7 +77,7 @@ export default {
 
 // ── Webcal-sync ───────────────────────────────────────────────────────────────
 
-async function syncWebcal(env: Env): Promise<void> {
+export async function syncWebcal(env: Env): Promise<void> {
   const setting = await env.DB.prepare(
     'SELECT value FROM app_settings WHERE key=?'
   ).bind('webcal_url').first();

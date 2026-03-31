@@ -1,4 +1,4 @@
-import { json, Env } from '../index';
+import { json, Env, syncWebcal } from '../index';
 import type { JWTPayload } from '../lib/auth';
 
 export async function handleSettings(request: Request, env: Env, user: JWTPayload): Promise<Response> {
@@ -21,6 +21,17 @@ export async function handleSettings(request: Request, env: Env, user: JWTPayloa
       ).bind(key, value).run();
     }
     return json({ ok: true });
+  }
+
+  // POST /api/settings/sync — manuel webcal-sync trigger
+  if (request.method === 'POST') {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith('/sync')) {
+      const setting = await env.DB.prepare('SELECT value FROM app_settings WHERE key=?').bind('webcal_url').first();
+      if (!setting?.value) return json({ error: 'Ingen webcal-URL konfigureret' }, 400);
+      await syncWebcal(env);
+      return json({ ok: true });
+    }
   }
 
   return json({ error: 'Method not allowed' }, 405);

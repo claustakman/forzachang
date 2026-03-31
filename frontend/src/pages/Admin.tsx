@@ -444,7 +444,9 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
 function AdminSettings() {
   const [webcalUrl, setWebcalUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState('');
+  const [syncMsg, setSyncMsg] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -461,6 +463,15 @@ function AdminSettings() {
       setMsg('Gemt');
     } catch (e: any) { setMsg(e.message); }
     setSaving(false);
+  }
+
+  async function sync() {
+    setSyncing(true); setSyncMsg('');
+    try {
+      await api.syncWebcal();
+      setSyncMsg('Sync gennemført');
+    } catch (e: any) { setSyncMsg(e.message); }
+    setSyncing(false);
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
@@ -481,9 +492,15 @@ function AdminSettings() {
         />
       </div>
       {msg && <p style={{ fontSize: 13, color: msg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{msg}</p>}
-      <button className="btn btn-primary" onClick={save} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-        {saving ? '...' : 'Gem'}
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary" onClick={save} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
+          {saving ? '...' : 'Gem'}
+        </button>
+        <button className="btn btn-secondary" onClick={sync} disabled={syncing || !webcalUrl} style={{ flex: 1, justifyContent: 'center' }}>
+          {syncing ? 'Synkroniserer...' : 'Synkroniser nu'}
+        </button>
+      </div>
+      {syncMsg && <p style={{ fontSize: 13, color: syncMsg === 'Sync gennemført' ? 'var(--green)' : '#e57373', marginTop: 8 }}>{syncMsg}</p>}
     </div>
   );
 }

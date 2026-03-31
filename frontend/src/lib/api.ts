@@ -113,6 +113,7 @@ export const api = {
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
+  syncWebcal: () => req<{ ok: boolean }>('POST', '/settings/sync'),
 
   // Fines
   getFines: () => req<FinesResponse>('GET', '/fines'),
