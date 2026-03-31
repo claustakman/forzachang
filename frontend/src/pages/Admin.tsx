@@ -165,11 +165,15 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
         <div style={{
           width: 32, height: 32, borderRadius: '50%',
           background: 'var(--cfc-bg-hover)',
+          border: '0.5px solid var(--cfc-border)',
           color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 12, fontWeight: 600, flexShrink: 0,
+          overflow: 'hidden',
         }}>
-          {p.shirt_number ?? '—'}
+          {p.avatar_url
+            ? <img src={p.avatar_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : (p.shirt_number ?? '—')}
         </div>
         <div style={{ flex: 1, minWidth: 0, fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {p.name}

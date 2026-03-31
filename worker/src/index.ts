@@ -11,6 +11,7 @@ import { verifyJWT, corsHeaders } from './lib/auth';
 
 export interface Env {
   DB: D1Database;
+  AVATARS: R2Bucket;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   APP_URL: string;

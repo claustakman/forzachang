@@ -89,3 +89,4 @@ INSERT OR IGNORE INTO players (id, name, email, password_hash, role) VALUES
 -- ALTER TABLE players ADD COLUMN shirt_number INTEGER;
 -- ALTER TABLE players ADD COLUMN license_number TEXT;
 -- ALTER TABLE players ADD COLUMN phone TEXT;
+-- ALTER TABLE players ADD COLUMN avatar_url TEXT;

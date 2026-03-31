@@ -27,6 +27,25 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json();
 }
 
+async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': file.type };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers,
+    body: file,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Server error' }));
+    throw new Error((err as any).error || 'Server error');
+  }
+
+  return res.json();
+}
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -39,6 +58,8 @@ export const api = {
     req<{ ok: boolean }>('POST', '/players', data),
   updatePlayer: (id: string, data: Partial<Player> & { password?: string }) =>
     req<{ ok: boolean }>('PUT', `/players/${id}`, data),
+  uploadAvatar: (id: string, file: File) =>
+    uploadFile<{ ok: boolean; avatar_url: string }>(`/players/${id}/avatar`, file),
   deletePlayer: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/players/${id}`),
   deletePlayerPermanently: (id: string) =>
@@ -95,6 +116,7 @@ export interface Player {
   birth_date?: string;
   shirt_number?: number;
   license_number?: string;
+  avatar_url?: string;
 }
 
 export interface Match {

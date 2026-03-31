@@ -2,15 +2,46 @@ import { json, Env } from '../index';
 import { nanoid, hashPassword } from '../lib/auth';
 import type { JWTPayload } from '../lib/auth';
 
+const AVATAR_PUBLIC_BASE = 'https://pub-forzachang-avatars.r2.dev';
+
 export async function handlePlayers(request: Request, env: Env, user: JWTPayload): Promise<Response> {
   const url = new URL(request.url);
-  const id = url.pathname.split('/')[3];
+  const pathParts = url.pathname.split('/');
+  const id = pathParts[3];
+  const sub = pathParts[4]; // e.g. "avatar"
+
+  // POST /api/players/:id/avatar — upload profile picture to R2
+  if (request.method === 'POST' && id && sub === 'avatar') {
+    if (id !== user.sub && user.role !== 'admin') {
+      return json({ error: 'Forbidden' }, 403);
+    }
+
+    const contentType = request.headers.get('Content-Type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      return json({ error: 'Only image uploads are allowed' }, 400);
+    }
+
+    const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+    const key = `avatars/${id}.${ext}`;
+
+    const body = await request.arrayBuffer();
+    if (body.byteLength > 5 * 1024 * 1024) {
+      return json({ error: 'Image must be under 5 MB' }, 400);
+    }
+
+    await env.AVATARS.put(key, body, { httpMetadata: { contentType } });
+
+    const avatar_url = `${AVATAR_PUBLIC_BASE}/${key}`;
+    await env.DB.prepare('UPDATE players SET avatar_url=? WHERE id=?').bind(avatar_url, id).run();
+
+    return json({ ok: true, avatar_url });
+  }
 
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive
-      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
-      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
+      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
+      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
     const players = await env.DB.prepare(query).all();
     return json(players.results);
   }

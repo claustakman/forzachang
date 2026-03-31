@@ -7,6 +7,10 @@ binding = "DB"
 database_name = "forzachang-db"
 database_id = "badbf6cb-6774-42ab-94d2-fa66fa885be2"
 
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "forzachang-avatars"
+
 [vars]
 APP_URL = "https://forzachang.pages.dev"
 
