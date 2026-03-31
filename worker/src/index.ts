@@ -7,6 +7,8 @@ import { handleSignups } from './routes/signups';
 import { handleStats } from './routes/stats';
 import { handleFines } from './routes/fines';
 import { handlePlayers } from './routes/players';
+import { handleEvents } from './routes/events';
+import { handleSettings } from './routes/settings';
 import { verifyJWT, corsHeaders } from './lib/auth';
 
 export interface Env {
@@ -46,11 +48,13 @@ export default {
       }
 
       // Route to handlers
-      if (path.startsWith('/api/matches')) return await handleMatches(request, env, payload);
-      if (path.startsWith('/api/signups')) return await handleSignups(request, env, payload);
-      if (path.startsWith('/api/stats'))   return await handleStats(request, env, payload);
-      if (path.startsWith('/api/fines'))   return await handleFines(request, env, payload);
-      if (path.startsWith('/api/players')) return await handlePlayers(request, env, payload);
+      if (path.startsWith('/api/matches'))  return await handleMatches(request, env, payload);
+      if (path.startsWith('/api/signups'))  return await handleSignups(request, env, payload);
+      if (path.startsWith('/api/stats'))    return await handleStats(request, env, payload);
+      if (path.startsWith('/api/fines'))    return await handleFines(request, env, payload);
+      if (path.startsWith('/api/players'))  return await handlePlayers(request, env, payload);
+      if (path.startsWith('/api/events'))   return await handleEvents(request, env, payload);
+      if (path.startsWith('/api/settings')) return await handleSettings(request, env, payload);
 
       return json({ error: 'Not found' }, 404);
     } catch (e) {
@@ -60,34 +64,175 @@ export default {
     }
   },
 
-  // Scheduled job: send reminders 3 days before each match
+  // Scheduled job: kører dagligt kl. 09:00 UTC
+  // 1) Webcal-sync: hent og synkroniser iCal-feed
+  // 2) Email-påmindelser: send reminders 3 dage før kampe
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
-    const threeDaysFromNow = new Date();
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-    const targetDate = threeDaysFromNow.toISOString().slice(0, 10);
-
-    const matches = await env.DB.prepare(
-      `SELECT * FROM matches WHERE date = ? ORDER BY time`
-    ).bind(targetDate).all();
-
-    for (const match of matches.results) {
-      // Find players who haven't responded
-      const unsigned = await env.DB.prepare(`
-        SELECT p.id, p.name, p.email FROM players p
-        WHERE p.active = 1
-        AND p.email IS NOT NULL
-        AND p.id NOT IN (
-          SELECT player_id FROM signups WHERE match_id = ?
-        )
-      `).bind(match.id).all();
-
-      for (const player of unsigned.results) {
-        if (!player.email) continue;
-        await sendReminderEmail(env, player as any, match as any);
-      }
-    }
+    await Promise.all([
+      syncWebcal(env),
+      sendReminders(env),
+    ]);
   }
 };
+
+// ── Webcal-sync ───────────────────────────────────────────────────────────────
+
+async function syncWebcal(env: Env): Promise<void> {
+  const setting = await env.DB.prepare(
+    'SELECT value FROM app_settings WHERE key=?'
+  ).bind('webcal_url').first();
+
+  if (!setting?.value) return;
+
+  const webcalUrl = (setting.value as string).replace(/^webcal:\/\//i, 'https://');
+
+  let icalText: string;
+  try {
+    const res = await fetch(webcalUrl);
+    if (!res.ok) { console.error('Webcal fetch failed:', res.status); return; }
+    icalText = await res.text();
+  } catch (e) {
+    console.error('Webcal fetch error:', e);
+    return;
+  }
+
+  const events = parseIcal(icalText);
+  const now = new Date().getFullYear();
+
+  for (const ev of events) {
+    const existing = await env.DB.prepare(
+      'SELECT id, title, start_time, location FROM events WHERE webcal_uid=?'
+    ).bind(ev.uid).first();
+
+    if (existing) {
+      // Opdater kun hvis noget er ændret
+      if (
+        existing.title !== ev.title ||
+        existing.start_time !== ev.start_time ||
+        existing.location !== (ev.location || null)
+      ) {
+        await env.DB.prepare(`
+          UPDATE events SET title=?, start_time=?, end_time=?, location=?, season=?
+          WHERE webcal_uid=?
+        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+          ev.season || now, ev.uid).run();
+      }
+    } else {
+      await env.DB.prepare(`
+        INSERT INTO events (id, type, title, location, start_time, end_time, webcal_uid, season)
+        VALUES (?,?,?,?,?,?,?,?)
+      `).bind(
+        crypto.randomUUID(), ev.type, ev.title, ev.location || null,
+        ev.start_time, ev.end_time || null, ev.uid, ev.season || now
+      ).run();
+    }
+  }
+
+  // Markér events der er forsvundet fra feed som aflyst (kun fremtidige)
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const uids = events.map(e => `'${e.uid.replace(/'/g, "''")}'`).join(',');
+  if (uids) {
+    await env.DB.prepare(`
+      UPDATE events SET status='aflyst'
+      WHERE webcal_uid IS NOT NULL
+      AND start_time > ?
+      AND webcal_uid NOT IN (${uids})
+      AND status = 'aktiv'
+    `).bind(tomorrow).run();
+  }
+}
+
+interface IcalEvent {
+  uid: string;
+  title: string;
+  start_time: string;
+  end_time?: string;
+  location?: string;
+  type: 'kamp' | 'event';
+  season?: number;
+}
+
+function parseIcal(text: string): IcalEvent[] {
+  const events: IcalEvent[] = [];
+  // Unfold continued lines
+  const unfolded = text.replace(/\r?\n[ \t]/g, '');
+  const blocks = unfolded.split(/BEGIN:VEVENT/i).slice(1);
+
+  for (const block of blocks) {
+    const get = (key: string) => {
+      const m = block.match(new RegExp(`^${key}[^:]*:(.+)$`, 'm'));
+      return m ? m[1].trim() : '';
+    };
+
+    const uid = get('UID');
+    if (!uid) continue;
+
+    const summary = get('SUMMARY').replace(/\\,/g, ',').replace(/\\n/g, ' ');
+    const dtstart = get('DTSTART');
+    const dtend = get('DTEND');
+    const location = get('LOCATION').replace(/\\,/g, ',').replace(/\\n/g, ', ') || undefined;
+
+    const start_time = icalDateToISO(dtstart);
+    if (!start_time) continue;
+
+    const end_time = dtend ? icalDateToISO(dtend) : undefined;
+    const season = new Date(start_time).getFullYear();
+
+    // Gæt type: "kamp" hvis summary indeholder typiske kampord
+    const lc = summary.toLowerCase();
+    const type: 'kamp' | 'event' = (
+      lc.includes('vs') || lc.includes('mod ') || lc.includes('- kamp') ||
+      lc.includes('match') || lc.includes('fodbold')
+    ) ? 'kamp' : 'event';
+
+    events.push({ uid, title: summary, start_time, end_time, location, type, season });
+  }
+
+  return events;
+}
+
+function icalDateToISO(dt: string): string {
+  if (!dt) return '';
+  // YYYYMMDDTHHMMSSZ eller YYYYMMDD
+  const clean = dt.replace(/[TZ]/g, ' ').trim();
+  if (dt.length >= 15) {
+    // Dato + tid
+    const d = clean.slice(0, 8);
+    const t = clean.slice(9, 15);
+    return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T${t.slice(0,2)}:${t.slice(2,4)}:00Z`;
+  }
+  // Kun dato
+  const d = dt.slice(0, 8);
+  return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T00:00:00Z`;
+}
+
+// ── Email-påmindelser ─────────────────────────────────────────────────────────
+
+async function sendReminders(env: Env): Promise<void> {
+  const threeDaysFromNow = new Date();
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+  const targetDate = threeDaysFromNow.toISOString().slice(0, 10);
+
+  const matches = await env.DB.prepare(
+    `SELECT * FROM matches WHERE date = ? ORDER BY time`
+  ).bind(targetDate).all();
+
+  for (const match of matches.results) {
+    const unsigned = await env.DB.prepare(`
+      SELECT p.id, p.name, p.email FROM players p
+      WHERE p.active = 1
+      AND p.email IS NOT NULL
+      AND p.id NOT IN (
+        SELECT player_id FROM signups WHERE match_id = ?
+      )
+    `).bind(match.id).all();
+
+    for (const player of unsigned.results) {
+      if (!player.email) continue;
+      await sendReminderEmail(env, player as any, match as any);
+    }
+  }
+}
 
 async function sendReminderEmail(env: Env, player: { name: string; email: string }, match: { date: string; time: string; opponent: string; venue: string }) {
   const venueText = match.venue === 'home' ? 'hjemmekamp' : 'udekamp';

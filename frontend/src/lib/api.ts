@@ -95,6 +95,25 @@ export const api = {
   saveStats: (data: { match_id: string; player_id: string; goals: number; yellow_cards: number; red_cards: number; played: number }) =>
     req<{ ok: boolean }>('POST', '/stats', data),
 
+  // Events
+  getEvents: (params?: { tab?: string; type?: string; season?: string; q?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return req<Event[]>('GET', `/events${qs ? '?' + qs : ''}`);
+  },
+  getEvent: (id: string) => req<EventDetail>('GET', `/events/${id}`),
+  createEvent: (data: Partial<Event> & { organizer_ids?: string[] }) =>
+    req<{ ok: boolean; id: string }>('POST', '/events', data),
+  updateEvent: (id: string, data: Partial<Event> & { organizer_ids?: string[] }) =>
+    req<{ ok: boolean }>('PUT', `/events/${id}`, data),
+  deleteEvent: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/events/${id}`),
+  setEventSignup: (id: string, status: 'tilmeldt' | 'afmeldt', message?: string) =>
+    req<{ ok: boolean }>('POST', `/events/${id}/signup`, { status, message }),
+
+  // Settings
+  getSettings: () => req<Record<string, string>>('GET', '/settings'),
+  updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
+
   // Fines
   getFines: () => req<FinesResponse>('GET', '/fines'),
   addFine: (data: { player_id: string; fine_type_id: string; reason?: string }) =>
@@ -173,6 +192,43 @@ export interface Fine {
   issued_by_name: string;
   paid: number;
   created_at: string;
+}
+
+export interface Event {
+  id: string;
+  type: 'kamp' | 'event';
+  title: string;
+  description?: string;
+  location?: string;
+  start_time: string;
+  end_time?: string;
+  meeting_time?: string;
+  signup_deadline?: string;
+  status: 'aktiv' | 'aflyst';
+  webcal_uid?: string;
+  season: number;
+  result?: string;
+  created_by?: string;
+  signup_count?: number;
+  my_status?: 'tilmeldt' | 'afmeldt' | null;
+}
+
+export interface EventSignup {
+  player_id: string;
+  name: string;
+  avatar_url?: string;
+  status: 'tilmeldt' | 'afmeldt';
+  message?: string;
+}
+
+export interface EventOrganizer {
+  player_id: string;
+  name: string;
+}
+
+export interface EventDetail extends Event {
+  signups: EventSignup[];
+  organizers: EventOrganizer[];
 }
 
 export interface FinesResponse {

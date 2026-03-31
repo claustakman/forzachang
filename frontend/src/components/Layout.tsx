@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import logo from '../assets/logo.svg';
 
 const NAV_ITEMS = [
-  { to: '/kampe',     label: 'Kampe',     icon: '⚽', comingSoon: true },
+  { to: '/kampe',     label: 'Kampe',     icon: '⚽', comingSoon: false },
   { to: '/statistik', label: 'Statistik', icon: '📊', comingSoon: true },
   { to: '/bødekasse', label: 'Bødekasse', icon: '💰', comingSoon: true },
 ];

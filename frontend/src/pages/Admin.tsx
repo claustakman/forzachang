@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, Player, Match } from '../lib/api';
+import { api, Player, Match, Event } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,32 +11,42 @@ export default function Admin() {
     if (!isAdmin) navigate('/kampe');
   }, [isAdmin]);
 
-  const [tab, setTab] = useState<'players' | 'matches' | 'stats'>('players');
+  const [tab, setTab] = useState<'players' | 'events' | 'matches' | 'stats' | 'settings'>('players');
+
+  const tabs: { key: typeof tab; label: string }[] = [
+    { key: 'players',  label: 'Spillere' },
+    { key: 'events',   label: 'Events' },
+    { key: 'matches',  label: 'Gamle kampe' },
+    { key: 'stats',    label: 'Statistik' },
+    { key: 'settings', label: 'Indstillinger' },
+  ];
 
   return (
     <div className="page">
       <div className="section-label" style={{ marginBottom: 10 }}>Admin panel</div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, flexWrap: 'wrap' }}>
-        {(['players', 'matches', 'stats'] as const).map(t => (
+        {tabs.map(({ key, label }) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={key}
+            onClick={() => setTab(key)}
             className="btn btn-sm"
             style={{
-              background: tab === t ? 'var(--cfc-bg-hover)' : 'transparent',
-              color: tab === t ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-              border: `0.5px solid ${tab === t ? 'var(--cfc-border)' : 'transparent'}`,
+              background: tab === key ? 'var(--cfc-bg-hover)' : 'transparent',
+              color: tab === key ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+              border: `0.5px solid ${tab === key ? 'var(--cfc-border)' : 'transparent'}`,
             }}
           >
-            {{ players: 'Spillere', matches: 'Kampe', stats: 'Statistik' }[t]}
+            {label}
           </button>
         ))}
       </div>
 
-      {tab === 'players' && <AdminPlayers />}
-      {tab === 'matches' && <AdminMatches />}
-      {tab === 'stats' && <AdminStats />}
+      {tab === 'players'  && <AdminPlayers />}
+      {tab === 'events'   && <AdminEvents />}
+      {tab === 'matches'  && <AdminMatches />}
+      {tab === 'stats'    && <AdminStats />}
+      {tab === 'settings' && <AdminSettings />}
     </div>
   );
 }
@@ -614,5 +624,253 @@ function AdminStats() {
         </>
       )}
     </>
+  );
+}
+
+// ── AdminEvents ───────────────────────────────────────────────────────────────
+
+function AdminEvents() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editEvent, setEditEvent] = useState<Event | null>(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [upcoming, history] = await Promise.all([
+        api.getEvents({ tab: 'kommende' }),
+        api.getEvents({ tab: 'historik' }),
+      ]);
+      setEvents([...upcoming, ...history]);
+    } catch {}
+    setLoading(false);
+  }
+
+  async function del(id: string, title: string) {
+    if (!confirm(`Slet "${title}"? Dette kan ikke fortrydes.`)) return;
+    await api.deleteEvent(id);
+    load();
+  }
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
+
+  return (
+    <>
+      <button className="btn btn-primary" style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }} onClick={() => setShowAdd(true)}>
+        + Opret event / kamp
+      </button>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {events.length === 0 && <div className="empty">Ingen events endnu.</div>}
+        {events.map((ev, i) => (
+          <div key={ev.id} style={{ borderBottom: i === events.length - 1 ? 'none' : '0.5px solid var(--cfc-border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, opacity: ev.status === 'aflyst' ? 0.6 : 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 2 }}>
+                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 100, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', background: ev.type === 'kamp' ? '#0f1a2e' : '#1a1200', color: ev.type === 'kamp' ? '#5b8dd9' : '#c4a000' }}>{ev.type}</span>
+                {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#e57373' }}>AFLYST</span>}
+                {ev.webcal_uid && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>webcal</span>}
+              </div>
+              <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+                {new Date(ev.start_time).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {ev.location && <> · {ev.location}</>}
+              </div>
+            </div>
+            <button className="btn btn-sm btn-secondary" onClick={() => setEditEvent(ev)}>Rediger</button>
+            <button className="btn btn-sm btn-danger" onClick={() => del(ev.id, ev.title)}>Slet</button>
+          </div>
+        ))}
+      </div>
+
+      {showAdd && <EventModal onClose={() => { setShowAdd(false); load(); }} />}
+      {editEvent && <EventModal event={editEvent} onClose={() => { setEditEvent(null); load(); }} />}
+    </>
+  );
+}
+
+function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) {
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [form, setForm] = useState({
+    type:           event?.type || 'kamp',
+    title:          event?.title || '',
+    description:    event?.description || '',
+    location:       event?.location || '',
+    start_time:     event?.start_time ? event.start_time.slice(0, 16) : '',
+    end_time:       event?.end_time ? event.end_time.slice(0, 16) : '',
+    meeting_time:   event?.meeting_time ? event.meeting_time.slice(0, 16) : '',
+    signup_deadline: event?.signup_deadline ? event.signup_deadline.slice(0, 16) : '',
+    season:         event?.season?.toString() || new Date().getFullYear().toString(),
+    status:         event?.status || 'aktiv',
+    result:         event?.result || '',
+  });
+  const [organizerIds, setOrganizerIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getPlayers().then(setPlayers).catch(() => {});
+  }, []);
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  function toggleOrganizer(id: string) {
+    setOrganizerIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]);
+  }
+
+  async function submit() {
+    if (!form.title || !form.start_time) { setError('Titel og starttidspunkt er påkrævet'); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        season: Number(form.season),
+        end_time: form.end_time || undefined,
+        meeting_time: form.meeting_time || undefined,
+        signup_deadline: form.signup_deadline || undefined,
+        result: form.result || undefined,
+        organizer_ids: organizerIds,
+      };
+      if (event) {
+        await api.updateEvent(event.id, payload);
+      } else {
+        await api.createEvent(payload);
+      }
+      onClose();
+    } catch (e: any) { setError(e.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <h2>{event ? 'Rediger event' : 'Opret event / kamp'}</h2>
+
+        <div className="form-row">
+          <label className="form-label">Type</label>
+          <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
+            <option value="kamp">Kamp</option>
+            <option value="event">Event</option>
+          </select>
+        </div>
+        {[
+          { key: 'title',           label: 'Titel',                  placeholder: 'fx AGF eller Julefrokost' },
+          { key: 'location',        label: 'Sted',                   placeholder: 'fx Bislett Stadion' },
+          { key: 'description',     label: 'Beskrivelse',            placeholder: '' },
+          { key: 'result',          label: 'Resultat (kampe)',        placeholder: 'fx 3-1' },
+        ].map(({ key, label, placeholder }) => (
+          <div key={key} className="form-row">
+            <label className="form-label">{label}</label>
+            {key === 'description'
+              ? <textarea className="input" rows={2} value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} style={{ resize: 'vertical' }} />
+              : <input className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} />}
+          </div>
+        ))}
+        {[
+          { key: 'start_time',      label: 'Starttidspunkt' },
+          { key: 'end_time',        label: 'Sluttidspunkt (flerdags)' },
+          { key: 'meeting_time',    label: 'Mødetid' },
+          { key: 'signup_deadline', label: 'Tilmeldingsfrist' },
+        ].map(({ key, label }) => (
+          <div key={key} className="form-row">
+            <label className="form-label">{label}</label>
+            <input type="datetime-local" className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} />
+          </div>
+        ))}
+        <div className="form-row">
+          <label className="form-label">Sæson</label>
+          <input className="input" value={form.season} onChange={e => set('season', e.target.value)} />
+        </div>
+        {event && (
+          <div className="form-row">
+            <label className="form-label">Status</label>
+            <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
+              <option value="aktiv">Aktiv</option>
+              <option value="aflyst">Aflyst</option>
+            </select>
+          </div>
+        )}
+
+        {/* Arrangører */}
+        {players.length > 0 && (
+          <div className="form-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+            <label className="form-label" style={{ marginBottom: 6 }}>Arrangører</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {players.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleOrganizer(p.id)}
+                  style={{
+                    fontSize: 12, padding: '3px 10px', borderRadius: 100, cursor: 'pointer',
+                    background: organizerIds.includes(p.id) ? '#162416' : 'var(--cfc-bg-hover)',
+                    color: organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-text-muted)',
+                    border: `0.5px solid ${organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-border)'}`,
+                  }}
+                >
+                  {p.name.split(' ')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : event ? 'Gem' : 'Opret'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AdminSettings ─────────────────────────────────────────────────────────────
+
+function AdminSettings() {
+  const [webcalUrl, setWebcalUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getSettings().then(s => {
+      setWebcalUrl(s.webcal_url || '');
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true); setMsg('');
+    try {
+      await api.updateSettings({ webcal_url: webcalUrl });
+      setMsg('Gemt');
+    } catch (e: any) { setMsg(e.message); }
+    setSaving(false);
+  }
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
+
+  return (
+    <div className="card">
+      <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Webcal-sync</h2>
+      <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+        Angiv webcal-URL fra holdets kalender. Synkroniseres automatisk én gang i døgnet.
+      </p>
+      <div className="form-row">
+        <label className="form-label">Webcal-URL</label>
+        <input
+          className="input"
+          value={webcalUrl}
+          onChange={e => setWebcalUrl(e.target.value)}
+          placeholder="webcal://... eller https://..."
+        />
+      </div>
+      {msg && <p style={{ fontSize: 13, color: msg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{msg}</p>}
+      <button className="btn btn-primary" onClick={save} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
+        {saving ? '...' : 'Gem'}
+      </button>
+    </div>
   );
 }

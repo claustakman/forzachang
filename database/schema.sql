@@ -83,6 +83,48 @@ INSERT OR IGNORE INTO fine_types (id, name, amount) VALUES
 INSERT OR IGNORE INTO players (id, name, email, password_hash, role) VALUES
   ('admin', 'Admin', 'admin@forzachang.dk', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin');
 
+-- ── Fase 3: Events og tilmeldinger ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL DEFAULT 'kamp',        -- 'kamp' | 'event'
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  start_time TEXT NOT NULL,                  -- ISO 8601
+  end_time TEXT,                             -- ISO 8601 (flerdags-events)
+  meeting_time TEXT,                         -- ISO 8601
+  signup_deadline TEXT,                      -- ISO 8601 (valgfrit)
+  status TEXT NOT NULL DEFAULT 'aktiv',      -- 'aktiv' | 'aflyst'
+  webcal_uid TEXT UNIQUE,                    -- UID fra iCal-feed (NULL = manuelt)
+  season INTEGER NOT NULL,                   -- kalenderår, fx 2025
+  result TEXT,                               -- kampresultat, fx '3-1'
+  created_by TEXT REFERENCES players(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS event_signups (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'tilmeldt',   -- 'tilmeldt' | 'afmeldt'
+  message TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS event_organizers (
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- Run these once against the existing DB via Cloudflare D1 dashboard console:
 -- ALTER TABLE players ADD COLUMN birth_date TEXT;

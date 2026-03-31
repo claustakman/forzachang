@@ -22,8 +22,59 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Migrate DB — add avatar_url column
-        run: npx wrangler d1 execute forzachang-db --command "ALTER TABLE players ADD COLUMN avatar_url TEXT;" --remote 2>&1 || true
+      - name: Migrate DB — players columns
+        run: |
+          npx wrangler d1 execute forzachang-db --command "ALTER TABLE players ADD COLUMN avatar_url TEXT;" --remote 2>&1 || true
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Migrate DB — fase 3 tabeller
+        run: |
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS events (
+              id TEXT PRIMARY KEY,
+              type TEXT NOT NULL DEFAULT 'kamp',
+              title TEXT NOT NULL,
+              description TEXT,
+              location TEXT,
+              start_time TEXT NOT NULL,
+              end_time TEXT,
+              meeting_time TEXT,
+              signup_deadline TEXT,
+              status TEXT NOT NULL DEFAULT 'aktiv',
+              webcal_uid TEXT UNIQUE,
+              season INTEGER NOT NULL,
+              result TEXT,
+              created_by TEXT REFERENCES players(id),
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS event_signups (
+              id TEXT PRIMARY KEY,
+              event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              status TEXT NOT NULL DEFAULT 'tilmeldt',
+              message TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(event_id, player_id)
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS event_organizers (
+              event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              PRIMARY KEY (event_id, player_id)
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS app_settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+          " 2>&1 || true
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
