@@ -47,10 +47,10 @@ forzachang/
 │   │   │   └── Layout.tsx      # Navigation shell
 │   │   └── pages/
 │   │       ├── Login.tsx
-│   │       ├── Matches.tsx     # Kampprogram + events (fase 3)
+│   │       ├── Matches.tsx     # Kalender: events + tilmeldinger (rutet som /kalender)
 │   │       ├── Stats.tsx       # Statistik (19 sæsoner)
 │   │       ├── Fines.tsx       # Bødekasse
-│   │       ├── Admin.tsx       # Spillere, events, kampe, statistik, indstillinger
+│   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings)
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload
 │   └── vite.config.ts
 └── .github/workflows/
@@ -160,6 +160,8 @@ forzachang/
 - Worker cron-job kører dagligt kl. 09:00 UTC
 - Sync-logik: tilføj nye, opdater ændrede, markér slettede som `aflyst`
 - Baseret på `webcal_uid` (iCal UID-felt)
+- Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
+- Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
 
 ---
 
@@ -245,9 +247,11 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | POST   | /api/events                   | trainer+    | Opret event                          |
 | PUT    | /api/events/:id               | trainer+/arrangør | Rediger event               |
 | DELETE | /api/events/:id               | trainer+    | Slet event                           |
-| POST   | /api/events/:id/signup        | player+     | Tilmeld/afmeld fra event             |
+| POST   | /api/events/:id/signup        | player+     | Tilmeld/afmeld fra event (body: status, message?, player_id?) |
+| DELETE | /api/events/:id/signup        | player+     | Annullér tilmelding (?player_id= for trainer-proxy) |
 | GET    | /api/settings                 | admin       | Hent app-indstillinger               |
 | PUT    | /api/settings                 | admin       | Gem app-indstillinger                |
+| POST   | /api/settings/sync            | admin       | Manuel webcal-sync                   |
 | GET    | /api/matches                  | player+     | Legacy: liste over kampe             |
 | POST   | /api/matches                  | admin       | Legacy: opret kamp                   |
 | POST   | /api/signups                  | player+     | Legacy: tilmeld/afmeld kamp          |
@@ -306,9 +310,35 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 
 ---
 
+## Kalender-side (Matches.tsx → /kalender)
+
+### Tilmelding
+- **One-click**: Tilmeld/Afmeld-knapper aktiverer med det samme — kommentar kan tilføjes bagefter via `+ kommentar`
+- **Annullering**: `↩ Annullér` fjerner tilmelding helt (DELETE signup)
+- Trainer/admin ser per-spiller Tilmeld/Afmeld-knapper i event-detaljevisningen
+
+### Opret/rediger event (modal)
+- Sluttid auto-fyldes til starttid når start sættes
+- Mødetid auto-fyldes til start − 40 min
+- Tilmeldingsfrist auto-fyldes til start − 7 dage
+- Alle tider redigérbare bagefter
+
+### Reminder-banner
+- Vises kun hvis bruger har ubesvareede events med frist inden for de næste **14 dage**
+- Tæller kun events med `my_status == null` og `signup_deadline` inden 14 dage
+
+### Quickfiltre (over søgefeltet)
+- **Alle** — ingen filtrerig
+- **Frist inden 14 dage** — events med deadline i de næste 14 dage
+- **Frist overskredet** — events med overskredet deadline og stadig `my_status == null`
+
+---
+
 ## Vigtige noter
 
 - JWT gemmes i `localStorage` på frontend
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
+- Navigation: tab "Kalender" (ikon 📅) rutet til `/kalender` → `Matches.tsx`
+- Admin-siden har kun to tabs: **Spillere** og **Indstillinger** (events/kampe/statistik administreres i Kalender-siden)
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
