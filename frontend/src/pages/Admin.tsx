@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api, Player, Match } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -297,7 +297,32 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(player.avatar_url || null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarMsg('');
+  }
+
+  async function uploadAvatar() {
+    if (!avatarFile) return;
+    setAvatarSaving(true); setAvatarMsg('');
+    try {
+      await api.uploadAvatar(player.id, avatarFile);
+      setAvatarMsg('Billede gemt');
+      setAvatarFile(null);
+    } catch (e: any) { setAvatarMsg(e.message); }
+    setAvatarSaving(false);
+  }
 
   async function submit() {
     if (!form.name) { setError('Navn må ikke være tomt'); return; }
@@ -322,6 +347,51 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Rediger {player.name}</h2>
+
+        {/* Avatar */}
+        <div className="form-row" style={{ alignItems: 'center' }}>
+          <label className="form-label">Profilbillede</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: 48, height: 48, borderRadius: '50%',
+                background: 'var(--cfc-bg-hover)',
+                border: '0.5px solid var(--cfc-border)',
+                overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, color: 'var(--cfc-text-subtle)',
+              }}
+            >
+              {avatarPreview
+                ? <img src={avatarPreview} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : '👤'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <button className="btn btn-sm btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                Vælg billede
+              </button>
+              {avatarFile && (
+                <button className="btn btn-sm btn-primary" onClick={uploadAvatar} disabled={avatarSaving}>
+                  {avatarSaving ? '...' : 'Upload'}
+                </button>
+              )}
+            </div>
+            {avatarMsg && (
+              <span style={{ fontSize: 12, color: avatarMsg === 'Billede gemt' ? 'var(--green)' : '#e57373' }}>
+                {avatarMsg}
+              </span>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={onFileChange}
+            />
+          </div>
+        </div>
+
         {[
           { key: 'name',           label: 'Navn',             placeholder: '' },
           { key: 'email',          label: 'Email',            placeholder: 'anders@email.dk' },
