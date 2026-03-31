@@ -162,23 +162,29 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
     <div style={{ borderBottom: isLast ? 'none' : '0.5px solid var(--cfc-border)', opacity: p.active === 0 ? 0.7 : 1 }}>
       {/* Hovedrække */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+        {/* Avatar */}
         <div style={{
-          width: 32, height: 32, borderRadius: '50%',
+          width: 36, height: 36, borderRadius: '50%',
           background: 'var(--cfc-bg-hover)',
           border: '0.5px solid var(--cfc-border)',
-          color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
+          overflow: 'hidden', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 600, flexShrink: 0,
-          overflow: 'hidden',
+          fontSize: 12, fontWeight: 600,
+          color: p.shirt_number != null ? 'var(--cfc-text-primary)' : 'var(--cfc-text-subtle)',
         }}>
           {p.avatar_url
             ? <img src={p.avatar_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : (p.shirt_number ?? '—')}
         </div>
-        <div style={{ flex: 1, minWidth: 0, fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {p.name}
+        {/* Nummer + navn */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {p.name}
+          </div>
+          {p.shirt_number != null && (
+            <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)' }}>#{p.shirt_number}</div>
+          )}
         </div>
-        <RoleBadge role={p.role} />
         <button className="btn btn-sm btn-secondary" onClick={onEdit}>Rediger</button>
         <button
           onClick={() => setOpen(o => !o)}
@@ -191,6 +197,9 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
       {/* Detaljer */}
       {open && (
         <div style={{ padding: '0 14px 12px 56px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <RoleBadge role={p.role} />
+          </div>
           <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Brugernavn</span> {p.id}
           </div>
