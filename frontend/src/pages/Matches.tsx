@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, Event, EventDetail } from '../lib/api';
+import { api, Event, EventDetail, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // ── Hjælpefunktioner ──────────────────────────────────────────────────────────
@@ -53,6 +53,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
   const [signing, setSigning] = useState(false);
   const [message, setMessage] = useState('');
   const [showMsg, setShowMsg] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => { loadDetail(); }, [event.id]);
 
@@ -173,9 +174,19 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
         )}
 
         <div className="modal-footer" style={{ marginTop: 16 }}>
+          {isTrainer && (
+            <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
+          )}
           <button className="btn btn-secondary" onClick={onClose}>Luk</button>
         </div>
       </div>
+
+      {editing && (
+        <EventModal
+          event={event}
+          onClose={() => { setEditing(false); loadDetail(); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -210,6 +221,7 @@ function SignupGroup({ label, signups, color }: {
 
 export default function Matches() {
   const { player } = useAuth();
+  const isTrainer = player?.role === 'trainer' || player?.role === 'admin';
   const [tab, setTab] = useState<'kommende' | 'historik'>('kommende');
   const [typeFilter, setTypeFilter] = useState('');
   const [seasonFilter, setSeasonFilter] = useState('');
@@ -217,6 +229,7 @@ export default function Matches() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Event | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -246,6 +259,17 @@ export default function Matches() {
           <span>⚠️</span>
           Du mangler at tilmelde dig {unanswered.length} {unanswered.length === 1 ? 'event' : 'events'}.
         </div>
+      )}
+
+      {/* Opret-knap for trainer/admin */}
+      {isTrainer && (
+        <button
+          className="btn btn-primary"
+          style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}
+          onClick={() => setShowCreate(true)}
+        >
+          + Opret event / kamp
+        </button>
       )}
 
       {/* Hoved-tabs */}
@@ -307,9 +331,149 @@ export default function Matches() {
           event={selected}
           onClose={() => setSelected(null)}
           onRefresh={load}
-          isTrainer={player?.role === 'trainer' || player?.role === 'admin'}
+          isTrainer={isTrainer}
         />
       )}
+
+      {showCreate && (
+        <EventModal onClose={() => { setShowCreate(false); load(); }} />
+      )}
+    </div>
+  );
+}
+
+// ── EventModal (opret / rediger) ──────────────────────────────────────────────
+
+function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) {
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [form, setForm] = useState({
+    type:            event?.type || 'kamp',
+    title:           event?.title || '',
+    description:     event?.description || '',
+    location:        event?.location || '',
+    start_time:      event?.start_time ? event.start_time.slice(0, 16) : '',
+    end_time:        event?.end_time ? event.end_time.slice(0, 16) : '',
+    meeting_time:    event?.meeting_time ? event.meeting_time.slice(0, 16) : '',
+    signup_deadline: event?.signup_deadline ? event.signup_deadline.slice(0, 16) : '',
+    season:          event?.season?.toString() || new Date().getFullYear().toString(),
+    status:          event?.status || 'aktiv',
+    result:          event?.result || '',
+  });
+  const [organizerIds, setOrganizerIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getPlayers().then(setPlayers).catch(() => {});
+  }, []);
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  function toggleOrganizer(id: string) {
+    setOrganizerIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]);
+  }
+
+  async function submit() {
+    if (!form.title || !form.start_time) { setError('Titel og starttidspunkt er påkrævet'); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        season: Number(form.season),
+        end_time: form.end_time || undefined,
+        meeting_time: form.meeting_time || undefined,
+        signup_deadline: form.signup_deadline || undefined,
+        result: form.result || undefined,
+        organizer_ids: organizerIds,
+      };
+      if (event) {
+        await api.updateEvent(event.id, payload);
+      } else {
+        await api.createEvent(payload);
+      }
+      onClose();
+    } catch (e: any) { setError(e.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <h2>{event ? 'Rediger event' : 'Opret event / kamp'}</h2>
+
+        <div className="form-row">
+          <label className="form-label">Type</label>
+          <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
+            <option value="kamp">Kamp</option>
+            <option value="event">Event</option>
+          </select>
+        </div>
+        {[
+          { key: 'title',       label: 'Titel',           placeholder: 'fx AGF eller Julefrokost' },
+          { key: 'location',    label: 'Sted',            placeholder: 'fx Bislett Stadion' },
+          { key: 'description', label: 'Beskrivelse',     placeholder: '' },
+          { key: 'result',      label: 'Resultat (kampe)', placeholder: 'fx 3-1' },
+        ].map(({ key, label, placeholder }) => (
+          <div key={key} className="form-row">
+            <label className="form-label">{label}</label>
+            {key === 'description'
+              ? <textarea className="input" rows={2} value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} style={{ resize: 'vertical' }} />
+              : <input className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} />}
+          </div>
+        ))}
+        {[
+          { key: 'start_time',      label: 'Starttidspunkt' },
+          { key: 'end_time',        label: 'Sluttidspunkt (flerdags)' },
+          { key: 'meeting_time',    label: 'Mødetid' },
+          { key: 'signup_deadline', label: 'Tilmeldingsfrist' },
+        ].map(({ key, label }) => (
+          <div key={key} className="form-row">
+            <label className="form-label">{label}</label>
+            <input type="datetime-local" className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} />
+          </div>
+        ))}
+        <div className="form-row">
+          <label className="form-label">Sæson</label>
+          <input className="input" value={form.season} onChange={e => set('season', e.target.value)} />
+        </div>
+        {event && (
+          <div className="form-row">
+            <label className="form-label">Status</label>
+            <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
+              <option value="aktiv">Aktiv</option>
+              <option value="aflyst">Aflyst</option>
+            </select>
+          </div>
+        )}
+
+        {players.length > 0 && (
+          <div className="form-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+            <label className="form-label" style={{ marginBottom: 6 }}>Arrangører</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {players.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleOrganizer(p.id)}
+                  style={{
+                    fontSize: 12, padding: '3px 10px', borderRadius: 100, cursor: 'pointer',
+                    background: organizerIds.includes(p.id) ? '#162416' : 'var(--cfc-bg-hover)',
+                    color: organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-text-muted)',
+                    border: `0.5px solid ${organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-border)'}`,
+                  }}
+                >
+                  {p.name.split(' ')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : event ? 'Gem' : 'Opret'}</button>
+        </div>
+      </div>
     </div>
   );
 }
