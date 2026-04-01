@@ -238,19 +238,26 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
   }).filter(Boolean);
 
   // Bødetyper og eksisterende bøder for dette event
-  const fineTypes = await env.DB.prepare(
-    'SELECT * FROM fine_types WHERE active=1 ORDER BY sort_order, name'
-  ).all();
-  const existingFines = await env.DB.prepare(
-    'SELECT player_id, fine_type_id FROM fines WHERE event_id=?'
-  ).bind(eventId).all();
+  // try/catch: robusthed hvis fase 6-tabellerne endnu ikke er migreret i prod
+  let fineTypes: any[] = [];
+  let existingFines: any[] = [];
+  try {
+    const [ft, ef] = await Promise.all([
+      env.DB.prepare('SELECT * FROM fine_types WHERE active=1 ORDER BY sort_order, name').all(),
+      env.DB.prepare('SELECT player_id, fine_type_id FROM fines WHERE event_id=?').bind(eventId).all(),
+    ]);
+    fineTypes = ft.results as any[];
+    existingFines = ef.results as any[];
+  } catch {
+    // Tabellerne eksisterer ikke endnu — returnér tomme lister
+  }
 
   return json({
     event,
     signups: signups.results,
     stats: existing.results,
     auto_stats: autoStats,
-    fine_types: fineTypes.results,
-    existing_fines: existingFines.results,
+    fine_types: fineTypes,
+    existing_fines: existingFines,
   });
 }
