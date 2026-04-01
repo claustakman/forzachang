@@ -213,35 +213,96 @@ function icalDateToISO(dt: string): string {
 // ── Email-påmindelser ─────────────────────────────────────────────────────────
 
 async function sendReminders(env: Env): Promise<void> {
-  const threeDaysFromNow = new Date();
-  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-  const targetDate = threeDaysFromNow.toISOString().slice(0, 10);
+  const now = new Date();
+  const in3days  = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const in8days  = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const nowIso   = now.toISOString();
 
-  const matches = await env.DB.prepare(
-    `SELECT * FROM matches WHERE date = ? ORDER BY time`
-  ).bind(targetDate).all();
+  // Events med tilmeldingsfrist: påmind hvis fristen er om præcis 3 dage (±12 timer)
+  const byDeadline = await env.DB.prepare(`
+    SELECT * FROM events
+    WHERE status = 'aktiv'
+    AND signup_deadline IS NOT NULL
+    AND signup_deadline > ?
+    AND signup_deadline <= ?
+  `).bind(nowIso, in3days).all();
 
-  for (const match of matches.results) {
+  // Events uden tilmeldingsfrist: påmind hvis start er om præcis 8 dage (±12 timer)
+  const byStart = await env.DB.prepare(`
+    SELECT * FROM events
+    WHERE status = 'aktiv'
+    AND signup_deadline IS NULL
+    AND start_time > ?
+    AND start_time <= ?
+  `).bind(nowIso, in8days).all();
+
+  const eventsToRemind = [...byDeadline.results, ...byStart.results];
+
+  for (const ev of eventsToRemind) {
+    // Find aktive spillere der ikke har meldt ud og ikke allerede fået auto-påmindelse
     const unsigned = await env.DB.prepare(`
-      SELECT p.id, p.name, p.email FROM players p
+      SELECT p.id, COALESCE(p.alias, p.name) as name, p.email
+      FROM players p
       WHERE p.active = 1
       AND p.email IS NOT NULL
       AND p.id NOT IN (
-        SELECT player_id FROM signups WHERE match_id = ?
+        SELECT player_id FROM event_signups
+        WHERE event_id = ? AND status IN ('tilmeldt', 'afmeldt')
       )
-    `).bind(match.id).all();
+      AND p.id NOT IN (
+        SELECT player_id FROM reminder_log
+        WHERE event_id = ? AND type = 'auto'
+      )
+    `).bind(ev.id, ev.id).all();
 
     for (const player of unsigned.results) {
       if (!player.email) continue;
-      await sendReminderEmail(env, player as any, match as any);
+      try {
+        await sendReminderEmail(env, player as any, ev as any);
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO reminder_log (id, event_id, player_id, type) VALUES (?, ?, ?, ?)'
+        ).bind(crypto.randomUUID(), ev.id, player.id, 'auto').run();
+      } catch (e) {
+        console.error('Reminder email failed:', e);
+      }
     }
   }
 }
 
-async function sendReminderEmail(env: Env, player: { name: string; email: string }, match: { date: string; time: string; opponent: string; venue: string }) {
-  const venueText = match.venue === 'home' ? 'hjemmekamp' : 'udekamp';
-  const dateFormatted = new Date(match.date + 'T12:00:00').toLocaleDateString('da-DK', {
-    weekday: 'long', day: 'numeric', month: 'long'
+export async function sendManualReminders(env: Env, eventId: string, playerIds: string[]): Promise<number> {
+  const ev = await env.DB.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).first();
+  if (!ev) return 0;
+
+  let sent = 0;
+  for (const playerId of playerIds) {
+    const player = await env.DB.prepare(
+      'SELECT id, COALESCE(alias, name) as name, email FROM players WHERE id = ? AND active = 1'
+    ).bind(playerId).first();
+    if (!player?.email) continue;
+    try {
+      await sendReminderEmail(env, player as any, ev as any);
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO reminder_log (id, event_id, player_id, type) VALUES (?, ?, ?, ?)'
+      ).bind(crypto.randomUUID(), eventId, playerId, 'manual').run();
+      sent++;
+    } catch (e) {
+      console.error('Manual reminder failed:', e);
+    }
+  }
+  return sent;
+}
+
+async function sendReminderEmail(
+  env: Env,
+  player: { name: string; email: string },
+  ev: { title: string; start_time: string; location?: string; type: string }
+) {
+  const appUrl = env.APP_URL || 'https://forzachang.pages.dev';
+  const dateFormatted = new Date(ev.start_time).toLocaleDateString('da-DK', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+  const timeFormatted = new Date(ev.start_time).toLocaleTimeString('da-DK', {
+    hour: '2-digit', minute: '2-digit',
   });
 
   await fetch('https://api.resend.com/emails', {
@@ -251,30 +312,30 @@ async function sendReminderEmail(env: Env, player: { name: string; email: string
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Forza Chang FC <noreply@forzachang.dk>',
-      to: player.email,
-      subject: `Husk tilmelding: ${match.opponent} ${dateFormatted}`,
+      from: 'Copenhagen Forza Chang <onboarding@resend.dev>',
+      to: player.email as string,
+      subject: `Husk tilmelding: ${ev.title} ${dateFormatted}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-          <div style="background:#1D9E75;padding:24px;border-radius:12px 12px 0 0">
-            <h1 style="color:#fff;margin:0;font-size:20px">Forza Chang FC</h1>
+          <div style="background:#0a0a0a;padding:24px;border-radius:12px 12px 0 0;text-align:center">
+            <img src="${appUrl}/logo-email.jpg" alt="CFC" style="height:60px" />
           </div>
-          <div style="background:#fff;padding:24px;border:1px solid #eee;border-radius:0 0 12px 12px">
-            <p>Hej ${player.name},</p>
-            <p>Du har endnu ikke meldt dig til <strong>${match.opponent}</strong>.</p>
+          <div style="background:#1a1a1a;padding:24px;border:1px solid #2a2a2a;border-radius:0 0 12px 12px;color:#ffffff">
+            <p style="color:#888;margin-top:0">Hej ${player.name},</p>
+            <p>Du har endnu ikke meldt dig til <strong style="color:#fff">${ev.title}</strong>.</p>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
-              <tr><td style="color:#666;padding:4px 0">Dato</td><td style="font-weight:500">${dateFormatted}</td></tr>
-              <tr><td style="color:#666;padding:4px 0">Tid</td><td style="font-weight:500">${match.time}</td></tr>
-              <tr><td style="color:#666;padding:4px 0">Type</td><td style="font-weight:500">${venueText}</td></tr>
+              <tr><td style="color:#888;padding:4px 0">Dato</td><td style="font-weight:500;color:#fff">${dateFormatted}</td></tr>
+              <tr><td style="color:#888;padding:4px 0">Tid</td><td style="font-weight:500;color:#fff">${timeFormatted}</td></tr>
+              ${ev.location ? `<tr><td style="color:#888;padding:4px 0">Sted</td><td style="font-weight:500;color:#fff">${ev.location}</td></tr>` : ''}
             </table>
-            <a href="${env.APP_URL}" style="display:inline-block;background:#1D9E75;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:500">
-              Tilmeld dig nu
+            <a href="${appUrl}/kalender?filter=manglende" style="display:inline-block;background:#5a9e5a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
+              Tilmeld dig nu →
             </a>
-            <p style="color:#999;font-size:12px;margin-top:24px">Forza Chang FC · Du modtager denne email fordi du er registreret spiller.</p>
+            <p style="color:#555;font-size:12px;margin-top:24px">Copenhagen Forza Chang · Du modtager denne email fordi du er registreret spiller.</p>
           </div>
         </div>
-      `
-    })
+      `,
+    }),
   });
 }
 

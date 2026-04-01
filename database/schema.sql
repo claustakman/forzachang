@@ -140,6 +140,15 @@ CREATE TABLE IF NOT EXISTS login_log (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS reminder_log (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  type TEXT NOT NULL DEFAULT 'auto',   -- 'auto' | 'manual'
+  UNIQUE(event_id, player_id, type)
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
 -- ALTER TABLE players ADD COLUMN last_seen TEXT;

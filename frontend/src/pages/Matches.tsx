@@ -95,6 +95,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   const [guestName, setGuestName] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
   const [showGuestInput, setShowGuestInput] = useState(false);
+  const [showRemind, setShowRemind] = useState(false);
+  const [remindPlayers, setRemindPlayers] = useState<Player[]>([]);
+  const [remindSelected, setRemindSelected] = useState<Set<string>>(new Set());
+  const [reminding, setReminding] = useState(false);
+  const [remindDone, setRemindDone] = useState<number | null>(null);
 
   useEffect(() => { loadDetail(); }, [event.id]);
 
@@ -135,6 +140,28 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
       onRefresh();
     } catch (e: any) { alert(e.message); }
     setAddingGuest(false);
+  }
+
+  async function openRemind() {
+    setShowRemind(true);
+    setRemindDone(null);
+    if (!detail) return;
+    const ps = allPlayers.length > 0 ? allPlayers : await api.getPlayers().catch(() => [] as Player[]);
+    if (allPlayers.length === 0) setAllPlayers(ps);
+    const signedIds = new Set(detail.signups.map(s => s.player_id));
+    const unsigned = ps.filter(p => p.active && !signedIds.has(p.id));
+    setRemindPlayers(unsigned);
+    setRemindSelected(new Set(unsigned.map(p => p.id)));
+  }
+
+  async function doRemind() {
+    if (remindSelected.size === 0) return;
+    setReminding(true);
+    try {
+      const res = await api.sendReminders(event.id, Array.from(remindSelected));
+      setRemindDone(res.sent);
+    } catch (e: any) { alert(e.message); }
+    setReminding(false);
   }
 
   async function doDeleteGuest(guest: EventGuest) {
@@ -442,10 +469,63 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           </div>
         )}
 
+        {/* Påmind-panel */}
+        {isTrainer && showRemind && detail && (
+          <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#c4a000', marginBottom: 8 }}>
+              Send påmindelse
+            </div>
+            {remindDone !== null ? (
+              <div style={{ color: '#5a9e5a', fontSize: 13, marginBottom: 8 }}>
+                ✓ Påmindelse sendt til {remindDone} {remindDone === 1 ? 'spiller' : 'spillere'}
+              </div>
+            ) : remindPlayers.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>Alle spillere har allerede meldt ud.</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8, maxHeight: 160, overflowY: 'auto' }}>
+                  {remindPlayers.map(p => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={remindSelected.has(p.id)}
+                        onChange={e => {
+                          const next = new Set(remindSelected);
+                          if (e.target.checked) next.add(p.id); else next.delete(p.id);
+                          setRemindSelected(next);
+                        }}
+                      />
+                      <span style={{ color: 'var(--cfc-text-primary)' }}>{displayName(p)}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={reminding || remindSelected.size === 0}
+                    onClick={doRemind}
+                    style={{ fontSize: 12 }}
+                  >
+                    {reminding ? '...' : `Send til ${remindSelected.size}`}
+                  </button>
+                  <button className="btn btn-sm btn-secondary" onClick={() => setShowRemind(false)} style={{ fontSize: 12 }}>
+                    Luk
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="modal-footer" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" style={{ opacity: 0.6 }} onClick={() => {}} title="Kommer snart">
-            🔔 Påmind
-          </button>
+          {isTrainer && event.status === 'aktiv' && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
+            >
+              🔔 Påmind
+            </button>
+          )}
           {isTrainer && (
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
           )}
@@ -483,7 +563,7 @@ function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: str
 
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
-type QuickFilter = '' | 'frist14' | 'fristover';
+type QuickFilter = '' | 'frist14' | 'manglende';
 
 export default function Matches() {
   const { player } = useAuth();
@@ -526,17 +606,19 @@ export default function Matches() {
 
   const displayed = events.filter(ev => {
     if (quickFilter === '') return true;
-    if (!ev.signup_deadline) return false;
-    const dl = new Date(ev.signup_deadline);
-    if (quickFilter === 'frist14') return dl >= now && dl <= in14days;
-    if (quickFilter === 'fristover') return dl < now && ev.my_status == null;
+    if (quickFilter === 'frist14') {
+      if (!ev.signup_deadline) return false;
+      const dl = new Date(ev.signup_deadline);
+      return dl >= now && dl <= in14days;
+    }
+    if (quickFilter === 'manglende') return ev.my_status == null && ev.status === 'aktiv';
     return true;
   });
 
   const quickFilters: { key: QuickFilter; label: string }[] = [
-    { key: '',          label: 'Alle' },
-    { key: 'frist14',   label: 'Frist inden 14 dage' },
-    { key: 'fristover', label: 'Frist overskredet' },
+    { key: '',           label: 'Alle' },
+    { key: 'frist14',    label: 'Frist inden 14 dage' },
+    { key: 'manglende',  label: 'Manglende tilmelding' },
   ];
 
   return (
@@ -649,11 +731,18 @@ function EventRow({ event: ev, onClick }: {
   event: Event;
   onClick: () => void;
 }) {
+  const now = new Date();
+  const in8days = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+  const isUrgent = ev.my_status == null && ev.status === 'aktiv' &&
+    new Date(ev.start_time) > now && new Date(ev.start_time) <= in8days;
+
   return (
     <button
       onClick={onClick}
       style={{
-        width: '100%', textAlign: 'left', background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)',
+        width: '100%', textAlign: 'left',
+        background: isUrgent ? '#1a1200' : 'var(--cfc-bg-card)',
+        border: `0.5px solid ${isUrgent ? '#c4a000' : 'var(--cfc-border)'}`,
         borderRadius: 10, cursor: 'pointer', padding: '12px 14px',
         display: 'flex', alignItems: 'stretch', gap: 14,
         opacity: ev.status === 'aflyst' ? 0.5 : 1,
@@ -686,7 +775,7 @@ function EventRow({ event: ev, onClick }: {
           <TypeBadge type={ev.type} />
           {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#e57373', fontWeight: 700 }}>AFLYST</span>}
         </div>
-        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Georgia, serif' }}>
+        <div style={{ fontWeight: isUrgent ? 800 : 700, fontSize: 15, color: isUrgent ? '#c4a000' : 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Georgia, serif' }}>
           {ev.title}
         </div>
         <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0 6px' }}>

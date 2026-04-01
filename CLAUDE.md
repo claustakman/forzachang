@@ -31,7 +31,7 @@ forzachang/
 │   │   └── routes/
 │   │       ├── auth.ts
 │   │       ├── players.ts      # Inkl. POST /:id/avatar → R2
-│   │       ├── events.ts       # Events + tilmeldinger (fase 3)
+│   │       ├── events.ts       # Events + tilmeldinger + gæster + påmindelser
 │   │       ├── settings.ts     # App-indstillinger (webcal URL m.m.)
 │   │       ├── matches.ts      # Gamle kampe (legacy)
 │   │       ├── signups.ts      # Gamle tilmeldinger (legacy)
@@ -65,7 +65,7 @@ forzachang/
 | Rolle     | Rettigheder                                                                    |
 |-----------|--------------------------------------------------------------------------------|
 | `player`  | Se kampe/events, tilmelde sig, se statistik og bøder, redigere egen profil    |
-| `trainer` | Alt ovenstående + oprette/redigere events, føre statistik, give bøder          |
+| `trainer` | Alt ovenstående + oprette/redigere events, føre statistik, give bøder, sende påmindelser |
 | `admin`   | Alt + oprette/redigere spillere, tildele roller, webcal-indstillinger          |
 
 ---
@@ -74,21 +74,23 @@ forzachang/
 
 ### Spiller (`players`)
 
-| Felt             | Type    | Beskrivelse                           |
-|------------------|---------|---------------------------------------|
-| `id`             | TEXT    | UUID (bruges også som login-brugernavn) |
-| `name`           | TEXT    | Fulde navn                            |
-| `birth_date`     | TEXT    | Fødselsdato (ISO 8601)                |
-| `email`          | TEXT    | Email                                 |
-| `phone`          | TEXT    | Telefonnummer                         |
-| `shirt_number`   | INTEGER | Trøjenummer                           |
-| `license_number` | TEXT    | DBU licensnummer                      |
-| `avatar_url`     | TEXT    | URL til profilbillede i R2            |
-| `active`         | INTEGER | 1 = aktiv, 0 = passiv                 |
-| `role`           | TEXT    | `player`, `trainer` eller `admin`     |
-| `created_at`     | TEXT    | Oprettelsestidspunkt                  |
+| Felt             | Type    | Beskrivelse                                        |
+|------------------|---------|----------------------------------------------------|
+| `id`             | TEXT    | UUID (bruges også som login-brugernavn)            |
+| `name`           | TEXT    | Fulde navn                                         |
+| `alias`          | TEXT    | Kaldenavn — vises i stedet for fornavn i frontend  |
+| `birth_date`     | TEXT    | Fødselsdato (ISO 8601)                             |
+| `email`          | TEXT    | Email                                              |
+| `phone`          | TEXT    | Telefonnummer                                      |
+| `shirt_number`   | INTEGER | Trøjenummer                                        |
+| `license_number` | TEXT    | DBU licensnummer                                   |
+| `avatar_url`     | TEXT    | URL til profilbillede i R2                         |
+| `active`         | INTEGER | 1 = aktiv, 0 = passiv                              |
+| `role`           | TEXT    | `player`, `trainer` eller `admin`                  |
+| `last_seen`      | TEXT    | Tidsstempel for seneste API-kald (auto-opdateret)  |
+| `created_at`     | TEXT    | Oprettelsestidspunkt                               |
 
-### Events (`events`) — fase 3
+### Events (`events`)
 
 | Felt              | Type    | Beskrivelse                                      |
 |-------------------|---------|--------------------------------------------------|
@@ -108,7 +110,7 @@ forzachang/
 | `created_by`      | TEXT    | FK → players.id                                  |
 | `created_at`      | TEXT    | Oprettelsestidspunkt                             |
 
-### Tilmeldinger (`event_signups`) — fase 3
+### Tilmeldinger (`event_signups`)
 
 | Felt         | Type | Beskrivelse                                       |
 |--------------|------|---------------------------------------------------|
@@ -119,7 +121,7 @@ forzachang/
 | `message`    | TEXT | Valgfri besked, fx "kommer 30 min for sent"       |
 | `created_at` | TEXT | Tidsstempel for seneste ændring                   |
 
-### Arrangører (`event_organizers`) — fase 3
+### Arrangører (`event_organizers`)
 
 | Felt        | Type | Beskrivelse       |
 |-------------|------|-------------------|
@@ -133,6 +135,39 @@ forzachang/
 | `key`        | TEXT | Nøgle, fx `webcal_url`             |
 | `value`      | TEXT | Værdi                              |
 | `updated_at` | TEXT | Tidsstempel                        |
+
+### Gæster (`event_guests`)
+
+| Felt         | Type | Beskrivelse                          |
+|--------------|------|--------------------------------------|
+| `id`         | TEXT | UUID                                 |
+| `event_id`   | TEXT | FK → events.id                       |
+| `name`       | TEXT | Gæstens navn                         |
+| `added_by`   | TEXT | FK → players.id (trainer/admin)      |
+| `created_at` | TEXT | Oprettelsestidspunkt                 |
+
+Gæster tæller med i `signup_count`, vises i tilmeldingslisten, men har ingen bruger og tæller ikke i statistik eller bøder.
+
+### Login-log (`login_log`)
+
+| Felt         | Type | Beskrivelse                          |
+|--------------|------|--------------------------------------|
+| `id`         | TEXT | UUID                                 |
+| `player_id`  | TEXT | FK → players.id                      |
+| `ip`         | TEXT | IP-adresse (CF-Connecting-IP)        |
+| `created_at` | TEXT | Tidsstempel for login                |
+
+### Påmindelses-log (`reminder_log`)
+
+| Felt         | Type | Beskrivelse                          |
+|--------------|------|--------------------------------------|
+| `id`         | TEXT | UUID                                 |
+| `event_id`   | TEXT | FK → events.id                       |
+| `player_id`  | TEXT | FK → players.id                      |
+| `sent_at`    | TEXT | Tidsstempel                          |
+| `type`       | TEXT | `auto` eller `manual`                |
+
+UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate påmindelser per type.
 
 ### Legacy-tabeller (bruges stadig til gammel statistik-integration)
 - `matches` — gamle kampe (bruges af stats-integration)
@@ -155,13 +190,41 @@ forzachang/
 - Public URL: `https://pub-afc843d1587d4ae3a4aa8f3d76547493.r2.dev/avatars/{id}.{ext}`
 - Maks. 5 MB, kun JPG/PNG/WebP
 
+### Alias
+- Spillere kan sætte alias på egen profil (Min profil → Oplysninger)
+- Admin kan sætte alias i Admin → Spillere → Rediger
+- `displayName(p)` helper i `api.ts` returnerer `alias ?? fornavn`
+- Backend bruger `COALESCE(p.alias, p.name)` i alle JOIN-queries (events, stats, fines)
+- Alias er rent kosmetisk — tilmeldinger og statistik er altid gemt på `player_id`
+
+### Aktivitet / last_seen
+- `players.last_seen` opdateres automatisk ved hvert authenticated API-kald (fire-and-forget)
+- Vises i Admin → Spillere → fold ud → "Sidst aktiv: ..."
+- Login-log (`login_log`) gemmer tidsstempel + IP ved hvert succesfuldt login
+- Admin kan se seneste 50 logins pr. spiller via "🕐 Aktivitet"-knappen
+
 ### Webcal-sync
 - Admin angiver webcal-URL under Admin → Indstillinger
 - Worker cron-job kører dagligt kl. 09:00 UTC
 - Sync-logik: tilføj nye, opdater ændrede, markér slettede som `aflyst`
 - Baseret på `webcal_uid` (iCal UID-felt)
 - Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
+- Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
+
+### Påmindelser (fase 4)
+- **Automatiske** (cron, dagligt kl. 09:00 UTC):
+  - Med tilmeldingsfrist: sender påmindelse 3 dage før fristen
+  - Uden tilmeldingsfrist: sender påmindelse 8 dage før start
+  - Kun aktive spillere med email der ikke har tilmeldt/afmeldt sig
+  - Sendes kun én gang per spiller per event (sporres i `reminder_log` med `type='auto'`)
+- **Manuelle** (trainer/admin via "🔔 Påmind"-knap i event-detaljeview):
+  - Viser liste over spillere der ikke har meldt ud — med checkboxes
+  - Sender direkte, ingen bekræftelsesdialog
+  - Logges i `reminder_log` med `type='manual'` (kan sendes igen)
+- Email-afsender: `onboarding@resend.dev` (midlertidigt — skiftes til eget domæne)
+- Email indeholder: link til `/kalender?filter=manglende`
+- Logo-fil til email: `frontend/public/logo-email.jpg`
 
 ---
 
@@ -235,31 +298,35 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 
 ## API-struktur (Worker routes)
 
-| Method | Path                          | Rolle       | Beskrivelse                          |
-|--------|-------------------------------|-------------|--------------------------------------|
-| POST   | /api/auth/login               | Alle        | Login, returnerer JWT                |
-| GET    | /api/players                  | admin       | Liste over spillere                  |
-| POST   | /api/players                  | admin       | Opret spiller                        |
-| PUT    | /api/players/:id              | self/admin  | Opdater spiller                      |
-| POST   | /api/players/:id/avatar       | self/admin  | Upload profilbillede til R2          |
-| GET    | /api/events                   | player+     | Liste over events (med filtre)       |
-| GET    | /api/events/:id               | player+     | Detaljer inkl. tilmeldinger          |
-| POST   | /api/events                   | trainer+    | Opret event                          |
-| PUT    | /api/events/:id               | trainer+/arrangør | Rediger event               |
-| DELETE | /api/events/:id               | trainer+    | Slet event                           |
-| POST   | /api/events/:id/signup        | player+     | Tilmeld/afmeld fra event (body: status, message?, player_id?) |
-| DELETE | /api/events/:id/signup        | player+     | Annullér tilmelding (?player_id= for trainer-proxy) |
-| GET    | /api/settings                 | admin       | Hent app-indstillinger               |
-| PUT    | /api/settings                 | admin       | Gem app-indstillinger                |
-| POST   | /api/settings/sync            | admin       | Manuel webcal-sync                   |
-| GET    | /api/matches                  | player+     | Legacy: liste over kampe             |
-| POST   | /api/matches                  | admin       | Legacy: opret kamp                   |
-| POST   | /api/signups                  | player+     | Legacy: tilmeld/afmeld kamp          |
-| GET    | /api/stats                    | player+     | Hent statistik                       |
-| POST   | /api/stats                    | admin       | Opdater statistik                    |
-| GET    | /api/fines                    | player+     | Se bøder                             |
-| POST   | /api/fines                    | trainer+    | Giv bøde                             |
-| PATCH  | /api/fines/:id                | trainer+    | Markér bøde betalt                   |
+| Method | Path                          | Rolle          | Beskrivelse                          |
+|--------|-------------------------------|----------------|--------------------------------------|
+| POST   | /api/auth/login               | Alle           | Login, returnerer JWT                |
+| GET    | /api/players                  | admin          | Liste over spillere                  |
+| POST   | /api/players                  | admin          | Opret spiller                        |
+| PUT    | /api/players/:id              | self/admin     | Opdater spiller                      |
+| POST   | /api/players/:id/avatar       | self/admin     | Upload profilbillede til R2          |
+| GET    | /api/players/:id/logins       | admin          | Seneste 50 logins for spiller        |
+| GET    | /api/events                   | player+        | Liste over events (med filtre)       |
+| GET    | /api/events/:id               | player+        | Detaljer inkl. tilmeldinger          |
+| POST   | /api/events                   | trainer+       | Opret event                          |
+| PUT    | /api/events/:id               | trainer+/arrangør | Rediger event                     |
+| DELETE | /api/events/:id               | trainer+       | Slet event                           |
+| POST   | /api/events/:id/signup        | player+        | Tilmeld/afmeld fra event (body: status, message?, player_id?) |
+| DELETE | /api/events/:id/signup        | player+        | Annullér tilmelding (?player_id= for trainer-proxy) |
+| POST   | /api/events/:id/guests        | trainer+       | Tilføj gæst til event                |
+| DELETE | /api/events/:id/guests/:gid   | trainer+       | Fjern gæst fra event                 |
+| POST   | /api/events/:id/remind        | trainer+       | Send manuelle påmindelser (body: player_ids[]) |
+| GET    | /api/settings                 | admin          | Hent app-indstillinger               |
+| PUT    | /api/settings                 | admin          | Gem app-indstillinger                |
+| POST   | /api/settings/sync            | admin          | Manuel webcal-sync                   |
+| GET    | /api/matches                  | player+        | Legacy: liste over kampe             |
+| POST   | /api/matches                  | admin          | Legacy: opret kamp                   |
+| POST   | /api/signups                  | player+        | Legacy: tilmeld/afmeld kamp          |
+| GET    | /api/stats                    | player+        | Hent statistik                       |
+| POST   | /api/stats                    | admin          | Opdater statistik                    |
+| GET    | /api/fines                    | player+        | Se bøder                             |
+| POST   | /api/fines                    | trainer+       | Giv bøde                             |
+| PATCH  | /api/fines/:id                | trainer+       | Markér bøde betalt                   |
 
 ---
 
@@ -271,6 +338,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 
 ### Logo
 - Fil: `frontend/src/assets/logo.svg` (transparent SVG — bruges på mørk baggrund)
+- Email-logo: `frontend/public/logo-email.jpg` (JPG — bruges i email-skabeloner)
 - Brug aldrig logoet på hvid baggrund uden at teste kontrasten
 
 ### Farveskema (sort/hvid — dark theme)
@@ -324,13 +392,23 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Alle tider redigérbare bagefter
 
 ### Reminder-banner
-- Vises kun hvis bruger har ubesvareede events med frist inden for de næste **14 dage**
+- Vises kun hvis bruger har ubesvarede events med frist inden for de næste **14 dage**
 - Tæller kun events med `my_status == null` og `signup_deadline` inden 14 dage
 
 ### Quickfiltre (over søgefeltet)
-- **Alle** — ingen filtrerig
+- **Alle** — ingen filtrering
 - **Frist inden 14 dage** — events med deadline i de næste 14 dage
-- **Frist overskredet** — events med overskredet deadline og stadig `my_status == null`
+- **Manglende tilmelding** — aktive events hvor brugeren ikke har nogen tilmelding
+
+### Urgent-markering
+- Events med `my_status == null` og `start_time` inden for 8 dage vises med gul baggrund og fed gul titel
+- Gælder kun aktive events i fremtiden
+
+### Påmind-knap (trainer/admin)
+- Vises i event-detaljemodal for aktive events
+- Åbner panel med liste over spillere der ikke har meldt ud (checkboxes, alle pre-selected)
+- Sender email-påmindelser direkte — ingen bekræftelsesdialog
+- Viser "✓ Påmindelse sendt til X spillere" efter afsendelse
 
 ---
 

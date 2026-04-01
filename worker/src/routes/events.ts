@@ -1,4 +1,4 @@
-import { json, Env } from '../index';
+import { json, Env, sendManualReminders } from '../index';
 import type { JWTPayload } from '../lib/auth';
 
 function nanoid() {
@@ -68,6 +68,17 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
     if (!guestId) return json({ error: 'Mangler gæst-id' }, 400);
     await env.DB.prepare('DELETE FROM event_guests WHERE id=? AND event_id=?').bind(guestId, id).run();
     return json({ ok: true });
+  }
+
+  // ── POST /api/events/:id/remind — send manuelle påmindelser ─────────────
+  if (request.method === 'POST' && id && sub === 'remind') {
+    if (!isTrainer) return json({ error: 'Forbidden' }, 403);
+    const { player_ids } = await request.json() as { player_ids: string[] };
+    if (!Array.isArray(player_ids) || player_ids.length === 0) {
+      return json({ error: 'Mangler player_ids' }, 400);
+    }
+    const sent = await sendManualReminders(env, id, player_ids);
+    return json({ ok: true, sent });
   }
 
   // ── GET /api/events/:id ──────────────────────────────────────────────────

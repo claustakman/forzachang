@@ -117,6 +117,8 @@ export const api = {
     req<{ ok: boolean }>('POST', `/events/${id}/guests`, { name }),
   deleteEventGuest: (eventId: string, guestId: string) =>
     req<{ ok: boolean }>('DELETE', `/events/${eventId}/guests/${guestId}`),
+  sendReminders: (eventId: string, playerIds: string[]) =>
+    req<{ ok: boolean; sent: number }>('POST', `/events/${eventId}/remind`, { player_ids: playerIds }),
 
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
