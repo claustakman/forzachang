@@ -158,8 +158,10 @@ CREATE TABLE IF NOT EXISTS match_stats (
   goals INTEGER NOT NULL DEFAULT 0,
   yellow_cards INTEGER NOT NULL DEFAULT 0,
   red_cards INTEGER NOT NULL DEFAULT 0,
-  mom INTEGER NOT NULL DEFAULT 0,        -- 1 = Man of the Match (kun én per kamp)
-  played INTEGER NOT NULL DEFAULT 1,     -- 0 = registreret afbud
+  mom INTEGER NOT NULL DEFAULT 0,          -- 1 = Man of the Match (kun én per kamp)
+  played INTEGER NOT NULL DEFAULT 1,       -- 0 = registreret afbud
+  late_signup INTEGER NOT NULL DEFAULT 0,  -- 1 = tilmeldt efter tilmeldingsfristen
+  absence INTEGER NOT NULL DEFAULT 0,      -- 1 = meldt afbud (afmeldt)
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(event_id, player_id)
 );

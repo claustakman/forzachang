@@ -285,6 +285,8 @@ export interface MatchStatRow {
   red_cards: number;
   mom: number;
   played: number;
+  late_signup: number;
+  absence: number;
 }
 
 export interface EventStatsSignup {
@@ -292,12 +294,14 @@ export interface EventStatsSignup {
   name: string;
   avatar_url?: string;
   status: 'tilmeldt' | 'afmeldt';
+  signed_at?: string;
 }
 
 export interface EventStatsResponse {
   event: Event;
   signups: EventStatsSignup[];
   stats: (MatchStatRow & { id: string; event_id: string })[];
+  auto_stats: MatchStatRow[];
 }
 
 export interface PlayerSeasonStats {
@@ -310,10 +314,13 @@ export interface PlayerSeasonStats {
   fines_amount?: number;
 }
 
-// Udvidet StatRow med mom og active
+// Udvidet StatRow med mom, active, avatar og fuldt navn
 export interface StatsRow {
   id: string;
-  name: string;
+  name: string;         // alias ?? fornavn (til visning)
+  full_name: string;    // fuldt navn (til spillerprofil-header)
+  alias?: string;
+  avatar_url?: string;
   active: number;
   matches: number;
   goals: number;

@@ -60,12 +60,14 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
       <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-            {player.avatar_url
-              ? <img src={player.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : displayName(player).charAt(0)}
+            {(player as any).avatar_url
+              ? <img src={(player as any).avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : ((player as any).alias?.trim() || (player as any).full_name || player.name).charAt(0)}
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>{displayName(player)}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
+              {(player as any).alias?.trim() || (player as any).full_name || player.name}
+            </div>
             {player.shirt_number && <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>#{player.shirt_number}</div>}
           </div>
         </div>

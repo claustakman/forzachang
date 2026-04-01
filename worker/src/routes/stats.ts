@@ -54,7 +54,9 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     const modernRows = await env.DB.prepare(`
       SELECT
         p.id,
-        COALESCE(p.alias, p.name) as name,
+        p.name as full_name,
+        p.alias,
+        p.avatar_url,
         p.active,
         e.season,
         COALESCE(SUM(CASE WHEN ms.played=1 THEN 1 ELSE 0 END), 0) as matches,
@@ -72,7 +74,9 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     const legacyRows = await env.DB.prepare(`
       SELECT
         p.id,
-        COALESCE(p.alias, p.name) as name,
+        p.name as full_name,
+        p.alias,
+        p.avatar_url,
         p.active,
         psl.season,
         psl.matches,
@@ -87,7 +91,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     `).all();
 
     // Aggreger per spiller (summer alle sæsoner hvis ingen sæsonfilter)
-    type Row = { id: string; name: string; active: number; season?: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number };
+    type Row = { id: string; name: string; full_name: string; alias?: string; avatar_url?: string; active: number; season?: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number };
     const map = new Map<string, Row>();
 
     // Moderne sæsoner der er dækket af match_stats
@@ -95,13 +99,13 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     for (const r of modernRows.results as any[]) {
       if (!modernSeasonsByPlayer.has(r.id)) modernSeasonsByPlayer.set(r.id, new Set());
       modernSeasonsByPlayer.get(r.id)!.add(r.season);
-      const key = season ? r.id : r.id;
+      const displayName = r.alias?.trim() || r.full_name.split(' ')[0];
       const ex = map.get(r.id);
       if (ex) {
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
         ex.yellow_cards += r.yellow_cards; ex.red_cards += r.red_cards;
       } else {
-        map.set(r.id, { id: r.id, name: r.name, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
+        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
       }
     }
 
@@ -109,12 +113,13 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     for (const r of legacyRows.results as any[]) {
       const coveredSeasons = modernSeasonsByPlayer.get(r.id);
       if (coveredSeasons?.has(r.season)) continue; // moderne data vinder
+      const displayName = r.alias?.trim() || r.full_name.split(' ')[0];
       const ex = map.get(r.id);
       if (ex) {
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
         ex.yellow_cards += r.yellow_cards; ex.red_cards += r.red_cards;
       } else {
-        map.set(r.id, { id: r.id, name: r.name, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
+        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
       }
     }
 
@@ -135,18 +140,18 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     // Bulk-gem: { event_id, rows: [{player_id, goals, yellow_cards, red_cards, mom, played}] }
     if (body.event_id && Array.isArray(body.rows)) {
       for (const row of body.rows) {
-        const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1 } = row;
+        const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1, late_signup = 0, absence = 0 } = row;
         const existing = await env.DB.prepare(
           'SELECT id FROM match_stats WHERE event_id=? AND player_id=?'
         ).bind(body.event_id, player_id).first();
         if (existing) {
           await env.DB.prepare(
-            'UPDATE match_stats SET goals=?,yellow_cards=?,red_cards=?,mom=?,played=? WHERE event_id=? AND player_id=?'
-          ).bind(goals, yellow_cards, red_cards, mom ? 1 : 0, played, body.event_id, player_id).run();
+            'UPDATE match_stats SET goals=?,yellow_cards=?,red_cards=?,mom=?,played=?,late_signup=?,absence=? WHERE event_id=? AND player_id=?'
+          ).bind(goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0, body.event_id, player_id).run();
         } else {
           await env.DB.prepare(
-            'INSERT INTO match_stats (id,event_id,player_id,goals,yellow_cards,red_cards,mom,played) VALUES(?,?,?,?,?,?,?,?)'
-          ).bind(nanoid(), body.event_id, player_id, goals, yellow_cards, red_cards, mom ? 1 : 0, played).run();
+            'INSERT INTO match_stats (id,event_id,player_id,goals,yellow_cards,red_cards,mom,played,late_signup,absence) VALUES(?,?,?,?,?,?,?,?,?,?)'
+          ).bind(nanoid(), body.event_id, player_id, goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0).run();
         }
       }
       return json({ ok: true });
@@ -178,6 +183,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
 
 // ── GET /api/events/:id/stats ──────────────────────────────────────────────
 // Returnerer eksisterende stats for event + liste over tilmeldte spillere
+// Auto-beregner late_signup og absence ud fra signup-data
 export async function handleEventStats(request: Request, env: Env, user: JWTPayload, eventId: string): Promise<Response> {
   const isTrainer = user.role === 'trainer' || user.role === 'admin';
   if (!isTrainer) return json({ error: 'Forbidden' }, 403);
@@ -185,9 +191,9 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
   const event = await env.DB.prepare('SELECT * FROM events WHERE id=?').bind(eventId).first();
   if (!event) return json({ error: 'Ikke fundet' }, 404);
 
-  // Tilmeldte spillere
+  // Tilmeldte + afmeldte spillere inkl. signup-tidspunkt
   const signups = await env.DB.prepare(`
-    SELECT p.id, COALESCE(p.alias, p.name) as name, p.avatar_url, es.status
+    SELECT p.id, COALESCE(p.alias, p.name) as name, p.avatar_url, es.status, es.created_at as signed_at
     FROM event_signups es
     JOIN players p ON p.id = es.player_id
     WHERE es.event_id = ?
@@ -199,5 +205,22 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     'SELECT * FROM match_stats WHERE event_id=?'
   ).bind(eventId).all();
 
-  return json({ event, signups: signups.results, stats: existing.results });
+  // Auto-beregn late_signup og absence for spillere uden eksisterende stats
+  const existingIds = new Set((existing.results as any[]).map(r => r.player_id));
+  const deadline = event.signup_deadline as string | null;
+
+  const autoStats = (signups.results as any[]).map(s => {
+    if (existingIds.has(s.id)) return null; // bruger eksisterende
+    const absence   = s.status === 'afmeldt' ? 1 : 0;
+    const played    = absence ? 0 : 1;
+    const late_signup = (!absence && deadline && s.signed_at > deadline) ? 1 : 0;
+    return { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played, late_signup, absence };
+  }).filter(Boolean);
+
+  return json({
+    event,
+    signups: signups.results,
+    stats: existing.results,
+    auto_stats: autoStats,  // forslag til nye spillere — frontend merger disse
+  });
 }

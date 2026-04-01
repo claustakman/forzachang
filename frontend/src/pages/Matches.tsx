@@ -584,13 +584,16 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   useEffect(() => {
     api.getEventStats(event.id).then(d => {
       setData(d);
-      // Pre-udfyld eksisterende stats
+      // Pre-udfyld: eksisterende stats vinder, ellers brug auto_stats fra server
       const init: Record<string, MatchStatRow> = {};
       for (const s of d.signups) {
         const existing = d.stats.find(x => x.player_id === s.id);
+        const auto = d.auto_stats?.find(x => x.player_id === s.id);
         init[s.id] = existing
-          ? { player_id: s.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom, played: existing.played }
-          : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0 };
+          ? { player_id: s.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom, played: existing.played, late_signup: existing.late_signup ?? 0, absence: existing.absence ?? 0 }
+          : auto
+          ? { ...auto }
+          : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0, late_signup: 0, absence: s.status === 'afmeldt' ? 1 : 0 };
       }
       setRows(init);
     }).catch(() => {});

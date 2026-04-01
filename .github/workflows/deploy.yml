@@ -107,10 +107,14 @@ jobs:
               red_cards INTEGER NOT NULL DEFAULT 0,
               mom INTEGER NOT NULL DEFAULT 0,
               played INTEGER NOT NULL DEFAULT 1,
+              late_signup INTEGER NOT NULL DEFAULT 0,
+              absence INTEGER NOT NULL DEFAULT 0,
               created_at TEXT NOT NULL DEFAULT (datetime('now')),
               UNIQUE(event_id, player_id)
             );
           " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "ALTER TABLE match_stats ADD COLUMN late_signup INTEGER NOT NULL DEFAULT 0;" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "ALTER TABLE match_stats ADD COLUMN absence INTEGER NOT NULL DEFAULT 0;" 2>&1 || true
           npx wrangler d1 execute forzachang-db --remote --command "
             CREATE TABLE IF NOT EXISTS player_stats_legacy (
               id TEXT PRIMARY KEY,
