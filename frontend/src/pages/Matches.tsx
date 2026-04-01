@@ -362,7 +362,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         {isAdmin && (
           <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
             <button
-              className="btn btn-sm btn-secondary"
+              className="btn btn-secondary"
               onClick={() => {
                 const next = !showAdmin;
                 setShowAdmin(next);
@@ -520,7 +520,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
 
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {isTrainer && isKamp && new Date(event.start_time) < new Date() && (
-            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowStats(true)}>
+            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => setShowStats(true)}>
               📊 Statistik & Bøder
             </button>
           )}
