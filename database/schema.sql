@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS event_guests (
 );
 
 -- Migrations (safe to re-run — ignored if column already exists)
+-- ALTER TABLE players ADD COLUMN alias TEXT;
 -- Run these once against the existing DB via Cloudflare D1 dashboard console:
 -- ALTER TABLE players ADD COLUMN birth_date TEXT;
 -- ALTER TABLE players ADD COLUMN shirt_number INTEGER;

@@ -76,7 +76,7 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
     if (!event) return json({ error: 'Ikke fundet' }, 404);
 
     const signups = await env.DB.prepare(`
-      SELECT es.player_id, es.status, es.message, es.created_at, p.name, p.avatar_url
+      SELECT es.player_id, es.status, es.message, es.created_at, COALESCE(p.alias, p.name) as name, p.avatar_url
       FROM event_signups es
       JOIN players p ON p.id = es.player_id
       WHERE es.event_id = ?
@@ -84,7 +84,7 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
     `).bind(id).all();
 
     const organizers = await env.DB.prepare(`
-      SELECT eo.player_id, p.name
+      SELECT eo.player_id, COALESCE(p.alias, p.name) as name
       FROM event_organizers eo
       JOIN players p ON p.id = eo.player_id
       WHERE eo.event_id = ?

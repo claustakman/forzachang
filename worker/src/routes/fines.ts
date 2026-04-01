@@ -8,7 +8,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
 
   if (request.method === 'GET' && !id) {
     const fines = await env.DB.prepare(`
-      SELECT f.*, p.name as player_name, ft.name as fine_type_name, ib.name as issued_by_name
+      SELECT f.*, COALESCE(p.alias, p.name) as player_name, ft.name as fine_type_name, COALESCE(ib.alias, ib.name) as issued_by_name
       FROM fines f
       JOIN players p ON p.id = f.player_id
       JOIN fine_types ft ON ft.id = f.fine_type_id
@@ -17,7 +17,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
     `).all();
     const types = await env.DB.prepare('SELECT * FROM fine_types WHERE active=1 ORDER BY name').all();
     const totals = await env.DB.prepare(`
-      SELECT player_id, p.name, SUM(amount) as total, SUM(CASE WHEN paid=1 THEN amount ELSE 0 END) as paid
+      SELECT player_id, COALESCE(p.alias, p.name) as name, SUM(amount) as total, SUM(CASE WHEN paid=1 THEN amount ELSE 0 END) as paid
       FROM fines f JOIN players p ON p.id=f.player_id
       GROUP BY player_id ORDER BY total DESC
     `).all();

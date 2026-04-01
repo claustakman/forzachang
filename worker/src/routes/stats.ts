@@ -29,7 +29,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     const seasonFilter = season ? 'AND m.season = ?' : '';
     const query = `
       SELECT
-        p.id, p.name,
+        p.id, COALESCE(p.alias, p.name) as name,
         COALESCE(SUM(s.played), 0) as matches,
         COALESCE(SUM(s.goals), 0) as goals,
         COALESCE(SUM(s.yellow_cards), 0) as yellow_cards,

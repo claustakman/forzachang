@@ -7,6 +7,7 @@ export default function Profile() {
 
   const [form, setForm] = useState({
     name:     player?.name || '',
+    alias:    player?.alias || '',
     email:    player?.email || '',
     phone:    player?.phone || '',
   });
@@ -48,8 +49,8 @@ export default function Profile() {
   async function saveProfile() {
     setSaving(true); setMsg('');
     try {
-      await api.updatePlayer(player!.id, { name: form.name, email: form.email, phone: form.phone } as any);
-      updatePlayer({ name: form.name, email: form.email, phone: form.phone } as any);
+      await api.updatePlayer(player!.id, { name: form.name, alias: form.alias, email: form.email, phone: form.phone } as any);
+      updatePlayer({ name: form.name, alias: form.alias, email: form.email, phone: form.phone } as any);
       setMsg('Gemt');
     } catch (e: any) { setMsg(e.message); }
     setSaving(false);
@@ -127,6 +128,7 @@ export default function Profile() {
         <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Oplysninger</h2>
         {[
           { key: 'name',  label: 'Navn',    placeholder: '' },
+          { key: 'alias', label: 'Alias',   placeholder: 'Fx "Klatten" — vises i stedet for fornavn' },
           { key: 'email', label: 'Email',   placeholder: 'din@email.dk' },
           { key: 'phone', label: 'Telefon', placeholder: '+45 ...' },
         ].map(({ key, label, placeholder }) => (

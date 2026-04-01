@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, Fine, FineType, FinesResponse } from '../lib/api';
+import { api, Fine, FineType, FinesResponse, Player, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 function fmt(øre: number) {
@@ -11,7 +11,7 @@ export default function Fines() {
   const [data, setData] = useState<FinesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [players, setPlayers] = useState<{ id: string; name: string }[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [tab, setTab] = useState<'list' | 'totals'>('list');
 
   useEffect(() => { load(); }, []);
@@ -201,7 +201,7 @@ function AddFineModal({
           <label className="form-label">Spiller</label>
           <select className="input" value={playerId} onChange={e => setPlayerId(e.target.value)}>
             <option value="">Vælg spiller...</option>
-            {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {players.map(p => <option key={p.id} value={p.id}>{displayName(p)}</option>)}
           </select>
         </div>
 

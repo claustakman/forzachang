@@ -135,6 +135,7 @@ export const api = {
 export interface Player {
   id: string;
   name: string;
+  alias?: string;
   email?: string;
   phone?: string;
   role: 'player' | 'admin' | 'trainer';
@@ -143,6 +144,11 @@ export interface Player {
   shirt_number?: number;
   license_number?: string;
   avatar_url?: string;
+}
+
+/** Returnerer alias hvis sat, ellers fornavn */
+export function displayName(p: { name: string; alias?: string }): string {
+  return p.alias?.trim() || p.name.split(' ')[0];
 }
 
 export interface Match {

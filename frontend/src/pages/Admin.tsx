@@ -180,10 +180,13 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
             ? <img src={p.avatar_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : (p.shirt_number ?? '—')}
         </div>
-        {/* Nummer + navn */}
+        {/* Nummer + navn + alias */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 500, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {p.name}
+            {p.alias && (
+              <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)', fontWeight: 400, marginLeft: 6 }}>"{p.alias}"</span>
+            )}
           </div>
           {p.shirt_number != null && (
             <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)' }}>#{p.shirt_number}</div>
@@ -300,6 +303,7 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
 function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => void }) {
   const [form, setForm] = useState({
     name:           player.name,
+    alias:          player.alias || '',
     email:          player.email || '',
     role:           player.role,
     password:       '',
@@ -342,7 +346,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     setSaving(true);
     try {
       const update: any = {
-        name: form.name, email: form.email, role: form.role,
+        name: form.name, alias: form.alias || null, email: form.email, role: form.role,
         birth_date: form.birth_date || null,
         shirt_number: form.shirt_number ? Number(form.shirt_number) : null,
         license_number: form.license_number || null,
@@ -407,6 +411,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
 
         {[
           { key: 'name',           label: 'Navn',             placeholder: '' },
+          { key: 'alias',          label: 'Alias',            placeholder: 'Fx "Klatten" — vises i stedet for fornavn' },
           { key: 'email',          label: 'Email',            placeholder: 'anders@email.dk' },
           { key: 'birth_date',     label: 'Fødselsdato',      placeholder: 'YYYY-MM-DD' },
           { key: 'shirt_number',   label: 'Trøjenummer',      placeholder: 'fx 10' },

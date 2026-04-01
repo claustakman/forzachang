@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, Event, EventDetail, EventGuest, Player } from '../lib/api';
+import { api, Event, EventDetail, EventGuest, Player, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // ── Hjælpefunktioner ──────────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {detail.organizers.map(o => (
                     <span key={o.player_id} style={{ fontSize: 12, padding: '2px 8px', background: 'var(--cfc-bg-hover)', borderRadius: 100, color: 'var(--cfc-text-muted)' }}>
-                      {o.name.split(' ')[0]}
+                      {o.name}
                     </span>
                   ))}
                 </div>
@@ -363,7 +363,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                         const signup = detail.signups.find(s => s.player_id === p.id);
                         return (
                           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{p.name.split(' ')[0]}</span>
+                            <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{displayName(p)}</span>
                             <SignupBadge status={signup?.status ?? null} />
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               <button
@@ -471,7 +471,7 @@ function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: str
           ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : name.charAt(0)}
       </div>
-      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{name.split(' ')[0]}</span>
+      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{name}</span>
       {message && (
         <span style={{ fontSize: 11, color: '#c4a000', background: '#1a1200', border: '0.5px solid #3d2e00', borderRadius: 4, padding: '1px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
           {message}
@@ -858,7 +858,7 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
                   color: organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-text-muted)',
                   border: `0.5px solid ${organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-border)'}`,
                 }}>
-                  {p.name.split(' ')[0]}
+                  {displayName(p)}
                 </button>
               ))}
             </div>

@@ -40,8 +40,8 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive
-      ? `SELECT id, name, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
-      : `SELECT id, name, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
+      ? `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
+      : `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
     const players = await env.DB.prepare(query).all();
     return json(players.results);
   }
@@ -87,6 +87,10 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
     }
     if (body.phone !== undefined) {
       await env.DB.prepare('UPDATE players SET phone=? WHERE id=?').bind(body.phone || null, id).run();
+    }
+    // alias: self eller admin kan sætte
+    if (body.alias !== undefined) {
+      await env.DB.prepare('UPDATE players SET alias=? WHERE id=?').bind(body.alias || null, id).run();
     }
     return json({ ok: true });
   }
