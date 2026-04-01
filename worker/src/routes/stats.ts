@@ -189,9 +189,12 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
       const lateSignupFineType = await env.DB.prepare(
         "SELECT id, amount FROM fine_types WHERE auto_assign='late_signup' AND active=1 LIMIT 1"
       ).first() as { id: string; amount: number } | null;
+      const noSignupFineType = await env.DB.prepare(
+        "SELECT id, amount FROM fine_types WHERE auto_assign='no_signup' AND active=1 LIMIT 1"
+      ).first() as { id: string; amount: number } | null;
 
       for (const row of body.rows) {
-        const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1, late_signup = 0, absence = 0 } = row;
+        const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1, late_signup = 0, absence = 0, no_signup = 0 } = row;
         const existing = await env.DB.prepare(
           'SELECT id FROM match_stats WHERE event_id=? AND player_id=?'
         ).bind(body.event_id, player_id).first();
@@ -215,6 +218,11 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
           await env.DB.prepare(
             'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
           ).bind(nanoid(), player_id, lateSignupFineType.id, body.event_id, lateSignupFineType.amount, user.sub).run();
+        }
+        if (no_signup && noSignupFineType) {
+          await env.DB.prepare(
+            'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
+          ).bind(nanoid(), player_id, noSignupFineType.id, body.event_id, noSignupFineType.amount, user.sub).run();
         }
       }
       return json({ ok: true });
@@ -255,7 +263,7 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
   if (!event) return json({ error: 'Ikke fundet' }, 404);
 
   // Tilmeldte + afmeldte spillere inkl. signup-tidspunkt
-  const signups = await env.DB.prepare(`
+  const signupsRaw = await env.DB.prepare(`
     SELECT p.id, COALESCE(p.alias, p.name) as name, p.avatar_url, es.status, es.created_at as signed_at
     FROM event_signups es
     JOIN players p ON p.id = es.player_id
@@ -263,21 +271,36 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     ORDER BY es.status, name
   `).bind(eventId).all();
 
+  // Alle aktive spillere — for at finde spillere der slet ikke har reageret
+  const allActivePlayers = await env.DB.prepare(
+    "SELECT id, COALESCE(alias, name) as name, avatar_url FROM players WHERE active=1"
+  ).all();
+
+  // Spillere uden nogen signup (ingen tilmelding eller afmelding)
+  const signupIds = new Set((signupsRaw.results as any[]).map((s: any) => s.id));
+  const noSignupPlayers = (allActivePlayers.results as any[]).filter((p: any) => !signupIds.has(p.id));
+  const noSignupEntries = noSignupPlayers.map((p: any) => ({ ...p, status: 'ikke meldt', signed_at: null }));
+
+  // Samlet liste: tilmeldte/afmeldte + ikke-meldt
+  const allSignups = [...(signupsRaw.results as any[]), ...noSignupEntries];
+
   // Eksisterende stats
   const existing = await env.DB.prepare(
     'SELECT * FROM match_stats WHERE event_id=?'
   ).bind(eventId).all();
 
-  // Auto-beregn late_signup og absence for spillere uden eksisterende stats
+  // Auto-beregn late_signup, absence og no_signup for spillere uden eksisterende stats
   const existingIds = new Set((existing.results as any[]).map(r => r.player_id));
   const deadline = event.signup_deadline as string | null;
+  const eventStart = event.start_time as string;
 
-  const autoStats = (signups.results as any[]).map(s => {
+  const autoStats = allSignups.map((s: any) => {
     if (existingIds.has(s.id)) return null; // bruger eksisterende
-    const absence   = s.status === 'afmeldt' ? 1 : 0;
-    const played    = absence ? 0 : 1;
-    const late_signup = (!absence && deadline && s.signed_at > deadline) ? 1 : 0;
-    return { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played, late_signup, absence };
+    const absence    = s.status === 'afmeldt' ? 1 : 0;
+    const no_signup  = s.status === 'ikke meldt' ? 1 : 0;
+    const played     = (absence || no_signup) ? 0 : 1;
+    const late_signup = (!absence && !no_signup && deadline && s.signed_at > deadline) ? 1 : 0;
+    return { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played, late_signup, absence, no_signup };
   }).filter(Boolean);
 
   // Bødetyper og eksisterende bøder for dette event
@@ -297,7 +320,7 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
 
   return json({
     event,
-    signups: signups.results,
+    signups: allSignups,
     stats: existing.results,
     auto_stats: autoStats,
     fine_types: fineTypes,

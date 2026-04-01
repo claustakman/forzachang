@@ -335,13 +335,14 @@ export interface MatchStatRow {
   played: number;
   late_signup: number;
   absence: number;
+  no_signup: number;
 }
 
 export interface EventStatsSignup {
   id: string;
   name: string;
   avatar_url?: string;
-  status: 'tilmeldt' | 'afmeldt';
+  status: 'tilmeldt' | 'afmeldt' | 'ikke meldt';
   signed_at?: string;
 }
 

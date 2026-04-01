@@ -594,10 +594,10 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
         const existing = d.stats.find(x => x.player_id === s.id);
         const auto = d.auto_stats?.find(x => x.player_id === s.id);
         init[s.id] = existing
-          ? { player_id: s.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom, played: existing.played, late_signup: existing.late_signup ?? 0, absence: existing.absence ?? 0 }
+          ? { player_id: s.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom, played: existing.played, late_signup: existing.late_signup ?? 0, absence: existing.absence ?? 0, no_signup: (existing as any).no_signup ?? 0 }
           : auto
           ? { ...auto }
-          : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0, late_signup: 0, absence: s.status === 'afmeldt' ? 1 : 0 };
+          : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0, late_signup: 0, absence: s.status === 'afmeldt' ? 1 : 0, no_signup: s.status === 'ikke meldt' ? 1 : 0 };
       }
       setRows(init);
 
@@ -613,8 +613,9 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
         if (ft.auto_assign) {
           for (const s of d.signups) {
             const autoRow = auto_stat_for(s, d, init);
-            if (ft.auto_assign === 'absence' && autoRow?.absence) sel[ft.id].add(s.id);
+            if (ft.auto_assign === 'absence'    && autoRow?.absence)    sel[ft.id].add(s.id);
             if (ft.auto_assign === 'late_signup' && autoRow?.late_signup) sel[ft.id].add(s.id);
+            if (ft.auto_assign === 'no_signup'  && autoRow?.no_signup)  sel[ft.id].add(s.id);
           }
         }
       }
@@ -674,9 +675,10 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
     setSaving(false);
   }
 
-  const allSignups = data?.signups || [];
-  const tilmeldte = allSignups.filter(s => s.status === 'tilmeldt');
-  const afmeldte  = allSignups.filter(s => s.status === 'afmeldt');
+  const allSignups  = data?.signups || [];
+  const tilmeldte   = allSignups.filter(s => s.status === 'tilmeldt');
+  const afmeldte    = allSignups.filter(s => s.status === 'afmeldt');
+  const ikkeMeldte  = allSignups.filter(s => s.status === 'ikke meldt');
   const manualFineTypes = data?.fine_types.filter(ft => !ft.auto_assign) || [];
   const autoFineTypes   = data?.fine_types.filter(ft =>  ft.auto_assign) || [];
 
@@ -734,6 +736,18 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                   Afbud ({afmeldte.length})
                 </div>
                 {afmeldte.map(s => (
+                  <div key={s.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', padding: '2px 0' }}>{s.name}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Ikke meldt */}
+            {ikkeMeldte.length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--cfc-border)' }}>
+                <div style={{ fontSize: 11, color: '#c4a000', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Ikke meldt ud ({ikkeMeldte.length})
+                </div>
+                {ikkeMeldte.map(s => (
                   <div key={s.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', padding: '2px 0' }}>{s.name}</div>
                 ))}
               </div>

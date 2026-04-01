@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS fine_payments (
 -- Seed bødekatalog
 INSERT OR IGNORE INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES
   ('ft-red-direct',   'Direkte rødt kort',                    240, NULL,          1,  1),
-  ('ft-absence',      'Udeblivelse fra kamp',                 240, 'absence',     1,  2),
+  ('ft-absence',      'Udeblivelse fra kamp',                 240, NULL,          1,  2),
   ('ft-two-yellows',  'To gule kort i samme kamp',            180, NULL,          1,  3),
-  ('ft-no-reply',     'Manglende udmelding til kamp',         160, NULL,          1,  4),
+  ('ft-no-reply',     'Manglende udmelding til kamp',         160, 'no_signup',   1,  4),
   ('ft-yellow-behav', 'Gult kort for brok eller opførsel',    120, NULL,          1,  5),
   ('ft-matchday-off', 'Afbud på kampdag',                     120, NULL,          1,  6),
   ('ft-late-arrive',  'Fremmøde efter kampstart',             120, NULL,          1,  7),
@@ -95,7 +95,7 @@ INSERT OR IGNORE INTO fine_types (id, name, amount, auto_assign, active, sort_or
   ('ft-late-show',    'For sent fremmøde',                     60, NULL,          1, 10),
   ('ft-disciplinary', 'Disciplinærstraf',                      60, NULL,          1, 11),
   ('ft-bad-action',   'Elendig aktion (min. 4 stemmer)',       60, NULL,          1, 12),
-  ('ft-kenneth',      'Afbud til kamp (Kennethgebyr)',         30, NULL,          1, 13);
+  ('ft-kenneth',      'Afbud til kamp (Kennethgebyr)',         30, 'absence',     1, 13);
 
 -- Default admin user (password: admin123 — CHANGE THIS)
 -- password_hash is bcrypt of 'admin123'
