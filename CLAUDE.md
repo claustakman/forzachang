@@ -185,6 +185,7 @@ UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate på
 | `played`       | INTEGER | 1 = spillede, 0 = afbud                       |
 | `late_signup`  | INTEGER | 1 = tilmeldt efter tilmeldingsfristen          |
 | `absence`      | INTEGER | 1 = meldt afbud (afmeldt)                      |
+| `no_signup`    | INTEGER | 1 = slet ikke reageret (hverken til- eller afmeldt) |
 | `created_at`   | TEXT    | Oprettelsestidspunkt                          |
 
 UNIQUE constraint på `(event_id, player_id)`.
@@ -212,12 +213,28 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 | `id`          | TEXT    | UUID                                                     |
 | `name`        | TEXT    | Navn, fx "Gult kort"                                     |
 | `amount`      | INTEGER | Beløb i kr.                                              |
-| `auto_assign` | TEXT    | `absence` eller `late_signup` eller NULL                 |
+| `auto_assign` | TEXT    | `absence`, `late_signup`, `no_signup` eller NULL         |
 | `active`      | INTEGER | 1 = vises i katalog, 0 = arkiveret                       |
 | `sort_order`  | INTEGER | Rækkefølge i UI                                          |
 | `created_at`  | TEXT    | Oprettelsestidspunkt                                     |
 
-Seed: Afbud (50 kr, auto), For sen tilmelding (25 kr, auto), Gult kort (25 kr), Rødt kort (100 kr), For sent fremmøde (25 kr), Manglende udstyr (25 kr).
+Bødekatalog (13 typer — administreres via Admin → Bødekatalog):
+
+| Navn | Beløb | auto_assign |
+|------|-------|-------------|
+| Direkte rødt kort | 240 kr | — |
+| Udeblivelse fra kamp | 240 kr | — |
+| To gule kort i samme kamp | 180 kr | — |
+| Manglende udmelding til kamp | 160 kr | `no_signup` |
+| Gult kort for brok eller opførsel | 120 kr | — |
+| Afbud på kampdag | 120 kr | — |
+| Fremmøde efter kampstart | 120 kr | — |
+| For sen udmelding (efter frist) | 80 kr | `late_signup` |
+| Gult kort | 60 kr | — |
+| For sent fremmøde | 60 kr | — |
+| Disciplinærstraf | 60 kr | — |
+| Elendig aktion (min. 4 stemmer) | 60 kr | — |
+| Afbud til kamp (Kennethgebyr) | 30 kr | `absence` |
 
 ### Tildelte bøder (`fines`)
 
@@ -287,23 +304,31 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
 
-### Kampstatistik (fase 5)
-- Trainer/admin kan registrere statistik på afsluttede kampe via "📊 Statistik"-knap i event-detaljemodal
-- Viser tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
-- Auto-udfylder: played=1 for tilmeldte, late_signup=1 for sent tilmeldte (efter frist), absence=1 for afmeldte
-- Afmeldte spillere vises som afbud-liste (read-only)
-- Gem sender bulk til `POST /api/stats` med `{ event_id, rows[] }`
+### Kampstatistik & Bøder (fase 5+6)
+- Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (kun afsluttede kampe)
+- Knappen har sin egen fuldbred-række over Rediger/Luk/Påmind
+- **Statistik-sektion**: tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
+- **Auto-udfyld statistik**: played=1 for tilmeldte, late_signup=1 for sent tilmeldte, absence=1 for afmeldte, no_signup=1 for spillere uden nogen reaktion
+- **Tre lister** (read-only): Afbud (afmeldte) + Ikke meldt ud (gul overskrift, alle aktive spillere uden signup)
+- **Bøde-sektion** under statistikken: foldbare sektioner per bødetype med checkboxes per spiller
+  - Auto-bødetyper (`absence`, `late_signup`, `no_signup`) folder automatisk ud og pre-selecterer relevante spillere
+  - Manuelle bødetyper starter lukkede
+- **Gem**: statistik → `POST /api/stats` (auto-bøder tildeles server-side), manuelle bøder → `POST /api/fines` per tjekket spiller
+- UNIQUE constraint på `(player_id, fine_type_id, event_id)` forhindrer duplikate bøder
 - Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
-- Statistiksiden (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
+- **Statistiksiden** (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
   - Moderne data (`match_stats`) vinder over legacy for samme sæson/spiller
-  - Tre visninger: **Top 10** (søjlediagrammer), **Sæsonoversigt** (tabel), **Spillerprofil** (klik → modal med sæson-for-sæson)
+  - Tre visninger: **Top 10** (6 søjlediagrammer inkl. røde kort og bøder), **Sæsonoversigt** (tabel inkl. bøder), **Spillerprofil** (klik → modal med sæson-for-sæson inkl. bøder)
   - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
   - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
 
 ### Bødekasse (fase 6)
 - **Saldi beregnes dynamisk**: skyldig = SUM(fines.amount) − SUM(fine_payments.amount)
-- **Automatisk tildeling** ved kampstatistik-registrering: `absence=1` → "Afbud"-bøde, `late_signup=1` → "For sen tilmelding"-bøde (via UNIQUE constraint — ingen duplikater)
-- **Manuelle bøder** tildeles af trainer/admin fra bødesiden
+- **Automatisk tildeling** sker server-side ved gem af kampstatistik via `auto_assign`-feltet på bødetypen:
+  - `absence` → tildeles spillere med `absence=1` (afmeldte)
+  - `late_signup` → tildeles spillere med `late_signup=1` (tilmeldt efter frist)
+  - `no_signup` → tildeles spillere der slet ikke har reageret (hverken tilmeldt eller afmeldt)
+- **Manuelle bøder** tildeles af trainer/admin — enten fra Statistik & Bøder-modalen eller direkte fra Bødekassen
 - **Bødeside** (`/bøder`): holdoversigt (total skyldig + total bøder), spillertabel (klik → detaljemodal), detaljemodal med bøder/indbetalinger-tabs
 - **Admin → Bødekatalog**: liste over bødetyper, opret/rediger/arkivér, auto_assign-typer markeret med badge
 - Alle kan se alles bøder og saldi
