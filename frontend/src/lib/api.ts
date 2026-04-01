@@ -111,6 +111,10 @@ export const api = {
     req<{ ok: boolean }>('POST', `/events/${id}/signup`, { status, message, player_id }),
   deleteEventSignup: (id: string, player_id?: string) =>
     req<{ ok: boolean }>('DELETE', `/events/${id}/signup${player_id ? `?player_id=${player_id}` : ''}`),
+  addEventGuest: (id: string, name: string) =>
+    req<{ ok: boolean }>('POST', `/events/${id}/guests`, { name }),
+  deleteEventGuest: (eventId: string, guestId: string) =>
+    req<{ ok: boolean }>('DELETE', `/events/${eventId}/guests/${guestId}`),
 
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
@@ -229,9 +233,16 @@ export interface EventOrganizer {
   name: string;
 }
 
+export interface EventGuest {
+  id: string;
+  name: string;
+  added_by: string;
+}
+
 export interface EventDetail extends Event {
   signups: EventSignup[];
   organizers: EventOrganizer[];
+  guests: EventGuest[];
 }
 
 export interface FinesResponse {

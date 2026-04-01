@@ -125,6 +125,14 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS event_guests (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  added_by TEXT NOT NULL REFERENCES players(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- Run these once against the existing DB via Cloudflare D1 dashboard console:
 -- ALTER TABLE players ADD COLUMN birth_date TEXT;

@@ -50,6 +50,26 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
     return json({ ok: true });
   }
 
+  // ── POST /api/events/:id/guests — tilføj gæst ───────────────────────────
+  if (request.method === 'POST' && id && sub === 'guests') {
+    if (!isTrainer) return json({ error: 'Forbidden' }, 403);
+    const { name } = await request.json() as any;
+    if (!name?.trim()) return json({ error: 'Navn er påkrævet' }, 400);
+    await env.DB.prepare(
+      'INSERT INTO event_guests (id, event_id, name, added_by) VALUES (?,?,?,?)'
+    ).bind(nanoid(), id, name.trim(), user.sub).run();
+    return json({ ok: true });
+  }
+
+  // ── DELETE /api/events/:id/guests/:guestId ───────────────────────────────
+  if (request.method === 'DELETE' && id && sub === 'guests') {
+    if (!isTrainer) return json({ error: 'Forbidden' }, 403);
+    const guestId = pathParts[5];
+    if (!guestId) return json({ error: 'Mangler gæst-id' }, 400);
+    await env.DB.prepare('DELETE FROM event_guests WHERE id=? AND event_id=?').bind(guestId, id).run();
+    return json({ ok: true });
+  }
+
   // ── GET /api/events/:id ──────────────────────────────────────────────────
   if (request.method === 'GET' && id && !sub) {
     const event = await env.DB.prepare('SELECT * FROM events WHERE id=?').bind(id).first();
@@ -70,7 +90,11 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
       WHERE eo.event_id = ?
     `).bind(id).all();
 
-    return json({ ...event, signups: signups.results, organizers: organizers.results });
+    const guests = await env.DB.prepare(`
+      SELECT id, name, added_by FROM event_guests WHERE event_id = ? ORDER BY created_at
+    `).bind(id).all();
+
+    return json({ ...event, signups: signups.results, organizers: organizers.results, guests: guests.results });
   }
 
   // ── GET /api/events ──────────────────────────────────────────────────────
@@ -103,7 +127,8 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
 
     const events = await env.DB.prepare(`
       SELECT e.*,
-        (SELECT COUNT(*) FROM event_signups es WHERE es.event_id = e.id AND es.status = 'tilmeldt') AS signup_count,
+        (SELECT COUNT(*) FROM event_signups es WHERE es.event_id = e.id AND es.status = 'tilmeldt')
+        + (SELECT COUNT(*) FROM event_guests eg WHERE eg.event_id = e.id) AS signup_count,
         (SELECT es2.status FROM event_signups es2 WHERE es2.event_id = e.id AND es2.player_id = ?) AS my_status
       FROM events e
       ${where}

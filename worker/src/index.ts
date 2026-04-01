@@ -180,12 +180,8 @@ function parseIcal(text: string): IcalEvent[] {
     const end_time = dtend ? icalDateToISO(dtend) : undefined;
     const season = new Date(start_time).getFullYear();
 
-    // Gæt type: "kamp" hvis summary indeholder typiske kampord
-    const lc = summary.toLowerCase();
-    const type: 'kamp' | 'event' = (
-      lc.includes('vs') || lc.includes('mod ') || lc.includes('- kamp') ||
-      lc.includes('match') || lc.includes('fodbold')
-    ) ? 'kamp' : 'event';
+    // Events fra webcal er altid kampe
+    const type: 'kamp' | 'event' = 'kamp';
 
     events.push({ uid, title: summary, start_time, end_time, location, type, season });
   }

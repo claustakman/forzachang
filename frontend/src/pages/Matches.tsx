@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, Event, EventDetail, Player } from '../lib/api';
+import { api, Event, EventDetail, EventGuest, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // ── Hjælpefunktioner ──────────────────────────────────────────────────────────
@@ -14,8 +14,23 @@ function fmtDateShort(iso: string) {
   return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtWeekday(iso: string) {
+  return new Date(iso).toLocaleDateString('da-DK', { weekday: 'short' }).toUpperCase();
+}
+
+function fmtDay(iso: string) {
+  return new Date(iso).getDate().toString();
+}
+
+function fmtMonthShort(iso: string) {
+  return new Date(iso).toLocaleDateString('da-DK', { month: 'short' }).toUpperCase();
+}
+
 function toLocalInput(iso: string) {
-  // Konvertér ISO til datetime-local input format (YYYY-MM-DDTHH:MM) i lokal tid
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -62,18 +77,22 @@ function TypeBadge({ type }: { type: 'kamp' | 'event' }) {
 
 // ── Detaljemodal ──────────────────────────────────────────────────────────────
 
-function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
+function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   event: Event;
   onClose: () => void;
   onRefresh: () => void;
   isTrainer: boolean;
+  isAdmin: boolean;
 }) {
   const { player } = useAuth();
   const [detail, setDetail] = useState<EventDetail | null>(null);
-  const [signing, setSigning] = useState<string | null>(null); // player_id der signes for
-  const [showComment, setShowComment] = useState<{ playerId: string; status: 'tilmeldt' | 'afmeldt' } | null>(null);
+  const [signing, setSigning] = useState<string | null>(null);
+  const [showComment, setShowComment] = useState(false);
   const [comment, setComment] = useState('');
   const [editing, setEditing] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [addingGuest, setAddingGuest] = useState(false);
+  const [showGuestInput, setShowGuestInput] = useState(false);
 
   useEffect(() => { loadDetail(); }, [event.id]);
 
@@ -87,7 +106,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
       await api.setEventSignup(event.id, status, message, playerId !== player!.id ? playerId : undefined);
       await loadDetail();
       onRefresh();
-      setShowComment(null);
+      setShowComment(false);
       setComment('');
     } catch (e: any) { alert(e.message); }
     setSigning(null);
@@ -103,13 +122,37 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
     setSigning(null);
   }
 
+  async function doAddGuest() {
+    if (!guestName.trim()) return;
+    setAddingGuest(true);
+    try {
+      await api.addEventGuest(event.id, guestName.trim());
+      setGuestName('');
+      setShowGuestInput(false);
+      await loadDetail();
+      onRefresh();
+    } catch (e: any) { alert(e.message); }
+    setAddingGuest(false);
+  }
+
+  async function doDeleteGuest(guest: EventGuest) {
+    try {
+      await api.deleteEventGuest(event.id, guest.id);
+      await loadDetail();
+      onRefresh();
+    } catch (e: any) { alert(e.message); }
+  }
+
   const mySignup = detail?.signups.find(s => s.player_id === player!.id);
   const tilmeldte = detail?.signups.filter(s => s.status === 'tilmeldt') || [];
   const afmeldte  = detail?.signups.filter(s => s.status === 'afmeldt') || [];
+  const guests    = detail?.guests || [];
 
   const isAfterDeadline = event.signup_deadline
     ? new Date() > new Date(event.signup_deadline)
     : false;
+
+  const isKamp = event.type === 'kamp';
 
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -123,15 +166,18 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
               <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: '#2a1010', color: '#e57373', fontWeight: 600 }}>AFLYST</span>
             )}
           </div>
-          <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--cfc-text-primary)' }}>{event.title}</h2>
+          <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
+            {event.title}
+          </h2>
+          {/* Mødetid ved titel for kamp */}
+          {event.meeting_time && (
+            <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginBottom: 4 }}>
+              Mødetid: {fmtTime(event.meeting_time)} · Kamp: {fmtTime(event.start_time)}
+            </div>
+          )}
           <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>{fmtDateTime(event.start_time)}</div>
           {event.end_time && event.end_time !== event.start_time && (
             <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>til {fmtDateTime(event.end_time)}</div>
-          )}
-          {event.meeting_time && (
-            <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 2 }}>
-              Mødetid: {fmtDateTime(event.meeting_time)}
-            </div>
           )}
           {event.location && (
             <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginTop: 4 }}>📍 {event.location}</div>
@@ -141,7 +187,8 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
               Resultat: {event.result}
             </div>
           )}
-          {event.description && (
+          {/* Beskrivelse kun for events (ikke kamp) */}
+          {!isKamp && event.description && (
             <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginTop: 8, whiteSpace: 'pre-wrap' }}>{event.description}</p>
           )}
           {event.signup_deadline && (
@@ -151,7 +198,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
           )}
         </div>
 
-        {/* Mine tilmeldingsknapper — ét klik */}
+        {/* Mine tilmeldingsknapper */}
         {event.status === 'aktiv' && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -183,16 +230,23 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
                 </button>
               )}
             </div>
-            {/* Min status + kommentar-felt */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Min status + kommentar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <SignupBadge status={mySignup?.status} />
               {mySignup?.message && (
-                <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>"{mySignup.message}"</span>
+                <span style={{
+                  fontSize: 12,
+                  color: '#c4a000',
+                  background: '#1a1200',
+                  border: '0.5px solid #3d2e00',
+                  borderRadius: 6,
+                  padding: '2px 8px',
+                }}>"{mySignup.message}"</span>
               )}
               {mySignup?.status === 'tilmeldt' && (
                 <button
-                  onClick={() => setShowComment(c => c ? null : { playerId: player!.id, status: 'tilmeldt' })}
-                  style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--cfc-text-subtle)', cursor: 'pointer', padding: 0 }}
+                  onClick={() => setShowComment(c => !c)}
+                  style={{ background: 'none', border: 'none', fontSize: 12, color: '#5b8dd9', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
                 >
                   {showComment ? 'Luk' : '+ kommentar'}
                 </button>
@@ -216,31 +270,134 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
           </div>
         )}
 
-        {/* Tilmeldte/afmeldte */}
+        {/* Tilmeldte/afmeldte/gæster */}
         {!detail ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <SignupGroup
-              label={`Tilmeldte (${tilmeldte.length})`}
-              signups={tilmeldte}
-              color="#5a9e5a"
-              isTrainer={isTrainer}
-              currentPlayerId={player!.id}
-              signing={signing}
-              onSignup={doSignup}
-              onDelete={doDelete}
-            />
+            {/* Tilmeldte inkl. gæster samlet */}
+            <div>
+              {(tilmeldte.length > 0 || guests.length > 0) && (
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a9e5a', marginBottom: 6 }}>
+                  Tilmeldte ({tilmeldte.length + guests.length})
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {tilmeldte.map(s => (
+                  <div key={s.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px', flex: 1, minWidth: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
+                        {s.avatar_url
+                          ? <img src={s.avatar_url} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : s.name.charAt(0)}
+                      </div>
+                      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
+                      {s.message && (
+                        <span style={{
+                          fontSize: 11,
+                          color: '#c4a000',
+                          background: '#1a1200',
+                          border: '0.5px solid #3d2e00',
+                          borderRadius: 4,
+                          padding: '1px 6px',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          maxWidth: 140,
+                        }}>{s.message}</span>
+                      )}
+                    </div>
+                    {/* Admin/træner: skift tilmeldingsstatus */}
+                    {isAdmin && s.player_id !== player!.id && (
+                      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                        <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'afmeldt')}>
+                          Afmeld
+                        </button>
+                        <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(s.player_id)} title="Annuller">
+                          ↩
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {/* Gæster */}
+                {guests.map(g => (
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px', flex: 1, minWidth: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>
+                        G
+                      </div>
+                      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
+                      <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 2 }}>gæst</span>
+                    </div>
+                    {isTrainer && (
+                      <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => doDeleteGuest(g)} title="Fjern gæst">
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Afmeldte */}
             <SignupGroup
               label={`Afmeldte (${afmeldte.length})`}
               signups={afmeldte}
               color="#e57373"
-              isTrainer={isTrainer}
+              isAdmin={isAdmin}
               currentPlayerId={player!.id}
               signing={signing}
               onSignup={doSignup}
               onDelete={doDelete}
             />
+
+            {/* Arrangører — kun for event-type */}
+            {!isKamp && detail.organizers.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 6 }}>
+                  Arrangører
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {detail.organizers.map(o => (
+                    <span key={o.player_id} style={{ fontSize: 12, padding: '2px 8px', background: 'var(--cfc-bg-hover)', borderRadius: 100, color: 'var(--cfc-text-muted)' }}>
+                      {o.name.split(' ')[0]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tilføj gæst (trainer+) */}
+        {isTrainer && event.status === 'aktiv' && (
+          <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
+            {!showGuestInput ? (
+              <button
+                className="btn btn-sm btn-secondary"
+                style={{ fontSize: 12 }}
+                onClick={() => setShowGuestInput(true)}
+              >
+                + Tilføj gæst
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  style={{ flex: 1, fontSize: 13 }}
+                  placeholder="Gæstens navn"
+                  value={guestName}
+                  onChange={e => setGuestName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && doAddGuest()}
+                  autoFocus
+                />
+                <button className="btn btn-sm btn-primary" onClick={doAddGuest} disabled={addingGuest || !guestName.trim()}>
+                  {addingGuest ? '...' : 'Tilføj'}
+                </button>
+                <button className="btn btn-sm btn-secondary" onClick={() => { setShowGuestInput(false); setGuestName(''); }}>
+                  Annuller
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -262,11 +419,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer }: {
   );
 }
 
-function SignupGroup({ label, signups, color, isTrainer, currentPlayerId, signing, onSignup, onDelete }: {
+function SignupGroup({ label, signups, color, isAdmin, currentPlayerId, signing, onSignup, onDelete }: {
   label: string;
   signups: { player_id: string; name: string; avatar_url?: string; message?: string; status: 'tilmeldt' | 'afmeldt' }[];
   color: string;
-  isTrainer: boolean;
+  isAdmin: boolean;
   currentPlayerId: string;
   signing: string | null;
   onSignup: (playerId: string, status: 'tilmeldt' | 'afmeldt') => void;
@@ -285,20 +442,13 @@ function SignupGroup({ label, signups, color, isTrainer, currentPlayerId, signin
                   ? <img src={s.avatar_url} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : s.name.charAt(0)}
               </div>
-              <span style={{ fontSize: 13 }}>{s.name.split(' ')[0]}</span>
-              {s.message && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {s.message}</span>}
+              <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
             </div>
-            {/* Admin/træner: skift tilmeldingsstatus */}
-            {isTrainer && s.player_id !== currentPlayerId && (
+            {isAdmin && s.player_id !== currentPlayerId && (
               <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                 {s.status === 'afmeldt' && (
                   <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => onSignup(s.player_id, 'tilmeldt')}>
                     Tilmeld
-                  </button>
-                )}
-                {s.status === 'tilmeldt' && (
-                  <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => onSignup(s.player_id, 'afmeldt')}>
-                    Afmeld
                   </button>
                 )}
                 <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => onDelete(s.player_id)} title="Annuller">
@@ -320,6 +470,7 @@ type QuickFilter = '' | 'frist14' | 'fristover';
 export default function Matches() {
   const { player } = useAuth();
   const isTrainer = player?.role === 'trainer' || player?.role === 'admin';
+  const isAdmin   = player?.role === 'admin';
   const [tab, setTab] = useState<'kommende' | 'historik'>('kommende');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -347,7 +498,6 @@ export default function Matches() {
   const now = new Date();
   const in14days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-  // Reminder: events med tilmeldingsfrist inden for 14 dage som ikke er tilmeldt
   const urgentUnanswered = events.filter(e =>
     e.my_status == null &&
     e.status === 'aktiv' &&
@@ -356,12 +506,12 @@ export default function Matches() {
     new Date(e.signup_deadline) <= in14days
   );
 
-  // Klientside quickfilter
   const displayed = events.filter(ev => {
-    if (!ev.signup_deadline) return quickFilter === '' ? true : false;
+    if (quickFilter === '') return true;
+    if (!ev.signup_deadline) return false;
     const dl = new Date(ev.signup_deadline);
     if (quickFilter === 'frist14') return dl >= now && dl <= in14days;
-    if (quickFilter === 'fristover') return dl < now;
+    if (quickFilter === 'fristover') return dl < now && ev.my_status == null;
     return true;
   });
 
@@ -372,7 +522,7 @@ export default function Matches() {
   ];
 
   return (
-    <div className="page">
+    <div className="page" style={{ color: 'var(--cfc-text-primary)' }}>
       {/* Reminder-banner */}
       {tab === 'kommende' && urgentUnanswered.length > 0 && (
         <div style={{
@@ -447,12 +597,11 @@ export default function Matches() {
       ) : displayed.length === 0 ? (
         <div className="empty">Ingen events matcher filteret.</div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {displayed.map((ev, i) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {displayed.map(ev => (
             <EventRow
               key={ev.id}
               event={ev}
-              isLast={i === displayed.length - 1}
               onClick={() => setSelected(ev)}
             />
           ))}
@@ -465,6 +614,7 @@ export default function Matches() {
           onClose={() => setSelected(null)}
           onRefresh={load}
           isTrainer={isTrainer}
+          isAdmin={isAdmin}
         />
       )}
 
@@ -477,54 +627,70 @@ export default function Matches() {
 
 // ── EventRow ──────────────────────────────────────────────────────────────────
 
-function EventRow({ event: ev, isLast, onClick }: {
+function EventRow({ event: ev, onClick }: {
   event: Event;
-  isLast: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       style={{
-        width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer',
-        borderBottom: isLast ? 'none' : '0.5px solid var(--cfc-border)',
-        padding: '10px 14px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        width: '100%', textAlign: 'left', background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)',
+        borderRadius: 10, cursor: 'pointer', padding: '12px 14px',
+        display: 'flex', alignItems: 'stretch', gap: 14,
         opacity: ev.status === 'aflyst' ? 0.5 : 1,
+        color: 'var(--cfc-text-primary)',
       }}
     >
-      {/* Dato */}
-      <div style={{ width: 44, flexShrink: 0, textAlign: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1, color: 'var(--cfc-text-primary)' }}>
-          {new Date(ev.start_time).getDate()}
+      {/* Dato-kolonne */}
+      <div style={{
+        width: 48, flexShrink: 0, textAlign: 'center',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        borderRight: '0.5px solid var(--cfc-border)', paddingRight: 12,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--cfc-text-muted)', letterSpacing: '0.08em', marginBottom: 2 }}>
+          {fmtWeekday(ev.start_time)}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--cfc-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          {new Date(ev.start_time).toLocaleDateString('da-DK', { month: 'short' })}
+        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
+          {fmtDay(ev.start_time)}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--cfc-text-muted)', letterSpacing: '0.06em', marginTop: 2 }}>
+          {fmtMonthShort(ev.start_time)}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--cfc-text-primary)', marginTop: 4 }}>
+          {fmtTime(ev.start_time)}
         </div>
       </div>
 
       {/* Indhold */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <TypeBadge type={ev.type} />
-          {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#e57373' }}>AFLYST</span>}
+          {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#e57373', fontWeight: 700 }}>AFLYST</span>}
         </div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Georgia, serif' }}>
           {ev.title}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
-          {new Date(ev.start_time).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
-          {ev.location && <> · {ev.location}</>}
-          {ev.result && <> · <strong style={{ color: 'var(--cfc-text-primary)' }}>{ev.result}</strong></>}
+        <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0 6px' }}>
+          {ev.meeting_time && (
+            <span>Mødetid {fmtTime(ev.meeting_time)}</span>
+          )}
+          {ev.location && <span>📍 {ev.location}</span>}
+          {ev.result && <strong style={{ color: 'var(--cfc-text-primary)' }}>{ev.result}</strong>}
         </div>
       </div>
 
-      {/* Status */}
-      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+      {/* Højre kolonne: status + tilmeldte */}
+      <div style={{ flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
         <SignupBadge status={ev.my_status} />
-        {ev.signup_count != null && (
-          <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginTop: 3 }}>
-            {ev.signup_count} tilmeldt{ev.signup_count !== 1 ? 'e' : ''}
+        {ev.signup_count != null && ev.signup_count > 0 && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: '#162416', border: '0.5px solid #2a4a2a',
+            borderRadius: 20, padding: '3px 10px',
+          }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#5a9e5a', lineHeight: 1 }}>{ev.signup_count}</span>
+            <span style={{ fontSize: 10, color: '#5a9e5a', fontWeight: 600 }}>med</span>
           </div>
         )}
       </div>
@@ -561,11 +727,8 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
 
   function onStartTimeChange(v: string) {
     const updated: Partial<typeof form> = { start_time: v };
-    // Slut sættes til samme som start (kan overskrives manuelt)
     if (!form.end_time || form.end_time === form.start_time) updated.end_time = v;
-    // Mødetid: 40 min før
     updated.meeting_time = v ? addMinutes(v, -40) : '';
-    // Tilmeldingsfrist: 7 dage før
     updated.signup_deadline = v ? addDays(v, -7) : '';
     setForm(f => ({ ...f, ...updated }));
   }
@@ -596,10 +759,12 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
     } catch (e: any) { setError(e.message); setSaving(false); }
   }
 
+  const isKamp = form.type === 'kamp';
+
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-        <h2>{event ? 'Rediger event' : 'Opret event / kamp'}</h2>
+        <h2 style={{ color: 'var(--cfc-text-primary)' }}>{event ? 'Rediger event' : 'Opret event / kamp'}</h2>
 
         <div className="form-row">
           <label className="form-label">Type</label>
@@ -608,21 +773,30 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
             <option value="event">Event</option>
           </select>
         </div>
-        {[
-          { key: 'title',       label: 'Titel',            placeholder: 'fx AGF eller Julefrokost' },
-          { key: 'location',    label: 'Sted',             placeholder: 'fx Bislett Stadion' },
-          { key: 'description', label: 'Beskrivelse',      placeholder: '' },
-          { key: 'result',      label: 'Resultat (kampe)', placeholder: 'fx 3-1' },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key} className="form-row">
-            <label className="form-label">{label}</label>
-            {key === 'description'
-              ? <textarea className="input" rows={2} value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} style={{ resize: 'vertical' }} />
-              : <input className="input" value={(form as any)[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder} />}
-          </div>
-        ))}
 
-        {/* Starttidspunkt — trigger auto-udfyld */}
+        <div className="form-row">
+          <label className="form-label">Titel</label>
+          <input className="input" value={form.title} onChange={e => set('title', e.target.value)} placeholder={isKamp ? 'fx AGF' : 'fx Julefrokost'} />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Sted</label>
+          <input className="input" value={form.location} onChange={e => set('location', e.target.value)} placeholder="fx Bislett Stadion" />
+        </div>
+
+        {/* Beskrivelse kun for events */}
+        {!isKamp && (
+          <div className="form-row">
+            <label className="form-label">Beskrivelse</label>
+            <textarea className="input" rows={2} value={form.description} onChange={e => set('description', e.target.value)} style={{ resize: 'vertical' }} />
+          </div>
+        )}
+
+        <div className="form-row">
+          <label className="form-label">Resultat</label>
+          <input className="input" value={form.result} onChange={e => set('result', e.target.value)} placeholder="fx 3-1" />
+        </div>
+
+        {/* Starttidspunkt */}
         <div className="form-row">
           <label className="form-label">Starttidspunkt</label>
           <input type="datetime-local" className="input" value={form.start_time} onChange={e => onStartTimeChange(e.target.value)} />
@@ -643,6 +817,7 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
           <label className="form-label">Sæson</label>
           <input className="input" value={form.season} onChange={e => set('season', e.target.value)} />
         </div>
+
         {event && (
           <div className="form-row">
             <label className="form-label">Status</label>
@@ -653,7 +828,8 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
           </div>
         )}
 
-        {players.length > 0 && (
+        {/* Arrangører kun for events */}
+        {!isKamp && players.length > 0 && (
           <div className="form-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
             <label className="form-label" style={{ marginBottom: 6 }}>Arrangører</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
