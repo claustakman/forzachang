@@ -27,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/reset" element={<ResetPassword />} />
           <Route path="/" element={<Protected><Layout /></Protected>}>
             <Route index element={<Navigate to="/kalender" replace />} />
+            <Route path="kampe" element={<Navigate to="/kalender" replace />} />
             <Route path="kalender" element={<Matches />} />
             <Route path="statistik" element={<Stats />} />
             <Route path="bødekasse" element={<Fines />} />

@@ -105,18 +105,12 @@ export async function syncWebcal(env: Env): Promise<void> {
     ).bind(ev.uid).first();
 
     if (existing) {
-      // Opdater kun hvis noget er ændret
-      if (
-        existing.title !== ev.title ||
-        existing.start_time !== ev.start_time ||
-        existing.location !== (ev.location || null)
-      ) {
-        await env.DB.prepare(`
-          UPDATE events SET title=?, start_time=?, end_time=?, location=?, season=?
-          WHERE webcal_uid=?
-        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
-          ev.season || now, ev.uid).run();
-      }
+      // Opdater title, tid, sted — og sæt altid type=kamp for webcal-events
+      await env.DB.prepare(`
+        UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?
+        WHERE webcal_uid=?
+      `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+        ev.season || now, ev.uid).run();
     } else {
       const meetingTime = addMinutes(ev.start_time, -40);
       const signupDeadline = addDays(ev.start_time, -7);
