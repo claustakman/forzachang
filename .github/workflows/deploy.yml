@@ -174,6 +174,20 @@ jobs:
               created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
           " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "DELETE FROM fine_types;" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-red-direct',    'Direkte rødt kort',                      240, NULL,          1,  1);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-absence',       'Udeblivelse fra kamp',                   240, 'absence',     1,  2);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-two-yellows',   'To gule kort i samme kamp',              180, NULL,          1,  3);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-no-reply',      'Manglende udmelding til kamp',           160, NULL,          1,  4);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-yellow-behav',  'Gult kort for brok eller opførsel',      120, NULL,          1,  5);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-matchday-off',  'Afbud på kampdag',                       120, NULL,          1,  6);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-late-arrive',   'Fremmøde efter kampstart',               120, NULL,          1,  7);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-late-signup',   'For sen udmelding (efter frist)',          80, 'late_signup', 1,  8);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-yellow',        'Gult kort',                               60, NULL,          1,  9);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-late-show',     'For sent fremmøde',                       60, NULL,          1, 10);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-disciplinary',  'Disciplinærstraf',                        60, NULL,          1, 11);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-bad-action',    'Elendig aktion (min. 4 stemmer)',         60, NULL,          1, 12);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT INTO fine_types (id, name, amount, auto_assign, active, sort_order) VALUES ('ft-kenneth',       'Afbud til kamp (Kennethgebyr)',           30, NULL,          1, 13);" 2>&1 || true
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
