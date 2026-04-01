@@ -146,6 +146,7 @@ export interface Player {
   shirt_number?: number;
   license_number?: string;
   avatar_url?: string;
+  last_seen?: string;
 }
 
 /** Returnerer alias hvis sat, ellers fornavn */

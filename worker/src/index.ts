@@ -47,6 +47,10 @@ export default {
         return json({ error: 'Invalid token' }, 401);
       }
 
+      // Opdater last_seen (fire-and-forget — blokerer ikke svaret)
+      env.DB.prepare('UPDATE players SET last_seen=datetime("now") WHERE id=?')
+        .bind(payload.sub).run().catch(() => {});
+
       // Route to handlers
       if (path.startsWith('/api/matches'))  return await handleMatches(request, env, payload);
       if (path.startsWith('/api/signups'))  return await handleSignups(request, env, payload);

@@ -217,6 +217,12 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
           <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Email</span> {p.email || '—'}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+            <span style={{ color: 'var(--cfc-text-subtle)' }}>Sidst aktiv</span>{' '}
+            {p.last_seen
+              ? new Date(p.last_seen).toLocaleString('da-DK', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : '—'}
+          </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
             <button className="btn btn-sm btn-secondary" onClick={onShowLogins}>🕐 Aktivitet</button>
             {p.active === 1
