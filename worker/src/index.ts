@@ -5,7 +5,7 @@ import { handleAuth } from './routes/auth';
 import { handleMatches } from './routes/matches';
 import { handleSignups } from './routes/signups';
 import { handleStats, handleEventStats } from './routes/stats';
-import { handleFines } from './routes/fines';
+import { handleFines, handleFineTypes, handleFinePayments } from './routes/fines';
 import { handlePlayers } from './routes/players';
 import { handleEvents } from './routes/events';
 import { handleSettings } from './routes/settings';
@@ -55,7 +55,9 @@ export default {
       if (path.startsWith('/api/matches'))  return await handleMatches(request, env, payload);
       if (path.startsWith('/api/signups'))  return await handleSignups(request, env, payload);
       if (path.startsWith('/api/stats'))    return await handleStats(request, env, payload);
-      if (path.startsWith('/api/fines'))    return await handleFines(request, env, payload);
+      if (path.startsWith('/api/fine-types'))    return await handleFineTypes(request, env, payload);
+      if (path.startsWith('/api/fine-payments')) return await handleFinePayments(request, env, payload);
+      if (path.startsWith('/api/fines'))         return await handleFines(request, env, payload);
       if (path.startsWith('/api/players'))  return await handlePlayers(request, env, payload);
       // /api/events/:id/stats håndteres separat
       {

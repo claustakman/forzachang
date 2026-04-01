@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, Player, LoginEntry } from '../lib/api';
+import { api, Player, LoginEntry, FineType } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,11 +11,12 @@ export default function Admin() {
     if (!isAdmin) navigate('/kalender');
   }, [isAdmin]);
 
-  const [tab, setTab] = useState<'players' | 'settings'>('players');
+  const [tab, setTab] = useState<'players' | 'settings' | 'fines'>('players');
 
   const tabs: { key: typeof tab; label: string }[] = [
     { key: 'players',  label: 'Spillere' },
     { key: 'settings', label: 'Indstillinger' },
+    { key: 'fines',    label: 'Bødekatalog' },
   ];
 
   return (
@@ -41,6 +42,7 @@ export default function Admin() {
 
       {tab === 'players'  && <AdminPlayers />}
       {tab === 'settings' && <AdminSettings />}
+      {tab === 'fines'    && <AdminFineTypes />}
     </div>
   );
 }
@@ -513,6 +515,179 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
 
         <div className="modal-footer" style={{ marginTop: 16 }}>
           <button className="btn btn-secondary" onClick={onClose}>Luk</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AdminFineTypes ────────────────────────────────────────────────────────────
+
+function AdminFineTypes() {
+  const [types, setTypes] = useState<FineType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editType, setEditType] = useState<FineType | null>(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      setTypes(await api.getFineTypes());
+    } catch (e: any) {
+      alert('Fejl: ' + e.message);
+    }
+    setLoading(false);
+  }
+
+  async function archive(id: string, name: string) {
+    if (!confirm(`Arkivér bødetype "${name}"? Den vises ikke længere ved tildeling af bøder.`)) return;
+    await api.deleteFineType(id);
+    load();
+  }
+
+  async function restore(id: string) {
+    await api.updateFineType(id, { active: 1 } as any);
+    load();
+  }
+
+  const active = types.filter(t => t.active);
+  const archived = types.filter(t => !t.active);
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
+
+  function autoAssignLabel(v?: string) {
+    if (v === 'absence')    return { label: 'Auto: afbud',          bg: '#2a1010', color: '#e57373' };
+    if (v === 'late_signup') return { label: 'Auto: sen tilmelding', bg: '#1a1200', color: '#c4a000' };
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        className="btn btn-primary"
+        style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
+        onClick={() => setShowAdd(true)}
+      >
+        + Ny bødetype
+      </button>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+        {active.length === 0 && <div className="empty">Ingen aktive bødetyper</div>}
+        {active.map((t, i) => {
+          const badge = autoAssignLabel(t.auto_assign);
+          return (
+            <div key={t.id} style={{ borderBottom: i < active.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>
+                    {t.name}
+                    {badge && (
+                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 100, background: badge.bg, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>
+                    {t.amount} kr.
+                  </div>
+                </div>
+                <button className="btn btn-sm btn-secondary" onClick={() => setEditType(t)}>Rediger</button>
+                <button className="btn btn-sm btn-danger" onClick={() => archive(t.id, t.name)}>Arkivér</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {archived.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginBottom: 6 }}>Arkiverede</div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {archived.map((t, i) => (
+              <div key={t.id} style={{ borderBottom: i < archived.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', opacity: 0.6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 400, fontSize: 14 }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>{t.amount} kr.</div>
+                  </div>
+                  <button className="btn btn-sm btn-secondary" onClick={() => restore(t.id)}>Genaktivér</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {showAdd && <FineTypeModal onClose={() => { setShowAdd(false); load(); }} />}
+      {editType && <FineTypeModal fineType={editType} onClose={() => { setEditType(null); load(); }} />}
+    </>
+  );
+}
+
+function FineTypeModal({ fineType, onClose }: { fineType?: FineType; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: fineType?.name || '',
+    amount: fineType?.amount?.toString() || '',
+    auto_assign: fineType?.auto_assign || '',
+    sort_order: fineType?.sort_order?.toString() || '0',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function submit() {
+    if (!form.name || !form.amount) { setError('Navn og beløb kræves'); return; }
+    setSaving(true);
+    try {
+      const data = {
+        name: form.name,
+        amount: Number(form.amount),
+        auto_assign: form.auto_assign || null,
+        sort_order: Number(form.sort_order) || 0,
+      };
+      if (fineType) {
+        await api.updateFineType(fineType.id, data as any);
+      } else {
+        await api.createFineType(data as any);
+      }
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>{fineType ? 'Rediger bødetype' : 'Ny bødetype'}</h2>
+        <div className="form-row">
+          <label className="form-label">Navn</label>
+          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="fx Gult kort" />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Beløb (kr.)</label>
+          <input className="input" type="number" min="1" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="fx 25" />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Auto-tildeling</label>
+          <select className="input" value={form.auto_assign} onChange={e => set('auto_assign', e.target.value)}>
+            <option value="">Ingen (manuelt)</option>
+            <option value="absence">Ved afbud (absence)</option>
+            <option value="late_signup">Ved sen tilmelding (late_signup)</option>
+          </select>
+        </div>
+        <div className="form-row">
+          <label className="form-label">Sorteringsorden</label>
+          <input className="input" type="number" value={form.sort_order} onChange={e => set('sort_order', e.target.value)} placeholder="0" />
+        </div>
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : (fineType ? 'Gem' : 'Opret')}</button>
         </div>
       </div>
     </div>

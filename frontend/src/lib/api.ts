@@ -135,14 +135,31 @@ export const api = {
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
   syncWebcal: () => req<{ ok: boolean }>('POST', '/settings/sync'),
 
-  // Fines
-  getFines: () => req<FinesResponse>('GET', '/fines'),
+  // Fines (fase 6)
+  getFineTypes: () => req<FineType[]>('GET', '/fine-types'),
+  createFineType: (data: Partial<FineType>) => req<FineType>('POST', '/fine-types', data),
+  updateFineType: (id: string, data: Partial<FineType>) => req<FineType>('PUT', `/fine-types/${id}`, data),
+  deleteFineType: (id: string) => req<{ ok: boolean }>('DELETE', `/fine-types/${id}`),
+
+  getFines: (playerId?: string) =>
+    req<Fine[]>('GET', `/fines${playerId ? `?player_id=${playerId}` : ''}`),
+  createFine: (data: { player_id: string; fine_type_id: string; event_id?: string; note?: string }) =>
+    req<Fine>('POST', '/fines', data),
+  deleteFine: (id: string) => req<{ ok: boolean }>('DELETE', `/fines/${id}`),
+
+  getFineSummary: () => req<PlayerFinesSummary[]>('GET', '/fines/summary'),
+
+  getFinePayments: (playerId?: string) =>
+    req<FinePayment[]>('GET', `/fine-payments${playerId ? `?player_id=${playerId}` : ''}`),
+  createFinePayment: (data: { player_id: string; amount: number; note?: string }) =>
+    req<FinePayment>('POST', '/fine-payments', data),
+  deleteFinePayment: (id: string) => req<{ ok: boolean }>('DELETE', `/fine-payments/${id}`),
+
+  // Legacy fines (bagudkompatibel)
   addFine: (data: { player_id: string; fine_type_id: string; reason?: string }) =>
     req<{ ok: boolean }>('POST', '/fines', data),
   payFine: (id: string) =>
     req<{ ok: boolean }>('PUT', `/fines/${id}/pay`, {}),
-  deleteFine: (id: string) =>
-    req<{ ok: boolean }>('DELETE', `/fines/${id}`),
 };
 
 // Types
@@ -207,19 +224,49 @@ export interface FineType {
   id: string;
   name: string;
   amount: number;
+  auto_assign?: string;
+  active: number;
+  sort_order: number;
 }
 
 export interface Fine {
   id: string;
   player_id: string;
   player_name: string;
+  player_full_name?: string;
+  player_alias?: string;
+  player_avatar_url?: string;
   fine_type_id: string;
   fine_type_name: string;
+  event_id?: string;
+  event_title?: string;
   amount: number;
-  reason?: string;
-  issued_by_name: string;
-  paid: number;
+  note?: string;
+  assigned_by: string;
   created_at: string;
+}
+
+export interface FinePayment {
+  id: string;
+  player_id: string;
+  player_name: string;
+  player_avatar_url?: string;
+  amount: number;
+  note?: string;
+  registered_by: string;
+  created_at: string;
+}
+
+export interface PlayerFinesSummary {
+  player_id: string;
+  name: string;
+  full_name: string;
+  alias?: string;
+  avatar_url?: string;
+  active: number;
+  total_fines: number;
+  total_payments: number;
+  balance: number;
 }
 
 export interface Event {
@@ -272,6 +319,7 @@ export interface LoginEntry {
   created_at: string;
 }
 
+// Legacy — bruges ikke mere af Fines.tsx men beholdes for bakudkompatibilitet
 export interface FinesResponse {
   fines: Fine[];
   types: FineType[];

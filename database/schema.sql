@@ -48,11 +48,15 @@ CREATE TABLE IF NOT EXISTS stats (
   UNIQUE(player_id, match_id)
 );
 
+-- ── Fase 6: Bødekasse ────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS fine_types (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  amount INTEGER NOT NULL, -- øre (100 = 1 kr)
+  amount INTEGER NOT NULL,        -- kr. (fx 50 = 50 kr)
+  auto_assign TEXT,               -- NULL | 'absence' | 'late_signup'
   active INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -60,23 +64,31 @@ CREATE TABLE IF NOT EXISTS fines (
   id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   fine_type_id TEXT NOT NULL REFERENCES fine_types(id),
-  amount INTEGER NOT NULL,
-  reason TEXT,
-  issued_by TEXT NOT NULL REFERENCES players(id),
-  paid INTEGER NOT NULL DEFAULT 0,
+  event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  amount INTEGER NOT NULL,        -- kr.
+  note TEXT,
+  assigned_by TEXT NOT NULL REFERENCES players(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(player_id, fine_type_id, event_id)
+);
+
+CREATE TABLE IF NOT EXISTS fine_payments (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  amount INTEGER NOT NULL,        -- kr.
+  note TEXT,
+  registered_by TEXT NOT NULL REFERENCES players(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Default fine types
-INSERT OR IGNORE INTO fine_types (id, name, amount) VALUES
-  ('ft1', 'For sent til kamp', 2000),
-  ('ft2', 'Glemt trøje', 5000),
-  ('ft3', 'Glemt støvler', 5000),
-  ('ft4', 'Rødt kort', 10000),
-  ('ft5', 'Gult kort (2. i sæson)', 2500),
-  ('ft6', 'Ikke mødt op uden afbud', 5000),
-  ('ft7', 'Mobiltelefon på banen', 2000),
-  ('ft8', 'Klaget over dommer', 3000);
+-- Seed bødekatalog
+INSERT OR IGNORE INTO fine_types (id, name, amount, auto_assign, sort_order) VALUES
+  ('ft-absence',    'Afbud',                50,  'absence',    1),
+  ('ft-late',       'For sen tilmelding',   25,  'late_signup', 2),
+  ('ft-yellow',     'Gult kort',            25,  NULL,          3),
+  ('ft-red',        'Rødt kort',            100, NULL,          4),
+  ('ft-latearrive', 'For sent fremmøde',    25,  NULL,          5),
+  ('ft-gear',       'Manglende udstyr',     25,  NULL,          6);
 
 -- Default admin user (password: admin123 — CHANGE THIS)
 -- password_hash is bcrypt of 'admin123'

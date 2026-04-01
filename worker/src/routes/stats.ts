@@ -139,6 +139,14 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
 
     // Bulk-gem: { event_id, rows: [{player_id, goals, yellow_cards, red_cards, mom, played}] }
     if (body.event_id && Array.isArray(body.rows)) {
+      // Hent auto-assign bødetyper én gang
+      const absenceFineType = await env.DB.prepare(
+        "SELECT id, amount FROM fine_types WHERE auto_assign='absence' AND active=1 LIMIT 1"
+      ).first() as { id: string; amount: number } | null;
+      const lateSignupFineType = await env.DB.prepare(
+        "SELECT id, amount FROM fine_types WHERE auto_assign='late_signup' AND active=1 LIMIT 1"
+      ).first() as { id: string; amount: number } | null;
+
       for (const row of body.rows) {
         const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1, late_signup = 0, absence = 0 } = row;
         const existing = await env.DB.prepare(
@@ -152,6 +160,18 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
           await env.DB.prepare(
             'INSERT INTO match_stats (id,event_id,player_id,goals,yellow_cards,red_cards,mom,played,late_signup,absence) VALUES(?,?,?,?,?,?,?,?,?,?)'
           ).bind(nanoid(), body.event_id, player_id, goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0).run();
+        }
+
+        // Auto-tildel bøder
+        if (absence && absenceFineType) {
+          await env.DB.prepare(
+            'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
+          ).bind(nanoid(), player_id, absenceFineType.id, body.event_id, absenceFineType.amount, user.sub).run();
+        }
+        if (late_signup && lateSignupFineType) {
+          await env.DB.prepare(
+            'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
+          ).bind(nanoid(), player_id, lateSignupFineType.id, body.event_id, lateSignupFineType.amount, user.sub).run();
         }
       }
       return json({ ok: true });
