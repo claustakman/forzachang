@@ -5,8 +5,8 @@ import logo from '../assets/logo.svg';
 
 const NAV_ITEMS = [
   { to: '/kalender',  label: 'Kalender',  icon: '📅', comingSoon: false },
-  { to: '/statistik', label: 'Statistik', icon: '📊', comingSoon: true },
-  { to: '/bødekasse', label: 'Bødekasse', icon: '💰', comingSoon: true },
+  { to: '/statistik', label: 'Statistik', icon: '📊', comingSoon: false },
+  { to: '/bødekasse', label: 'Bødekasse', icon: '💰', comingSoon: false },
 ];
 
 export default function Layout() {
