@@ -529,7 +529,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           )}
           {isTrainer && isKamp && new Date(event.start_time) < new Date() && (
             <button className="btn btn-secondary" onClick={() => setShowStats(true)}>
-              📊 Statistik
+              📊 Statistik & Bøder
             </button>
           )}
           {isTrainer && (
@@ -574,18 +574,21 @@ function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: str
   );
 }
 
-// ── Kampstatistik-modal ───────────────────────────────────────────────────────
+// ── Kampstatistik & Bøder-modal ───────────────────────────────────────────────
 
 function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const [data, setData] = useState<EventStatsResponse | null>(null);
   const [rows, setRows] = useState<Record<string, MatchStatRow>>({});
+  // fineSelections: { [fine_type_id]: Set<player_id> }
+  const [fineSelections, setFineSelections] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api.getEventStats(event.id).then(d => {
       setData(d);
-      // Pre-udfyld: eksisterende stats vinder, ellers brug auto_stats fra server
+
+      // Pre-udfyld statistik
       const init: Record<string, MatchStatRow> = {};
       for (const s of d.signups) {
         const existing = d.stats.find(x => x.player_id === s.id);
@@ -597,8 +600,31 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
           : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0, late_signup: 0, absence: s.status === 'afmeldt' ? 1 : 0 };
       }
       setRows(init);
+
+      // Pre-udfyld bøder: eksisterende bøder + auto-assign baseret på signups
+      const sel: Record<string, Set<string>> = {};
+      for (const ft of d.fine_types || []) {
+        sel[ft.id] = new Set();
+        // Eksisterende bøder for dette event
+        for (const ef of d.existing_fines || []) {
+          if (ef.fine_type_id === ft.id) sel[ft.id].add(ef.player_id);
+        }
+        // Auto-assign: pre-select baseret på signup-status
+        if (ft.auto_assign) {
+          for (const s of d.signups) {
+            const autoRow = auto_stat_for(s, d, init);
+            if (ft.auto_assign === 'absence' && autoRow?.absence) sel[ft.id].add(s.id);
+            if (ft.auto_assign === 'late_signup' && autoRow?.late_signup) sel[ft.id].add(s.id);
+          }
+        }
+      }
+      setFineSelections(sel);
     }).catch(() => {});
   }, [event.id]);
+
+  function auto_stat_for(s: { id: string }, d: EventStatsResponse, initRows: Record<string, MatchStatRow>) {
+    return initRows[s.id] || d.auto_stats?.find(x => x.player_id === s.id);
+  }
 
   function setField(playerId: string, field: keyof MatchStatRow, value: number) {
     setRows(r => ({ ...r, [playerId]: { ...r[playerId], [field]: value } }));
@@ -607,36 +633,66 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   function setMom(playerId: string) {
     setRows(r => {
       const next = { ...r };
-      for (const id of Object.keys(next)) {
-        next[id] = { ...next[id], mom: id === playerId ? 1 : 0 };
-      }
+      for (const id of Object.keys(next)) next[id] = { ...next[id], mom: id === playerId ? 1 : 0 };
+      return next;
+    });
+  }
+
+  function toggleFine(fineTypeId: string, playerId: string) {
+    setFineSelections(prev => {
+      const next = { ...prev, [fineTypeId]: new Set(prev[fineTypeId] || []) };
+      if (next[fineTypeId].has(playerId)) next[fineTypeId].delete(playerId);
+      else next[fineTypeId].add(playerId);
       return next;
     });
   }
 
   async function save() {
+    if (!data) return;
     setSaving(true);
     try {
+      // 1. Gem statistik (auto-bøder tildeles også server-side)
       await api.saveEventStats(event.id, Object.values(rows));
+
+      // 2. Tildel manuelle bøder fra UI (kun ikke-auto typer — auto håndteres af saveEventStats)
+      for (const [fineTypeId, playerIds] of Object.entries(fineSelections)) {
+        const ft = data.fine_types.find(f => f.id === fineTypeId);
+        if (ft?.auto_assign) continue; // auto-bøder tildeles af serveren via stats
+        for (const playerId of playerIds) {
+          const alreadyExists = (data.existing_fines || []).some(
+            ef => ef.fine_type_id === fineTypeId && ef.player_id === playerId
+          );
+          if (!alreadyExists) {
+            await api.createFine({ player_id: playerId, fine_type_id: fineTypeId, event_id: event.id }).catch(() => {});
+          }
+        }
+      }
+
       setSaved(true);
       setTimeout(onClose, 1200);
     } catch (e: any) { alert(e.message); }
     setSaving(false);
   }
 
-  const tilmeldte = data?.signups.filter(s => s.status === 'tilmeldt') || [];
-  const afmeldte  = data?.signups.filter(s => s.status === 'afmeldt') || [];
+  const allSignups = data?.signups || [];
+  const tilmeldte = allSignups.filter(s => s.status === 'tilmeldt');
+  const afmeldte  = allSignups.filter(s => s.status === 'afmeldt');
+  const manualFineTypes = data?.fine_types.filter(ft => !ft.auto_assign) || [];
+  const autoFineTypes   = data?.fine_types.filter(ft =>  ft.auto_assign) || [];
 
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ color: 'var(--cfc-text-primary)', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>Kampstatistik</h2>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ color: 'var(--cfc-text-primary)', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>Statistik & Bøder</h2>
         <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 16 }}>{event.title}</div>
 
         {!data ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
         ) : (
           <>
+            {/* ── Statistik ── */}
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>Statistik</div>
+
             {/* Tabel-header */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 48px 48px 48px 52px 44px', gap: 4, alignItems: 'center', marginBottom: 6, paddingBottom: 6, borderBottom: '0.5px solid var(--cfc-border)' }}>
               <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', fontWeight: 600 }}>Spiller</div>
@@ -648,7 +704,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
             </div>
 
             {/* Tilmeldte */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
               {tilmeldte.map(s => {
                 const r = rows[s.id] || { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: 1 };
                 return (
@@ -671,14 +727,45 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
               })}
             </div>
 
-            {/* Afmeldte (vises grå, played=0) */}
+            {/* Afmeldte */}
             {afmeldte.length > 0 && (
-              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--cfc-border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--cfc-border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
                   Afbud ({afmeldte.length})
                 </div>
                 {afmeldte.map(s => (
                   <div key={s.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', padding: '2px 0' }}>{s.name}</div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Bøder ── */}
+            {data.fine_types.length > 0 && (
+              <div style={{ marginTop: 18, paddingTop: 14, borderTop: '0.5px solid var(--cfc-border)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 12 }}>Bøder</div>
+
+                {/* Auto-bøder (absence + late_signup) */}
+                {autoFineTypes.map(ft => (
+                  <FineTypeSection
+                    key={ft.id}
+                    fineType={ft}
+                    signups={allSignups}
+                    selected={fineSelections[ft.id] || new Set()}
+                    onToggle={playerId => toggleFine(ft.id, playerId)}
+                    isAuto
+                  />
+                ))}
+
+                {/* Manuelle bøder */}
+                {manualFineTypes.map(ft => (
+                  <FineTypeSection
+                    key={ft.id}
+                    fineType={ft}
+                    signups={allSignups}
+                    selected={fineSelections[ft.id] || new Set()}
+                    onToggle={playerId => toggleFine(ft.id, playerId)}
+                    isAuto={false}
+                  />
                 ))}
               </div>
             )}
@@ -689,10 +776,68 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
           {saved && <span style={{ fontSize: 13, color: '#5a9e5a' }}>✓ Gemt!</span>}
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={save} disabled={saving || !data}>
-            {saving ? '...' : 'Gem statistik'}
+            {saving ? '...' : 'Gem'}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── FineTypeSection ───────────────────────────────────────────────────────────
+
+function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
+  fineType: import('../lib/api').FineType;
+  signups: import('../lib/api').EventStatsSignup[];
+  selected: Set<string>;
+  onToggle: (playerId: string) => void;
+  isAuto: boolean;
+}) {
+  const [open, setOpen] = useState(() => isAuto && selected.size > 0);
+
+  return (
+    <div style={{ marginBottom: 8, background: 'var(--cfc-bg-hover)', borderRadius: 8, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--cfc-text-primary)',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>{fineType.name}</span>
+          {isAuto && (
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 100, background: '#1a1200', color: '#c4a000' }}>auto</span>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fineType.amount} kr.</span>
+          {selected.size > 0 && (
+            <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 100, background: '#2a1010', color: '#e57373', fontWeight: 600 }}>
+              {selected.size}
+            </span>
+          )}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '4px 12px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {signups.map(s => (
+            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={selected.has(s.id)}
+                onChange={() => onToggle(s.id)}
+                style={{ width: 15, height: 15 }}
+              />
+              <span style={{ color: s.status === 'afmeldt' ? 'var(--cfc-text-subtle)' : 'var(--cfc-text-primary)' }}>
+                {s.name}
+                {s.status === 'afmeldt' && <span style={{ fontSize: 11, marginLeft: 6, color: '#e57373' }}>afbud</span>}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

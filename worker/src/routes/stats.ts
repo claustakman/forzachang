@@ -237,10 +237,20 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     return { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played, late_signup, absence };
   }).filter(Boolean);
 
+  // Bødetyper og eksisterende bøder for dette event
+  const fineTypes = await env.DB.prepare(
+    'SELECT * FROM fine_types WHERE active=1 ORDER BY sort_order, name'
+  ).all();
+  const existingFines = await env.DB.prepare(
+    'SELECT player_id, fine_type_id FROM fines WHERE event_id=?'
+  ).bind(eventId).all();
+
   return json({
     event,
     signups: signups.results,
     stats: existing.results,
-    auto_stats: autoStats,  // forslag til nye spillere — frontend merger disse
+    auto_stats: autoStats,
+    fine_types: fineTypes.results,
+    existing_fines: existingFines.results,
   });
 }

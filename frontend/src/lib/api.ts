@@ -350,6 +350,8 @@ export interface EventStatsResponse {
   signups: EventStatsSignup[];
   stats: (MatchStatRow & { id: string; event_id: string })[];
   auto_stats: MatchStatRow[];
+  fine_types: FineType[];
+  existing_fines: { player_id: string; fine_type_id: string }[];
 }
 
 export interface PlayerSeasonStats {
