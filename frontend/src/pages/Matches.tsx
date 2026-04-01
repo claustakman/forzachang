@@ -86,6 +86,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
 }) {
   const { player } = useAuth();
   const [detail, setDetail] = useState<EventDetail | null>(null);
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [signing, setSigning] = useState<string | null>(null);
   const [showComment, setShowComment] = useState(false);
   const [comment, setComment] = useState('');
@@ -334,46 +335,64 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
             <button
               className="btn btn-sm btn-secondary"
-              onClick={() => setShowAdmin(a => !a)}
+              onClick={() => {
+                const next = !showAdmin;
+                setShowAdmin(next);
+                if (next && allPlayers.length === 0) {
+                  api.getPlayers().then(setAllPlayers).catch(() => {});
+                }
+              }}
               style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}
             >
-              {showAdmin ? '▲ Luk administrer' : '⚙ Administrer'}
+              {showAdmin ? '▲ Luk administrer tilmeldinger' : '⚙ Administrer tilmeldinger'}
             </button>
 
             {showAdmin && detail && (
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                {/* Tilmeld/afmeld på vegne */}
+                {/* Tilmeld/afmeld på vegne — alle aktive spillere */}
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
                     Tilmeld / afmeld spillere
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {detail.signups.map(s => (
-                      <div key={s.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
-                        <SignupBadge status={s.status} />
-                        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                          {s.status !== 'tilmeldt' && (
-                            <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'tilmeldt')}>
-                              Tilmeld
-                            </button>
-                          )}
-                          {s.status !== 'afmeldt' && (
-                            <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'afmeldt')}>
-                              Afmeld
-                            </button>
-                          )}
-                          <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(s.player_id)} title="Fjern tilmelding">
-                            ↩
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {detail.signups.length === 0 && (
-                      <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>Ingen tilmeldinger endnu.</div>
-                    )}
-                  </div>
+                  {allPlayers.length === 0 ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}><div className="spinner" /></div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {allPlayers.filter(p => p.active).map(p => {
+                        const signup = detail.signups.find(s => s.player_id === p.id);
+                        return (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{p.name.split(' ')[0]}</span>
+                            <SignupBadge status={signup?.status ?? null} />
+                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: 11, opacity: signup?.status === 'tilmeldt' ? 0.4 : 1 }}
+                                disabled={signing !== null || signup?.status === 'tilmeldt'}
+                                onClick={() => doSignup(p.id, 'tilmeldt')}
+                              >
+                                Tilmeld
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 8px', fontSize: 11, opacity: signup?.status === 'afmeldt' ? 0.4 : 1 }}
+                                disabled={signing !== null || signup?.status === 'afmeldt'}
+                                onClick={() => doSignup(p.id, 'afmeldt')}
+                              >
+                                Afmeld
+                              </button>
+                              {signup && (
+                                <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(p.id)} title="Fjern tilmelding">
+                                  ↩
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Tilføj gæst */}
@@ -424,12 +443,12 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         )}
 
         <div className="modal-footer" style={{ marginTop: 16 }}>
-          {isTrainer && (
-            <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
-          )}
           <button className="btn btn-secondary" style={{ opacity: 0.6 }} onClick={() => {}} title="Kommer snart">
             🔔 Påmind
           </button>
+          {isTrainer && (
+            <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
+          )}
           <button className="btn btn-secondary" onClick={onClose}>Luk</button>
         </div>
       </div>
