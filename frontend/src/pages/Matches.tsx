@@ -1091,6 +1091,21 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
 
         {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
         <div className="modal-footer">
+          {event && (
+            <button
+              className="btn btn-secondary"
+              style={{ marginRight: 'auto', color: '#e57373', borderColor: '#e57373' }}
+              onClick={async () => {
+                if (!confirm(`Slet "${event.title}"? Dette kan ikke fortrydes.`)) return;
+                try {
+                  await api.deleteEvent(event.id);
+                  onClose();
+                } catch (e: any) { setError(e.message); }
+              }}
+            >
+              🗑️ Slet
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : event ? 'Gem' : 'Opret'}</button>
         </div>
