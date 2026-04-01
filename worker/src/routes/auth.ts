@@ -107,7 +107,7 @@ async function sendEmail(env: Env, { to, subject, html }: { to: string; subject:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Copenhagen Forza Chang <onboarding@resend.dev>',
+      from: 'Copenhagen Forza Chang <noreply@forzachang.eu>',
       to,
       subject,
       html,
