@@ -60,6 +60,8 @@ export const api = {
     req<{ ok: boolean }>('PUT', `/players/${id}`, data),
   uploadAvatar: (id: string, file: File) =>
     uploadFile<{ ok: boolean; avatar_url: string }>(`/players/${id}/avatar`, file),
+  getPlayerLogins: (id: string) =>
+    req<LoginEntry[]>('GET', `/players/${id}/logins`),
   deletePlayer: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/players/${id}`),
   deletePlayerPermanently: (id: string) =>
@@ -249,6 +251,12 @@ export interface EventDetail extends Event {
   signups: EventSignup[];
   organizers: EventOrganizer[];
   guests: EventGuest[];
+}
+
+export interface LoginEntry {
+  id: string;
+  ip: string | null;
+  created_at: string;
 }
 
 export interface FinesResponse {

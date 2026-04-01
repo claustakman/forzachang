@@ -37,6 +37,15 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
     return json({ ok: true, avatar_url });
   }
 
+  // GET /api/players/:id/logins — login-log for spiller (kun admin)
+  if (request.method === 'GET' && id && sub === 'logins') {
+    if (user.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+    const logs = await env.DB.prepare(
+      'SELECT id, ip, created_at FROM login_log WHERE player_id = ? ORDER BY created_at DESC LIMIT 50'
+    ).bind(id).all();
+    return json(logs.results);
+  }
+
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive

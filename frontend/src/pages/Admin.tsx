@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, Player } from '../lib/api';
+import { api, Player, LoginEntry } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -52,6 +52,7 @@ function AdminPlayers() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
+  const [loginPlayer, setLoginPlayer] = useState<Player | null>(null);
   const [subTab, setSubTab] = useState<'active' | 'inactive'>('active');
 
   useEffect(() => { load(); }, []);
@@ -142,17 +143,19 @@ function AdminPlayers() {
             onDeactivate={() => deactivate(p.id)}
             onReactivate={() => reactivate(p.id)}
             onDelete={() => deletePermanently(p.id, p.name)}
+            onShowLogins={() => setLoginPlayer(p)}
           />
         ))}
       </div>
 
       {showAdd && <AddPlayerModal onClose={() => { setShowAdd(false); load(); }} />}
       {editPlayer && <EditPlayerModal player={editPlayer} onClose={() => { setEditPlayer(null); load(); }} />}
+      {loginPlayer && <LoginLogModal player={loginPlayer} onClose={() => setLoginPlayer(null)} />}
     </>
   );
 }
 
-function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReactivate, onDelete }: {
+function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReactivate, onDelete, onShowLogins }: {
   player: Player;
   isLast: boolean;
   onEdit: () => void;
@@ -160,6 +163,7 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
   onDeactivate: () => void;
   onReactivate: () => void;
   onDelete: () => void;
+  onShowLogins: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -214,6 +218,7 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Email</span> {p.email || '—'}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+            <button className="btn btn-sm btn-secondary" onClick={onShowLogins}>🕐 Aktivitet</button>
             {p.active === 1
               ? <>
                   <button className="btn btn-sm btn-secondary" onClick={onInvite}>Send velkomst-email</button>
@@ -438,6 +443,70 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : 'Gem'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LoginLogModal ─────────────────────────────────────────────────────────────
+
+function LoginLogModal({ player, onClose }: { player: Player; onClose: () => void }) {
+  const [logs, setLogs] = useState<LoginEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getPlayerLogins(player.id)
+      .then(setLogs)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [player.id]);
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleString('da-DK', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ color: 'var(--cfc-text-primary)', marginBottom: 4 }}>Aktivitet</h2>
+        <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 16 }}>
+          {player.name}{player.alias ? ` · "${player.alias}"` : ''} · seneste 50 logins
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+            <div className="spinner" />
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="empty">Ingen logins registreret endnu.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {logs.map((log, i) => (
+              <div key={log.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '8px 10px',
+                background: i % 2 === 0 ? 'var(--cfc-bg-hover)' : 'transparent',
+                borderRadius: 6,
+              }}>
+                <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>
+                  {fmtDate(log.created_at)}
+                </span>
+                {log.ip && (
+                  <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontFamily: 'monospace' }}>
+                    {log.ip}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="modal-footer" style={{ marginTop: 16 }}>
+          <button className="btn btn-secondary" onClick={onClose}>Luk</button>
         </div>
       </div>
     </div>

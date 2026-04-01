@@ -18,6 +18,11 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
       { sub: player.id as string, name: player.name as string, role: player.role as string },
       env.JWT_SECRET
     );
+    // Log login
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || null;
+    await env.DB.prepare(
+      'INSERT INTO login_log (id, player_id, ip) VALUES (?, ?, ?)'
+    ).bind(crypto.randomUUID(), player.id as string, ip).run();
     return json({ token, player: { id: player.id, name: player.name, role: player.role, email: player.email, phone: player.phone } });
   }
 

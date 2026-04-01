@@ -133,6 +133,13 @@ CREATE TABLE IF NOT EXISTS event_guests (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS login_log (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  ip TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
 -- Run these once against the existing DB via Cloudflare D1 dashboard console:
