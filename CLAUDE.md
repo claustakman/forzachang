@@ -205,11 +205,50 @@ UNIQUE constraint på `(event_id, player_id)`.
 
 UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over legacy for samme sæson.
 
+### Bødekatalog (`fine_types`)
+
+| Felt          | Type    | Beskrivelse                                              |
+|---------------|---------|----------------------------------------------------------|
+| `id`          | TEXT    | UUID                                                     |
+| `name`        | TEXT    | Navn, fx "Gult kort"                                     |
+| `amount`      | INTEGER | Beløb i kr.                                              |
+| `auto_assign` | TEXT    | `absence` eller `late_signup` eller NULL                 |
+| `active`      | INTEGER | 1 = vises i katalog, 0 = arkiveret                       |
+| `sort_order`  | INTEGER | Rækkefølge i UI                                          |
+| `created_at`  | TEXT    | Oprettelsestidspunkt                                     |
+
+Seed: Afbud (50 kr, auto), For sen tilmelding (25 kr, auto), Gult kort (25 kr), Rødt kort (100 kr), For sent fremmøde (25 kr), Manglende udstyr (25 kr).
+
+### Tildelte bøder (`fines`)
+
+| Felt            | Type    | Beskrivelse                                          |
+|-----------------|---------|------------------------------------------------------|
+| `id`            | TEXT    | UUID                                                 |
+| `player_id`     | TEXT    | FK → players.id                                      |
+| `fine_type_id`  | TEXT    | FK → fine_types.id                                   |
+| `event_id`      | TEXT    | FK → events.id (valgfrit — NULL for manuelle bøder)  |
+| `amount`        | INTEGER | Snapshot af beløb på tildelingstidspunkt             |
+| `note`          | TEXT    | Valgfri kommentar                                    |
+| `assigned_by`   | TEXT    | FK → players.id                                      |
+| `created_at`    | TEXT    | Oprettelsestidspunkt                                 |
+
+UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer duplikate auto-bøder per kamp.
+
+### Indbetalinger (`fine_payments`)
+
+| Felt              | Type    | Beskrivelse                        |
+|-------------------|---------|------------------------------------|
+| `id`              | TEXT    | UUID                               |
+| `player_id`       | TEXT    | FK → players.id                    |
+| `amount`          | INTEGER | Indbetalt beløb i kr.              |
+| `note`            | TEXT    | Valgfri kommentar                  |
+| `registered_by`   | TEXT    | FK → players.id (admin/træner)     |
+| `created_at`      | TEXT    | Tidsstempel                        |
+
 ### Legacy-tabeller (bruges stadig til gammel statistik-integration)
 - `matches` — gamle kampe (bruges af stats-integration)
 - `signups` — gamle tilmeldinger
 - `stats` — gammelt stats-format (legacy, erstattes af match_stats)
-- `fine_types`, `fines` — bødekassen
 
 ---
 
@@ -260,6 +299,14 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
   - Tre visninger: **Top 10** (søjlediagrammer), **Sæsonoversigt** (tabel), **Spillerprofil** (klik → modal med sæson-for-sæson)
   - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
   - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
+
+### Bødekasse (fase 6)
+- **Saldi beregnes dynamisk**: skyldig = SUM(fines.amount) − SUM(fine_payments.amount)
+- **Automatisk tildeling** ved kampstatistik-registrering: `absence=1` → "Afbud"-bøde, `late_signup=1` → "For sen tilmelding"-bøde (via UNIQUE constraint — ingen duplikater)
+- **Manuelle bøder** tildeles af trainer/admin fra bødesiden
+- **Bødeside** (`/bøder`): holdoversigt (total skyldig + total bøder), spillertabel (klik → detaljemodal), detaljemodal med bøder/indbetalinger-tabs
+- **Admin → Bødekatalog**: liste over bødetyper, opret/rediger/arkivér, auto_assign-typer markeret med badge
+- Alle kan se alles bøder og saldi
 
 ### Import af historisk statistik
 - Script: `scripts/scrape_stats.py` — scraper forzachang.dk og genererer INSERT-SQL til `player_stats_legacy`
@@ -381,9 +428,17 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | POST   | /api/matches                  | admin          | Legacy: opret kamp                   |
 | POST   | /api/signups                  | player+        | Legacy: tilmeld/afmeld kamp          |
 | GET    | /api/stats                    | player+        | Hent samlet statistik (legacy + match_stats kombineret) |
-| GET    | /api/fines                    | player+        | Se bøder                             |
-| POST   | /api/fines                    | trainer+       | Giv bøde                             |
-| PATCH  | /api/fines/:id                | trainer+       | Markér bøde betalt                   |
+| GET    | /api/fine-types               | player+        | Liste over bødetyper                 |
+| POST   | /api/fine-types               | admin          | Opret bødetype                       |
+| PUT    | /api/fine-types/:id           | admin          | Rediger bødetype                     |
+| DELETE | /api/fine-types/:id           | admin          | Arkivér bødetype (active=0)          |
+| GET    | /api/fines                    | player+        | Alle bøder (?player_id= filter)      |
+| GET    | /api/fines/summary            | player+        | Per-spiller aggregering              |
+| POST   | /api/fines                    | trainer+       | Tildel bøde manuelt                  |
+| DELETE | /api/fines/:id                | trainer+       | Slet bøde                            |
+| GET    | /api/fine-payments            | player+        | Indbetalinger (?player_id= filter)   |
+| POST   | /api/fine-payments            | trainer+       | Registrér indbetaling                |
+| DELETE | /api/fine-payments/:id        | trainer+       | Slet indbetaling                     |
 
 ---
 
@@ -475,6 +530,6 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
 - Navigation: tab "Kalender" (ikon 📅) rutet til `/kalender` → `Matches.tsx`
-- Admin-siden har kun to tabs: **Spillere** og **Indstillinger** (events/kampe/statistik administreres i Kalender-siden)
+- Admin-siden har tre tabs: **Spillere**, **Indstillinger** og **Bødekatalog**
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
