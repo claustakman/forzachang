@@ -90,6 +90,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   const [showComment, setShowComment] = useState(false);
   const [comment, setComment] = useState('');
   const [editing, setEditing] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
   const [showGuestInput, setShowGuestInput] = useState(false);
@@ -275,80 +276,40 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Tilmeldte inkl. gæster samlet */}
-            <div>
-              {(tilmeldte.length > 0 || guests.length > 0) && (
+            {/* Tilmeldte inkl. gæster */}
+            {(tilmeldte.length > 0 || guests.length > 0) && (
+              <div>
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a9e5a', marginBottom: 6 }}>
                   Tilmeldte ({tilmeldte.length + guests.length})
                 </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {tilmeldte.map(s => (
-                  <div key={s.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
-                        {s.avatar_url
-                          ? <img src={s.avatar_url} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : s.name.charAt(0)}
-                      </div>
-                      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
-                      {s.message && (
-                        <span style={{
-                          fontSize: 11,
-                          color: '#c4a000',
-                          background: '#1a1200',
-                          border: '0.5px solid #3d2e00',
-                          borderRadius: 4,
-                          padding: '1px 6px',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          maxWidth: 140,
-                        }}>{s.message}</span>
-                      )}
-                    </div>
-                    {/* Admin/træner: skift tilmeldingsstatus */}
-                    {isAdmin && s.player_id !== player!.id && (
-                      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                        <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'afmeldt')}>
-                          Afmeld
-                        </button>
-                        <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(s.player_id)} title="Annuller">
-                          ↩
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {/* Gæster */}
-                {guests.map(g => (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>
-                        G
-                      </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {tilmeldte.map(s => (
+                    <PlayerRow key={s.player_id} name={s.name} avatarUrl={s.avatar_url} message={s.message} />
+                  ))}
+                  {guests.map(g => (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>G</div>
                       <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
-                      <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 2 }}>gæst</span>
+                      <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>gæst</span>
                     </div>
-                    {isTrainer && (
-                      <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => doDeleteGuest(g)} title="Fjern gæst">
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Afmeldte */}
-            <SignupGroup
-              label={`Afmeldte (${afmeldte.length})`}
-              signups={afmeldte}
-              color="#e57373"
-              isAdmin={isAdmin}
-              currentPlayerId={player!.id}
-              signing={signing}
-              onSignup={doSignup}
-              onDelete={doDelete}
-            />
+            {afmeldte.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#e57373', marginBottom: 6 }}>
+                  Afmeldte ({afmeldte.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {afmeldte.map(s => (
+                    <PlayerRow key={s.player_id} name={s.name} avatarUrl={s.avatar_url} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Arrangører — kun for event-type */}
             {!isKamp && detail.organizers.length > 0 && (
@@ -368,34 +329,95 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           </div>
         )}
 
-        {/* Tilføj gæst (trainer+) */}
-        {isTrainer && event.status === 'aktiv' && (
+        {/* Admin-panel */}
+        {isAdmin && (
           <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
-            {!showGuestInput ? (
-              <button
-                className="btn btn-sm btn-secondary"
-                style={{ fontSize: 12 }}
-                onClick={() => setShowGuestInput(true)}
-              >
-                + Tilføj gæst
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  className="input"
-                  style={{ flex: 1, fontSize: 13 }}
-                  placeholder="Gæstens navn"
-                  value={guestName}
-                  onChange={e => setGuestName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && doAddGuest()}
-                  autoFocus
-                />
-                <button className="btn btn-sm btn-primary" onClick={doAddGuest} disabled={addingGuest || !guestName.trim()}>
-                  {addingGuest ? '...' : 'Tilføj'}
-                </button>
-                <button className="btn btn-sm btn-secondary" onClick={() => { setShowGuestInput(false); setGuestName(''); }}>
-                  Annuller
-                </button>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowAdmin(a => !a)}
+              style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}
+            >
+              {showAdmin ? '▲ Luk administrer' : '⚙ Administrer'}
+            </button>
+
+            {showAdmin && detail && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                {/* Tilmeld/afmeld på vegne */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+                    Tilmeld / afmeld spillere
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {detail.signups.map(s => (
+                      <div key={s.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
+                        <SignupBadge status={s.status} />
+                        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                          {s.status !== 'tilmeldt' && (
+                            <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'tilmeldt')}>
+                              Tilmeld
+                            </button>
+                          )}
+                          {s.status !== 'afmeldt' && (
+                            <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => doSignup(s.player_id, 'afmeldt')}>
+                              Afmeld
+                            </button>
+                          )}
+                          <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(s.player_id)} title="Fjern tilmelding">
+                            ↩
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {detail.signups.length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>Ingen tilmeldinger endnu.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tilføj gæst */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+                    Gæster ({guests.length})
+                  </div>
+                  {guests.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                      {guests.map(g => (
+                        <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
+                          <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doDeleteGuest(g)}>
+                            Fjern
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!showGuestInput ? (
+                    <button className="btn btn-sm btn-secondary" style={{ fontSize: 12 }} onClick={() => setShowGuestInput(true)}>
+                      + Tilføj gæst
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        className="input"
+                        style={{ flex: 1, fontSize: 13 }}
+                        placeholder="Gæstens navn"
+                        value={guestName}
+                        onChange={e => setGuestName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && doAddGuest()}
+                        autoFocus
+                      />
+                      <button className="btn btn-sm btn-primary" onClick={doAddGuest} disabled={addingGuest || !guestName.trim()}>
+                        {addingGuest ? '...' : 'Tilføj'}
+                      </button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => { setShowGuestInput(false); setGuestName(''); }}>
+                        Annuller
+                      </button>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>
@@ -405,6 +427,9 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           {isTrainer && (
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
           )}
+          <button className="btn btn-secondary" style={{ opacity: 0.6 }} onClick={() => {}} title="Kommer snart">
+            🔔 Påmind
+          </button>
           <button className="btn btn-secondary" onClick={onClose}>Luk</button>
         </div>
       </div>
@@ -419,46 +444,20 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   );
 }
 
-function SignupGroup({ label, signups, color, isAdmin, currentPlayerId, signing, onSignup, onDelete }: {
-  label: string;
-  signups: { player_id: string; name: string; avatar_url?: string; message?: string; status: 'tilmeldt' | 'afmeldt' }[];
-  color: string;
-  isAdmin: boolean;
-  currentPlayerId: string;
-  signing: string | null;
-  onSignup: (playerId: string, status: 'tilmeldt' | 'afmeldt') => void;
-  onDelete: (playerId: string) => void;
-}) {
-  if (signups.length === 0) return null;
+function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: string; message?: string }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color, marginBottom: 6 }}>{label}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {signups.map(s => (
-          <div key={s.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px', flex: 1, minWidth: 0 }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
-                {s.avatar_url
-                  ? <img src={s.avatar_url} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : s.name.charAt(0)}
-              </div>
-              <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{s.name.split(' ')[0]}</span>
-            </div>
-            {isAdmin && s.player_id !== currentPlayerId && (
-              <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                {s.status === 'afmeldt' && (
-                  <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={signing !== null} onClick={() => onSignup(s.player_id, 'tilmeldt')}>
-                    Tilmeld
-                  </button>
-                )}
-                <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => onDelete(s.player_id)} title="Annuller">
-                  ↩
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
+      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
+        {avatarUrl
+          ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : name.charAt(0)}
       </div>
+      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{name.split(' ')[0]}</span>
+      {message && (
+        <span style={{ fontSize: 11, color: '#c4a000', background: '#1a1200', border: '0.5px solid #3d2e00', borderRadius: 4, padding: '1px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+          {message}
+        </span>
+      )}
     </div>
   );
 }
