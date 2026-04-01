@@ -187,7 +187,7 @@ export default function Stats() {
         <select className="input" style={{ width: 120, fontSize: 13 }} value={activeFilter} onChange={e => setActiveFilter(e.target.value as any)}>
           <option value="all">Alle spillere</option>
           <option value="active">Kun aktive</option>
-          <option value="inactive">Tidligere</option>
+          <option value="inactive">Pensionerede</option>
         </select>
         {view !== 'top10' && (
           <input className="input" style={{ flex: 1, minWidth: 120, fontSize: 13 }} placeholder="Søg spiller..." value={q} onChange={e => setQ(e.target.value)} />
@@ -243,7 +243,7 @@ export default function Stats() {
                         <td style={{ padding: '8px 12px', color: 'var(--cfc-text-subtle)', fontSize: 11 }}>{i + 1}</td>
                         <td style={{ padding: '8px 12px', fontWeight: i < 3 ? 700 : 400, color: 'var(--cfc-text-primary)' }}>
                           {row.name}
-                          {!row.active && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 6 }}>tidligere</span>}
+                          {!row.active && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 6 }}>pensioneret</span>}
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)' }}>{row.matches || '–'}</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: row.goals > 0 ? '#5a9e5a' : 'var(--cfc-text-subtle)', fontWeight: row.goals > 0 ? 700 : 400 }}>{row.goals || '–'}</td>
@@ -275,7 +275,7 @@ export default function Stats() {
                 >
                   <div style={{ flex: 1 }}>
                     <span style={{ fontWeight: 600, fontFamily: 'Georgia, serif' }}>{row.name}</span>
-                    {!row.active && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginLeft: 8 }}>tidligere</span>}
+                    {!row.active && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginLeft: 8 }}>pensioneret</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--cfc-text-muted)' }}>
                     <span><strong style={{ color: '#5b8dd9' }}>{row.matches}</strong> kampe</span>

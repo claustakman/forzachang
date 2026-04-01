@@ -122,7 +122,7 @@ function AdminPlayers() {
               border: `0.5px solid ${subTab === t ? 'var(--cfc-border)' : 'transparent'}`,
             }}
           >
-            {t === 'active' ? `Aktive (${active.length})` : `Tidligere spillere (${inactive.length})`}
+            {t === 'active' ? `Aktive (${active.length})` : `Pensionerede (${inactive.length})`}
           </button>
         ))}
       </div>
@@ -130,7 +130,7 @@ function AdminPlayers() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {shown.length === 0 && (
           <div className="empty">
-            Ingen {subTab === 'active' ? 'aktive' : 'tidligere'} spillere
+            Ingen {subTab === 'active' ? 'aktive' : 'pensionerede'} spillere
           </div>
         )}
         {shown.map((p, i) => (

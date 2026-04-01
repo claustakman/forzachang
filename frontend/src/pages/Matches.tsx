@@ -543,6 +543,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         <EventModal
           event={event}
           onClose={() => { setEditing(false); loadDetail(); onRefresh(); }}
+          onDeleted={() => { onRefresh(); onClose(); }}
         />
       )}
       {showStats && (
@@ -942,7 +943,7 @@ function EventRow({ event: ev, onClick }: {
 
 // ── EventModal (opret / rediger) ──────────────────────────────────────────────
 
-function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) {
+function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () => void; onDeleted?: () => void }) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [form, setForm] = useState({
     type:            event?.type || 'kamp',
@@ -1099,7 +1100,7 @@ function EventModal({ event, onClose }: { event?: Event; onClose: () => void }) 
                 if (!confirm(`Slet "${event.title}"? Dette kan ikke fortrydes.`)) return;
                 try {
                   await api.deleteEvent(event.id);
-                  onClose();
+                  onDeleted ? onDeleted() : onClose();
                 } catch (e: any) { setError(e.message); }
               }}
             >
