@@ -87,7 +87,7 @@ forzachang/
 | `shirt_number`   | INTEGER | Trøjenummer                                        |
 | `license_number` | TEXT    | DBU licensnummer                                   |
 | `avatar_url`     | TEXT    | URL til profilbillede i R2                         |
-| `active`         | INTEGER | 1 = aktiv, 0 = passiv                              |
+| `active`         | INTEGER | 1 = aktiv, 0 = pensioneret                         |
 | `role`           | TEXT    | `player`, `trainer` eller `admin`                  |
 | `last_seen`      | TEXT    | Tidsstempel for seneste API-kald (auto-opdateret)  |
 | `created_at`     | TEXT    | Oprettelsestidspunkt                               |
@@ -183,6 +183,8 @@ UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate på
 | `red_cards`    | INTEGER | Røde kort                                     |
 | `mom`          | INTEGER | 1 = Man of the Match (kun én per kamp)        |
 | `played`       | INTEGER | 1 = spillede, 0 = afbud                       |
+| `late_signup`  | INTEGER | 1 = tilmeldt efter tilmeldingsfristen          |
+| `absence`      | INTEGER | 1 = meldt afbud (afmeldt)                      |
 | `created_at`   | TEXT    | Oprettelsestidspunkt                          |
 
 UNIQUE constraint på `(event_id, player_id)`.
@@ -214,7 +216,7 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 ## Regler
 
 - Alle brugere er spillere, men ikke alle spillere har en bruger
-- Når en spiller sættes til `passiv` (`active=0`) → kan de ikke logge ind
+- Når en spiller sættes til pensioneret (`active=0`) → kan de ikke logge ind
 - Velkomst-email sendes **manuelt** af admin (knap på spillerkortet) — ikke automatisk ved oprettelse
 - Password reset sker via email-link (Resend) → `/reset?token=XYZ`
 
@@ -249,12 +251,15 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 ### Kampstatistik (fase 5)
 - Trainer/admin kan registrere statistik på afsluttede kampe via "📊 Statistik"-knap i event-detaljemodal
 - Viser tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
+- Auto-udfylder: played=1 for tilmeldte, late_signup=1 for sent tilmeldte (efter frist), absence=1 for afmeldte
 - Afmeldte spillere vises som afbud-liste (read-only)
 - Gem sender bulk til `POST /api/stats` med `{ event_id, rows[] }`
+- Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
 - Statistiksiden (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
   - Moderne data (`match_stats`) vinder over legacy for samme sæson/spiller
   - Tre visninger: **Top 10** (søjlediagrammer), **Sæsonoversigt** (tabel), **Spillerprofil** (klik → modal med sæson-for-sæson)
-  - Filtre: sæson, aktiv/tidligere/alle, fritekst-søgning
+  - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
+  - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
 
 ### Import af historisk statistik
 - Script: `scripts/scrape_stats.py` — scraper forzachang.dk og genererer INSERT-SQL til `player_stats_legacy`
@@ -273,7 +278,7 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
   - Viser liste over spillere der ikke har meldt ud — med checkboxes
   - Sender direkte, ingen bekræftelsesdialog
   - Logges i `reminder_log` med `type='manual'` (kan sendes igen)
-- Email-afsender: `onboarding@resend.dev` (midlertidigt — skiftes til eget domæne)
+- Email-afsender: `noreply@forzachang.eu` (verificeret domæne via Resend)
 - Email indeholder: link til `/kalender?filter=manglende`
 - Logo-fil til email: `frontend/public/logo-email.jpg`
 
@@ -471,4 +476,5 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
 - Navigation: tab "Kalender" (ikon 📅) rutet til `/kalender` → `Matches.tsx`
 - Admin-siden har kun to tabs: **Spillere** og **Indstillinger** (events/kampe/statistik administreres i Kalender-siden)
+- Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
