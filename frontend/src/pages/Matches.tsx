@@ -518,24 +518,26 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           </div>
         )}
 
-        <div className="modal-footer" style={{ marginTop: 16 }}>
-          {isTrainer && event.status === 'aktiv' && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
-            >
-              🔔 Påmind
-            </button>
-          )}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {isTrainer && isKamp && new Date(event.start_time) < new Date() && (
-            <button className="btn btn-secondary" onClick={() => setShowStats(true)}>
+            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowStats(true)}>
               📊 Statistik & Bøder
             </button>
           )}
-          {isTrainer && (
-            <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
-          )}
-          <button className="btn btn-secondary" onClick={onClose}>Luk</button>
+          <div className="modal-footer">
+            {isTrainer && event.status === 'aktiv' && (
+              <button
+                className="btn btn-secondary"
+                onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
+              >
+                🔔 Påmind
+              </button>
+            )}
+            {isTrainer && (
+              <button className="btn btn-secondary" onClick={() => setEditing(true)}>✏️ Rediger</button>
+            )}
+            <button className="btn btn-secondary" onClick={onClose}>✕ Luk</button>
+          </div>
         </div>
       </div>
 
