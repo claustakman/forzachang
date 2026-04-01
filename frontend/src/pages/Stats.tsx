@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { api, StatsRow, PlayerSeasonStats, Player, displayName } from '../lib/api';
+import { api, StatsRow, PlayerSeasonStats, Player } from '../lib/api';
 
 const THIS_YEAR = new Date().getFullYear();
 const SEASONS = Array.from({ length: THIS_YEAR - 2006 }, (_, i) => THIS_YEAR - i);
 
+function fmtKr(kr: number) {
+  return kr > 0 ? `${kr} kr.` : '–';
+}
+
 // ── Mini søjlediagram ─────────────────────────────────────────────────────────
 
-function BarChart({ rows, valueKey, label, color }: {
+function BarChart({ rows, label, color }: {
   rows: { name: string; value: number }[];
-  valueKey?: string;
   label: string;
   color: string;
 }) {
@@ -26,7 +29,7 @@ function BarChart({ rows, valueKey, label, color }: {
                 <div style={{ height: '100%', width: `${(r.value / max) * 100}%`, background: color, borderRadius: 3, transition: 'width 0.3s' }} />
               </div>
             </div>
-            <div style={{ width: 28, fontSize: 13, fontWeight: 700, color, textAlign: 'right', flexShrink: 0 }}>{r.value}</div>
+            <div style={{ width: 36, fontSize: 13, fontWeight: 700, color, textAlign: 'right', flexShrink: 0 }}>{r.value}</div>
           </div>
         ))}
       </div>
@@ -53,7 +56,10 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
     mom: acc.mom + (s.mom || 0),
     yellow_cards: acc.yellow_cards + s.yellow_cards,
     red_cards: acc.red_cards + s.red_cards,
-  }), { matches: 0, goals: 0, mom: 0, yellow_cards: 0, red_cards: 0 });
+    fines_amount: acc.fines_amount + (s.fines_amount || 0),
+  }), { matches: 0, goals: 0, mom: 0, yellow_cards: 0, red_cards: 0, fines_amount: 0 });
+
+  const hasFines = totals.fines_amount > 0 || seasons.some(s => (s.fines_amount || 0) > 0);
 
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -73,16 +79,17 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
         </div>
 
         {/* Totaler */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${hasFines ? 6 : 5}, 1fr)`, gap: 6, marginBottom: 16 }}>
           {[
             { label: 'Kampe', value: totals.matches, color: '#5b8dd9' },
             { label: 'Mål', value: totals.goals, color: '#5a9e5a' },
             { label: 'MoM', value: totals.mom, color: '#c4a000' },
             { label: 'Gule', value: totals.yellow_cards, color: '#b45309' },
             { label: 'Røde', value: totals.red_cards, color: '#e57373' },
-          ].map(({ label, value, color }) => (
+            ...(hasFines ? [{ label: 'Bøder', value: totals.fines_amount, color: '#9b59b6', suffix: ' kr' }] : []),
+          ].map(({ label, value, color, suffix }: any) => (
             <div key={label} style={{ background: 'var(--cfc-bg-hover)', borderRadius: 8, padding: '8px 4px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: hasFines ? 15 : 18, fontWeight: 800, color, lineHeight: 1 }}>{value}{suffix || ''}</div>
               <div style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginTop: 2 }}>{label}</div>
             </div>
           ))}
@@ -96,7 +103,7 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '0.5px solid var(--cfc-border)' }}>
-                {['Sæson', 'Kampe', 'Mål', 'MoM', '🟨', '🟥'].map(h => (
+                {['Sæson', 'Kampe', 'Mål', 'MoM', '🟨', '🟥', ...(hasFines ? ['Bøder'] : [])].map(h => (
                   <th key={h} style={{ padding: '4px 6px', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11, textAlign: h === 'Sæson' ? 'left' : 'right' }}>{h}</th>
                 ))}
               </tr>
@@ -110,6 +117,11 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
                   <td style={{ padding: '6px 6px', textAlign: 'right', color: (s.mom || 0) > 0 ? '#c4a000' : 'var(--cfc-text-subtle)' }}>{s.mom || '–'}</td>
                   <td style={{ padding: '6px 6px', textAlign: 'right', color: s.yellow_cards > 0 ? '#b45309' : 'var(--cfc-text-subtle)' }}>{s.yellow_cards || '–'}</td>
                   <td style={{ padding: '6px 6px', textAlign: 'right', color: s.red_cards > 0 ? '#e57373' : 'var(--cfc-text-subtle)' }}>{s.red_cards || '–'}</td>
+                  {hasFines && (
+                    <td style={{ padding: '6px 6px', textAlign: 'right', color: (s.fines_amount || 0) > 0 ? '#9b59b6' : 'var(--cfc-text-subtle)' }}>
+                      {(s.fines_amount || 0) > 0 ? `${s.fines_amount} kr` : '–'}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -130,7 +142,7 @@ type View = 'top10' | 'saeson' | 'spiller';
 
 export default function Stats() {
   const [view, setView] = useState<View>('top10');
-  const [season, setSeason] = useState<string>('');  // '' = alle sæsoner
+  const [season, setSeason] = useState<string>('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [stats, setStats] = useState<StatsRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +169,8 @@ export default function Stats() {
   const top10matches = [...filtered].sort((a, b) => b.matches - a.matches).filter(r => r.matches > 0).slice(0, 10);
   const top10mom     = [...filtered].sort((a, b) => (b.mom || 0) - (a.mom || 0)).filter(r => (r.mom || 0) > 0).slice(0, 10);
   const top10yellow  = [...filtered].sort((a, b) => b.yellow_cards - a.yellow_cards).filter(r => r.yellow_cards > 0).slice(0, 10);
+  const top10red     = [...filtered].sort((a, b) => b.red_cards - a.red_cards).filter(r => r.red_cards > 0).slice(0, 10);
+  const top10fines   = [...filtered].sort((a, b) => (b.fines_amount || 0) - (a.fines_amount || 0)).filter(r => (r.fines_amount || 0) > 0).slice(0, 10);
 
   const sortedBySeason = [...filtered].sort((a, b) => b.matches - a.matches || b.goals - a.goals);
 
@@ -209,6 +223,10 @@ export default function Stats() {
                 <BarChart label="🏆 Flest Man of the Match" rows={top10mom.map(r => ({ name: r.name, value: r.mom || 0 }))} color="#c4a000" />
                 <BarChart label="🟨 Flest gule kort" rows={top10yellow.map(r => ({ name: r.name, value: r.yellow_cards }))} color="#b45309" />
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                <BarChart label="🟥 Flest røde kort" rows={top10red.map(r => ({ name: r.name, value: r.red_cards }))} color="#e57373" />
+                <BarChart label="💸 Flest bøder (kr.)" rows={top10fines.map(r => ({ name: r.name, value: r.fines_amount || 0 }))} color="#9b59b6" />
+              </div>
               {filtered.length === 0 && <div className="empty">Ingen statistik for valgte filtre.</div>}
             </div>
           )}
@@ -229,6 +247,7 @@ export default function Stats() {
                       <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>🏆</th>
                       <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>🟨</th>
                       <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>🟥</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>💸</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -250,6 +269,9 @@ export default function Stats() {
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.mom || 0) > 0 ? '#c4a000' : 'var(--cfc-text-subtle)' }}>{row.mom || '–'}</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: row.yellow_cards > 0 ? '#b45309' : 'var(--cfc-text-subtle)' }}>{row.yellow_cards || '–'}</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: row.red_cards > 0 ? '#e57373' : 'var(--cfc-text-subtle)' }}>{row.red_cards || '–'}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.fines_amount || 0) > 0 ? '#9b59b6' : 'var(--cfc-text-subtle)' }}>
+                          {(row.fines_amount || 0) > 0 ? fmtKr(row.fines_amount) : '–'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -281,6 +303,7 @@ export default function Stats() {
                     <span><strong style={{ color: '#5b8dd9' }}>{row.matches}</strong> kampe</span>
                     <span><strong style={{ color: '#5a9e5a' }}>{row.goals}</strong> mål</span>
                     {(row.mom || 0) > 0 && <span><strong style={{ color: '#c4a000' }}>{row.mom}</strong> MoM</span>}
+                    {(row.fines_amount || 0) > 0 && <span><strong style={{ color: '#9b59b6' }}>{row.fines_amount} kr</strong></span>}
                   </div>
                 </button>
               ))}

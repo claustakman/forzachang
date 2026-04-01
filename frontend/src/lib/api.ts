@@ -377,4 +377,5 @@ export interface StatsRow {
   mom: number;
   yellow_cards: number;
   red_cards: number;
+  fines_amount: number;
 }

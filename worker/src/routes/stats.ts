@@ -37,11 +37,31 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
         ORDER BY e.season DESC
       `).bind(playerId).all();
 
+      // Bøder fra fines-tabellen per sæson (fase 6)
+      let finesBySeason = new Map<number, number>();
+      try {
+        const fr = await env.DB.prepare(`
+          SELECT CAST(strftime('%Y', ev.start_time) AS INTEGER) as season,
+            COALESCE(SUM(f.amount), 0) as fines_amount
+          FROM fines f
+          LEFT JOIN events ev ON ev.id = f.event_id
+          WHERE f.player_id = ?
+          GROUP BY season
+        `).bind(playerId).all();
+        for (const r of fr.results as any[]) {
+          if (r.season) finesBySeason.set(r.season, r.fines_amount);
+        }
+      } catch { /* tabellen eksisterer ikke endnu */ }
+
       // Merge: modern stats vinder over legacy for samme sæson
       const modernSeasons = new Set((modern.results as any[]).map(r => r.season));
       const legacyFiltered = (legacy.results as any[]).filter(r => !modernSeasons.has(r.season));
       const combined = [...(modern.results as any[]), ...legacyFiltered]
-        .sort((a, b) => b.season - a.season);
+        .sort((a, b) => b.season - a.season)
+        .map(r => ({
+          ...r,
+          fines_amount: (r.fines_amount || 0) + (finesBySeason.get(r.season) || 0),
+        }));
 
       return json(combined);
     }
@@ -50,6 +70,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     // Bruges til leaderboards og sæsonoversigt
     const seasonFilter = season ? `AND e.season = ${Number(season)}` : '';
     const legacySeasonFilter = season ? `AND psl.season = ${Number(season)}` : '';
+    const finesSeasonFilter = season ? `AND strftime('%Y', ev.start_time) = '${Number(season)}'` : '';
 
     const modernRows = await env.DB.prepare(`
       SELECT
@@ -90,8 +111,22 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
       WHERE 1=1 ${legacySeasonFilter}
     `).all();
 
+    // Bøder fra fines-tabellen (fase 6) — grupperet per spiller
+    let finesRows: any[] = [];
+    try {
+      const fr = await env.DB.prepare(`
+        SELECT f.player_id, COALESCE(SUM(f.amount), 0) as fines_amount
+        FROM fines f
+        LEFT JOIN events ev ON ev.id = f.event_id
+        WHERE 1=1 ${finesSeasonFilter}
+        GROUP BY f.player_id
+      `).all();
+      finesRows = fr.results as any[];
+    } catch { /* tabellen eksisterer ikke endnu */ }
+    const finesMap = new Map<string, number>(finesRows.map(r => [r.player_id, r.fines_amount]));
+
     // Aggreger per spiller (summer alle sæsoner hvis ingen sæsonfilter)
-    type Row = { id: string; name: string; full_name: string; alias?: string; avatar_url?: string; active: number; season?: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number };
+    type Row = { id: string; name: string; full_name: string; alias?: string; avatar_url?: string; active: number; season?: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number; fines_amount: number };
     const map = new Map<string, Row>();
 
     // Moderne sæsoner der er dækket af match_stats
@@ -105,7 +140,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
         ex.yellow_cards += r.yellow_cards; ex.red_cards += r.red_cards;
       } else {
-        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
+        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards, fines_amount: 0 });
       }
     }
 
@@ -118,9 +153,17 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
       if (ex) {
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
         ex.yellow_cards += r.yellow_cards; ex.red_cards += r.red_cards;
+        ex.fines_amount += (r.fines_amount || 0);
       } else {
-        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards });
+        map.set(r.id, { id: r.id, name: displayName, full_name: r.full_name, alias: r.alias, avatar_url: r.avatar_url, active: r.active, matches: r.matches, goals: r.goals, mom: r.mom, yellow_cards: r.yellow_cards, red_cards: r.red_cards, fines_amount: r.fines_amount || 0 });
       }
+    }
+
+    // Tilføj bøder fra fines-tabellen (fase 6) oven på legacy
+    for (const [playerId, amt] of finesMap) {
+      const ex = map.get(playerId);
+      if (ex) ex.fines_amount += amt;
+      // Spillere der kun har bøder men ingen kampe tilføjes ikke her — filtreres ud af matches > 0
     }
 
     const results = Array.from(map.values())
