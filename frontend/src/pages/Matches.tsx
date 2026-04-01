@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api, Event, EventDetail, EventGuest, Player, displayName } from '../lib/api';
+import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, Player, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // ── Hjælpefunktioner ──────────────────────────────────────────────────────────
@@ -92,6 +92,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   const [comment, setComment] = useState('');
   const [editing, setEditing] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
   const [showGuestInput, setShowGuestInput] = useState(false);
@@ -526,6 +527,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
               🔔 Påmind
             </button>
           )}
+          {isTrainer && isKamp && new Date(event.start_time) < new Date() && (
+            <button className="btn btn-secondary" onClick={() => setShowStats(true)}>
+              📊 Statistik
+            </button>
+          )}
           {isTrainer && (
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>Rediger</button>
           )}
@@ -537,6 +543,12 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         <EventModal
           event={event}
           onClose={() => { setEditing(false); loadDetail(); onRefresh(); }}
+        />
+      )}
+      {showStats && (
+        <MatchStatsModal
+          event={event}
+          onClose={() => setShowStats(false)}
         />
       )}
     </div>
@@ -557,6 +569,126 @@ function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: str
           {message}
         </span>
       )}
+    </div>
+  );
+}
+
+// ── Kampstatistik-modal ───────────────────────────────────────────────────────
+
+function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void }) {
+  const [data, setData] = useState<EventStatsResponse | null>(null);
+  const [rows, setRows] = useState<Record<string, MatchStatRow>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getEventStats(event.id).then(d => {
+      setData(d);
+      // Pre-udfyld eksisterende stats
+      const init: Record<string, MatchStatRow> = {};
+      for (const s of d.signups) {
+        const existing = d.stats.find(x => x.player_id === s.id);
+        init[s.id] = existing
+          ? { player_id: s.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom, played: existing.played }
+          : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0 };
+      }
+      setRows(init);
+    }).catch(() => {});
+  }, [event.id]);
+
+  function setField(playerId: string, field: keyof MatchStatRow, value: number) {
+    setRows(r => ({ ...r, [playerId]: { ...r[playerId], [field]: value } }));
+  }
+
+  function setMom(playerId: string) {
+    setRows(r => {
+      const next = { ...r };
+      for (const id of Object.keys(next)) {
+        next[id] = { ...next[id], mom: id === playerId ? 1 : 0 };
+      }
+      return next;
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.saveEventStats(event.id, Object.values(rows));
+      setSaved(true);
+      setTimeout(onClose, 1200);
+    } catch (e: any) { alert(e.message); }
+    setSaving(false);
+  }
+
+  const tilmeldte = data?.signups.filter(s => s.status === 'tilmeldt') || [];
+  const afmeldte  = data?.signups.filter(s => s.status === 'afmeldt') || [];
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ color: 'var(--cfc-text-primary)', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>Kampstatistik</h2>
+        <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 16 }}>{event.title}</div>
+
+        {!data ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
+        ) : (
+          <>
+            {/* Tabel-header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 48px 48px 48px 52px 44px', gap: 4, alignItems: 'center', marginBottom: 6, paddingBottom: 6, borderBottom: '0.5px solid var(--cfc-border)' }}>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', fontWeight: 600 }}>Spiller</div>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>Mål</div>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>🟨</div>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>🟥</div>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>MoM</div>
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>Spillet</div>
+            </div>
+
+            {/* Tilmeldte */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+              {tilmeldte.map(s => {
+                const r = rows[s.id] || { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: 1 };
+                return (
+                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 48px 48px 48px 52px 44px', gap: 4, alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                    {(['goals', 'yellow_cards', 'red_cards'] as const).map(field => (
+                      <input key={field} type="number" min={0} max={20} value={r[field]} onChange={e => setField(s.id, field, Number(e.target.value))}
+                        className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }} />
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMom(s.id)}
+                        style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#c4a000' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <input type="checkbox" checked={r.played === 1} onChange={e => setField(s.id, 'played', e.target.checked ? 1 : 0)}
+                        style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Afmeldte (vises grå, played=0) */}
+            {afmeldte.length > 0 && (
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--cfc-border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Afbud ({afmeldte.length})
+                </div>
+                {afmeldte.map(s => (
+                  <div key={s.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', padding: '2px 0' }}>{s.name}</div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="modal-footer" style={{ marginTop: 16 }}>
+          {saved && <span style={{ fontSize: 13, color: '#5a9e5a' }}>✓ Gemt!</span>}
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving || !data}>
+            {saving ? '...' : 'Gem statistik'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

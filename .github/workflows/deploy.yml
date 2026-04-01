@@ -97,6 +97,34 @@ jobs:
               UNIQUE(event_id, player_id, type)
             );
           " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS match_stats (
+              id TEXT PRIMARY KEY,
+              event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              goals INTEGER NOT NULL DEFAULT 0,
+              yellow_cards INTEGER NOT NULL DEFAULT 0,
+              red_cards INTEGER NOT NULL DEFAULT 0,
+              mom INTEGER NOT NULL DEFAULT 0,
+              played INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(event_id, player_id)
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS player_stats_legacy (
+              id TEXT PRIMARY KEY,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              season INTEGER NOT NULL,
+              matches INTEGER NOT NULL DEFAULT 0,
+              goals INTEGER NOT NULL DEFAULT 0,
+              mom INTEGER NOT NULL DEFAULT 0,
+              yellow_cards INTEGER NOT NULL DEFAULT 0,
+              red_cards INTEGER NOT NULL DEFAULT 0,
+              fines_amount INTEGER NOT NULL DEFAULT 0,
+              UNIQUE(player_id, season)
+            );
+          " 2>&1 || true
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

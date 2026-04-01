@@ -120,6 +120,16 @@ export const api = {
   sendReminders: (eventId: string, playerIds: string[]) =>
     req<{ ok: boolean; sent: number }>('POST', `/events/${eventId}/remind`, { player_ids: playerIds }),
 
+  // Kampstatistik
+  getEventStats: (eventId: string) =>
+    req<EventStatsResponse>('GET', `/events/${eventId}/stats`),
+  saveEventStats: (eventId: string, rows: MatchStatRow[]) =>
+    req<{ ok: boolean }>('POST', '/stats', { event_id: eventId, rows }),
+
+  // Legacy stats import
+  saveLegacyStats: (rows: { player_id: string; season: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number; fines_amount: number }[]) =>
+    req<{ ok: boolean }>('POST', '/stats/legacy', rows),
+
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
@@ -266,4 +276,48 @@ export interface FinesResponse {
   fines: Fine[];
   types: FineType[];
   totals: { player_id: string; name: string; total: number; paid: number }[];
+}
+
+export interface MatchStatRow {
+  player_id: string;
+  goals: number;
+  yellow_cards: number;
+  red_cards: number;
+  mom: number;
+  played: number;
+}
+
+export interface EventStatsSignup {
+  id: string;
+  name: string;
+  avatar_url?: string;
+  status: 'tilmeldt' | 'afmeldt';
+}
+
+export interface EventStatsResponse {
+  event: Event;
+  signups: EventStatsSignup[];
+  stats: (MatchStatRow & { id: string; event_id: string })[];
+}
+
+export interface PlayerSeasonStats {
+  season: number;
+  matches: number;
+  goals: number;
+  mom: number;
+  yellow_cards: number;
+  red_cards: number;
+  fines_amount?: number;
+}
+
+// Udvidet StatRow med mom og active
+export interface StatsRow {
+  id: string;
+  name: string;
+  active: number;
+  matches: number;
+  goals: number;
+  mom: number;
+  yellow_cards: number;
+  red_cards: number;
 }

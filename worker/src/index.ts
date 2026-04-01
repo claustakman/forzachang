@@ -4,7 +4,7 @@
 import { handleAuth } from './routes/auth';
 import { handleMatches } from './routes/matches';
 import { handleSignups } from './routes/signups';
-import { handleStats } from './routes/stats';
+import { handleStats, handleEventStats } from './routes/stats';
 import { handleFines } from './routes/fines';
 import { handlePlayers } from './routes/players';
 import { handleEvents } from './routes/events';
@@ -57,6 +57,11 @@ export default {
       if (path.startsWith('/api/stats'))    return await handleStats(request, env, payload);
       if (path.startsWith('/api/fines'))    return await handleFines(request, env, payload);
       if (path.startsWith('/api/players'))  return await handlePlayers(request, env, payload);
+      // /api/events/:id/stats håndteres separat
+      {
+        const m = path.match(/^\/api\/events\/([^/]+)\/stats$/);
+        if (m) return await handleEventStats(request, env, payload, m[1]);
+      }
       if (path.startsWith('/api/events'))   return await handleEvents(request, env, payload);
       if (path.startsWith('/api/settings')) return await handleSettings(request, env, payload);
 

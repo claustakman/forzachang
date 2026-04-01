@@ -149,6 +149,34 @@ CREATE TABLE IF NOT EXISTS reminder_log (
   UNIQUE(event_id, player_id, type)
 );
 
+-- ── Fase 5: Kampstatistik og legacy-statistik ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS match_stats (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  goals INTEGER NOT NULL DEFAULT 0,
+  yellow_cards INTEGER NOT NULL DEFAULT 0,
+  red_cards INTEGER NOT NULL DEFAULT 0,
+  mom INTEGER NOT NULL DEFAULT 0,        -- 1 = Man of the Match (kun én per kamp)
+  played INTEGER NOT NULL DEFAULT 1,     -- 0 = registreret afbud
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS player_stats_legacy (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  season INTEGER NOT NULL,               -- kalenderår, fx 2007
+  matches INTEGER NOT NULL DEFAULT 0,
+  goals INTEGER NOT NULL DEFAULT 0,
+  mom INTEGER NOT NULL DEFAULT 0,
+  yellow_cards INTEGER NOT NULL DEFAULT 0,
+  red_cards INTEGER NOT NULL DEFAULT 0,
+  fines_amount INTEGER NOT NULL DEFAULT 0, -- bødebeløb i kr. (kun legacy)
+  UNIQUE(player_id, season)
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
 -- ALTER TABLE players ADD COLUMN last_seen TEXT;

@@ -53,6 +53,8 @@ forzachang/
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings)
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload
 │   └── vite.config.ts
+├── scripts/
+│   └── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
 └── .github/workflows/
     ├── deploy.yml              # CI/CD: auto-deploy + DB-migrationer ved push til main
     └── migrate.yml             # Manuel workflow til DB-migrationer
@@ -169,10 +171,42 @@ Gæster tæller med i `signup_count`, vises i tilmeldingslisten, men har ingen b
 
 UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate påmindelser per type.
 
+### Kampstatistik (`match_stats`)
+
+| Felt           | Type    | Beskrivelse                                   |
+|----------------|---------|-----------------------------------------------|
+| `id`           | TEXT    | UUID                                          |
+| `event_id`     | TEXT    | FK → events.id (kun type=kamp)                |
+| `player_id`    | TEXT    | FK → players.id                               |
+| `goals`        | INTEGER | Mål scoret                                    |
+| `yellow_cards` | INTEGER | Gule kort                                     |
+| `red_cards`    | INTEGER | Røde kort                                     |
+| `mom`          | INTEGER | 1 = Man of the Match (kun én per kamp)        |
+| `played`       | INTEGER | 1 = spillede, 0 = afbud                       |
+| `created_at`   | TEXT    | Oprettelsestidspunkt                          |
+
+UNIQUE constraint på `(event_id, player_id)`.
+
+### Legacy-statistik (`player_stats_legacy`)
+
+| Felt           | Type    | Beskrivelse                                   |
+|----------------|---------|-----------------------------------------------|
+| `id`           | TEXT    | UUID                                          |
+| `player_id`    | TEXT    | FK → players.id                               |
+| `season`       | INTEGER | Kalenderår, fx `2007`                         |
+| `matches`      | INTEGER | Kampe                                         |
+| `goals`        | INTEGER | Mål                                           |
+| `mom`          | INTEGER | Man of the Match                              |
+| `yellow_cards` | INTEGER | Gule kort                                     |
+| `red_cards`    | INTEGER | Røde kort                                     |
+| `fines_amount` | INTEGER | Bødebeløb i kr. (kun legacy)                  |
+
+UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over legacy for samme sæson.
+
 ### Legacy-tabeller (bruges stadig til gammel statistik-integration)
 - `matches` — gamle kampe (bruges af stats-integration)
 - `signups` — gamle tilmeldinger
-- `stats` — spillerstatistik pr. kamp
+- `stats` — gammelt stats-format (legacy, erstattes af match_stats)
 - `fine_types`, `fines` — bødekassen
 
 ---
@@ -211,6 +245,23 @@ UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate på
 - Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
+
+### Kampstatistik (fase 5)
+- Trainer/admin kan registrere statistik på afsluttede kampe via "📊 Statistik"-knap i event-detaljemodal
+- Viser tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
+- Afmeldte spillere vises som afbud-liste (read-only)
+- Gem sender bulk til `POST /api/stats` med `{ event_id, rows[] }`
+- Statistiksiden (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
+  - Moderne data (`match_stats`) vinder over legacy for samme sæson/spiller
+  - Tre visninger: **Top 10** (søjlediagrammer), **Sæsonoversigt** (tabel), **Spillerprofil** (klik → modal med sæson-for-sæson)
+  - Filtre: sæson, aktiv/tidligere/alle, fritekst-søgning
+
+### Import af historisk statistik
+- Script: `scripts/scrape_stats.py` — scraper forzachang.dk og genererer INSERT-SQL til `player_stats_legacy`
+- Kør: `python3 scripts/scrape_stats.py > database/seed_stats.sql`
+- Erstat `OLD_ID_X` placeholders med rigtige UUIDs fra `players`-tabellen
+- Kør mod prod: `wrangler d1 execute forzachang-db --remote --file=database/seed_stats.sql`
+- Kræver: `pip install requests beautifulsoup4`
 
 ### Påmindelser (fase 4)
 - **Automatiske** (cron, dagligt kl. 09:00 UTC):
@@ -316,14 +367,15 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | POST   | /api/events/:id/guests        | trainer+       | Tilføj gæst til event                |
 | DELETE | /api/events/:id/guests/:gid   | trainer+       | Fjern gæst fra event                 |
 | POST   | /api/events/:id/remind        | trainer+       | Send manuelle påmindelser (body: player_ids[]) |
+| GET    | /api/events/:id/stats         | trainer+       | Hent kampstatistik + tilmeldte spillere        |
+| POST   | /api/stats                    | trainer+       | Gem kampstatistik (body: event_id, rows[])     |
 | GET    | /api/settings                 | admin          | Hent app-indstillinger               |
 | PUT    | /api/settings                 | admin          | Gem app-indstillinger                |
 | POST   | /api/settings/sync            | admin          | Manuel webcal-sync                   |
 | GET    | /api/matches                  | player+        | Legacy: liste over kampe             |
 | POST   | /api/matches                  | admin          | Legacy: opret kamp                   |
 | POST   | /api/signups                  | player+        | Legacy: tilmeld/afmeld kamp          |
-| GET    | /api/stats                    | player+        | Hent statistik                       |
-| POST   | /api/stats                    | admin          | Opdater statistik                    |
+| GET    | /api/stats                    | player+        | Hent samlet statistik (legacy + match_stats kombineret) |
 | GET    | /api/fines                    | player+        | Se bøder                             |
 | POST   | /api/fines                    | trainer+       | Giv bøde                             |
 | PATCH  | /api/fines/:id                | trainer+       | Markér bøde betalt                   |
