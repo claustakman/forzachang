@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, Player, displayName } from '../lib/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, Player, EventComment, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 // ── Hjælpefunktioner ──────────────────────────────────────────────────────────
@@ -357,6 +357,9 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
             )}
           </div>
         )}
+
+        {/* Kommentarer */}
+        <CommentSection eventId={event.id} currentPlayerId={player!.id} />
 
         {/* Admin-panel */}
         {isAdmin && (
@@ -858,6 +861,251 @@ function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
   );
 }
 
+// ── CommentSection ────────────────────────────────────────────────────────────
+
+function CommentSection({ eventId, currentPlayerId }: { eventId: string; currentPlayerId: string }) {
+  const [comments, setComments] = useState<EventComment[]>([]);
+  const [newBody, setNewBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [sortOldest, setSortOldest] = useState(true);
+  const [players, setPlayers] = useState<{ id: string; name: string; alias?: string }[]>([]);
+  const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    load();
+    api.markCommentsRead(eventId).catch(() => {});
+    api.getPlayers().then(ps => setPlayers(ps)).catch(() => {});
+  }, [open, eventId]);
+
+  async function load() {
+    try { setComments(await api.getComments(eventId)); } catch {}
+  }
+
+  async function send() {
+    if (!newBody.trim()) return;
+    setSending(true);
+    try {
+      const c = await api.createComment(eventId, newBody.trim());
+      setComments(prev => [...prev, c]);
+      setNewBody('');
+      setMention(null);
+    } catch (e: any) { alert(e.message); }
+    setSending(false);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editBody.trim()) return;
+    try {
+      await api.updateComment(eventId, id, editBody.trim());
+      setComments(prev => prev.map(c => c.id === id ? { ...c, body: editBody.trim(), edited_at: new Date().toISOString() } : c));
+      setEditingId(null);
+    } catch (e: any) { alert(e.message); }
+  }
+
+  async function doDelete(id: string) {
+    if (!confirm('Slet kommentar?')) return;
+    try {
+      await api.deleteComment(eventId, id);
+      setComments(prev => prev.map(c => c.id === id ? { ...c, deleted: 1 } : c));
+    } catch (e: any) { alert(e.message); }
+  }
+
+  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    setNewBody(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    const beforeCursor = val.slice(0, cursor);
+    const atMatch = beforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      setMention({ query: atMatch[1].toLowerCase(), start: beforeCursor.lastIndexOf('@') });
+    } else {
+      setMention(null);
+    }
+  }
+
+  function insertMention(name: string) {
+    if (mention === null) return;
+    const before = newBody.slice(0, mention.start);
+    const after = newBody.slice(mention.start + 1 + mention.query.length);
+    const inserted = `@${name} `;
+    setNewBody(before + inserted + after);
+    setMention(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function renderBody(body: string) {
+    const parts = body.split(/(@\S+)/g);
+    return parts.map((part, i) =>
+      part.startsWith('@')
+        ? <span key={i} style={{ background: '#1a2a4a', color: '#5b8dd9', borderRadius: 3, padding: '0 3px' }}>{part}</span>
+        : <span key={i}>{part}</span>
+    );
+  }
+
+  function fmtTime(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' }) + ' ' +
+      d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const displayedComments = sortOldest ? [...comments] : [...comments].reverse();
+  const visibleCount = comments.filter(c => !c.deleted).length;
+
+  const mentionSuggestions = mention !== null ? [
+    { id: '@alle', name: '@alle' },
+    ...players
+      .filter(p => {
+        const n = (p.alias?.trim() || p.name.split(' ')[0]).toLowerCase();
+        return n.startsWith(mention.query) && mention.query.length > 0;
+      })
+      .map(p => ({ id: p.id, name: p.alias?.trim() || p.name.split(' ')[0] }))
+  ].slice(0, 6) : [];
+
+  return (
+    <div style={{ marginTop: 16, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
+      <button
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next) {
+            api.markCommentsRead(eventId).catch(() => {});
+          }
+        }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)' }}>
+          💬 Kommentarer{visibleCount > 0 ? ` (${visibleCount})` : ''}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginLeft: 'auto' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {/* Sortering */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button
+              onClick={() => setSortOldest(s => !s)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--cfc-text-subtle)', padding: 0 }}
+            >
+              {sortOldest ? '↑ Ældste først' : '↓ Nyeste først'}
+            </button>
+          </div>
+
+          {/* Kommentarliste */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+            {comments.length === 0 && (
+              <div style={{ fontSize: 13, color: 'var(--cfc-text-subtle)', textAlign: 'center', padding: '8px 0' }}>
+                Ingen kommentarer endnu
+              </div>
+            )}
+            {displayedComments.map(c => {
+              if (c.deleted) return (
+                <div key={c.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', fontStyle: 'italic' }}>
+                  [Denne kommentar er slettet]
+                </div>
+              );
+              const isOwn = c.player_id === currentPlayerId;
+              return (
+                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  {/* Avatar */}
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--cfc-text-muted)' }}>
+                    {c.author_avatar_url
+                      ? <img src={c.author_avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : c.author_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cfc-text-primary)' }}>{c.author_name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{fmtTime(c.created_at)}</span>
+                      {c.edited_at && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>· redigeret</span>}
+                    </div>
+                    {editingId === c.id ? (
+                      <div style={{ marginTop: 4 }}>
+                        <textarea
+                          className="input"
+                          style={{ width: '100%', fontSize: 13, resize: 'vertical', minHeight: 56 }}
+                          value={editBody}
+                          onChange={e => setEditBody(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(c.id); } }}
+                          autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                          <button className="btn btn-sm btn-primary" onClick={() => saveEdit(c.id)} style={{ fontSize: 11 }}>Gem</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)} style={{ fontSize: 11 }}>Annuller</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', marginTop: 2, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {renderBody(c.body)}
+                        </div>
+                        {isOwn && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                            <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--cfc-text-subtle)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
+                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#e57373', padding: 0, textDecoration: 'underline' }}>Slet</button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Ny kommentar */}
+          <div style={{ position: 'relative' }}>
+            <textarea
+              ref={inputRef}
+              className="input"
+              style={{ width: '100%', fontSize: 13, resize: 'none', minHeight: 56 }}
+              placeholder="Skriv en kommentar… (@ for mention)"
+              value={newBody}
+              onChange={handleInput}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && mentionSuggestions.length === 0) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            {mention !== null && mentionSuggestions.length > 0 && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, overflow: 'hidden', zIndex: 10, minWidth: 160 }}>
+                {mentionSuggestions.map(s => (
+                  <button
+                    key={s.id}
+                    onMouseDown={e => { e.preventDefault(); insertMention(s.name); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--cfc-text-primary)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    @{s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={send}
+                disabled={sending || !newBody.trim()}
+                style={{ fontSize: 12 }}
+              >
+                {sending ? '...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
 type QuickFilter = '' | 'frist14' | 'manglende';
@@ -1084,7 +1332,7 @@ function EventRow({ event: ev, onClick }: {
         </div>
       </div>
 
-      {/* Højre kolonne: status + tilmeldte */}
+      {/* Højre kolonne: status + tilmeldte + ulæste kommentarer */}
       <div style={{ flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
         <SignupBadge status={ev.my_status} />
         {ev.signup_count != null && ev.signup_count > 0 && (
@@ -1095,6 +1343,16 @@ function EventRow({ event: ev, onClick }: {
           }}>
             <span style={{ fontSize: 15, fontWeight: 800, color: '#5a9e5a', lineHeight: 1 }}>{ev.signup_count}</span>
             <span style={{ fontSize: 10, color: '#5a9e5a', fontWeight: 600 }}>med</span>
+          </div>
+        )}
+        {ev.unread_comments != null && ev.unread_comments > 0 && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            background: '#1a3a5c', border: '0.5px solid #2a4a6a',
+            borderRadius: 20, padding: '3px 8px',
+          }}>
+            <span style={{ fontSize: 11, color: '#5b8dd9' }}>💬</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#5b8dd9', lineHeight: 1 }}>{ev.unread_comments}</span>
           </div>
         )}
       </div>

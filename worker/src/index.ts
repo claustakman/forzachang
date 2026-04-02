@@ -9,6 +9,7 @@ import { handleFines, handleFineTypes, handleFinePayments } from './routes/fines
 import { handlePlayers } from './routes/players';
 import { handleEvents } from './routes/events';
 import { handleSettings } from './routes/settings';
+import { handleComments } from './routes/comments';
 import { verifyJWT, corsHeaders } from './lib/auth';
 
 export interface Env {
@@ -63,6 +64,11 @@ export default {
       {
         const m = path.match(/^\/api\/events\/([^/]+)\/stats$/);
         if (m) return await handleEventStats(request, env, payload, m[1]);
+      }
+      // /api/events/:id/comments og /api/events/:id/comments/:cid
+      {
+        const m = path.match(/^\/api\/events\/([^/]+)\/comments\/?([^/]*)$/);
+        if (m) return await handleComments(request, env, payload, m[1], m[2] || undefined);
       }
       if (path.startsWith('/api/events'))   return await handleEvents(request, env, payload);
       if (path.startsWith('/api/settings')) return await handleSettings(request, env, payload);

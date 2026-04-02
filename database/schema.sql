@@ -198,6 +198,25 @@ CREATE TABLE IF NOT EXISTS player_stats_legacy (
   UNIQUE(player_id, season)
 );
 
+-- ── Fase 7: Kommentarer ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS event_comments (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  edited_at TEXT,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS comment_reads (
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  last_read_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (player_id, event_id)
+);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
 -- ALTER TABLE players ADD COLUMN last_seen TEXT;

@@ -120,6 +120,18 @@ export const api = {
   sendReminders: (eventId: string, playerIds: string[]) =>
     req<{ ok: boolean; sent: number }>('POST', `/events/${eventId}/remind`, { player_ids: playerIds }),
 
+  // Kommentarer (fase 7)
+  getComments: (eventId: string) =>
+    req<EventComment[]>('GET', `/events/${eventId}/comments`),
+  createComment: (eventId: string, body: string) =>
+    req<EventComment>('POST', `/events/${eventId}/comments`, { body }),
+  updateComment: (eventId: string, commentId: string, body: string) =>
+    req<{ ok: boolean }>('PUT', `/events/${eventId}/comments/${commentId}`, { body }),
+  deleteComment: (eventId: string, commentId: string) =>
+    req<{ ok: boolean }>('DELETE', `/events/${eventId}/comments/${commentId}`),
+  markCommentsRead: (eventId: string) =>
+    req<{ ok: boolean }>('POST', `/events/${eventId}/comments/read`, {}),
+
   // Kampstatistik
   getEventStats: (eventId: string) =>
     req<EventStatsResponse>('GET', `/events/${eventId}/stats`),
@@ -286,6 +298,19 @@ export interface Event {
   created_by?: string;
   signup_count?: number;
   my_status?: 'tilmeldt' | 'afmeldt' | null;
+  unread_comments?: number;
+}
+
+export interface EventComment {
+  id: string;
+  event_id: string;
+  player_id: string;
+  body: string;
+  edited_at?: string;
+  deleted: number;
+  created_at: string;
+  author_name: string;
+  author_avatar_url?: string;
 }
 
 export interface EventSignup {

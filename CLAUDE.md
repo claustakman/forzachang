@@ -558,3 +558,67 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Admin-siden har tre tabs: **Spillere**, **Indstillinger** og **Bødekatalog**
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
+
+---
+
+## Fase 7 — Kommentarer
+
+### Kommentarer (`event_comments` tabel)
+
+| Felt        | Type    | Beskrivelse                                                    |
+|-------------|---------|----------------------------------------------------------------|
+| `id`        | TEXT    | UUID                                                           |
+| `event_id`  | TEXT    | FK → events.id                                                 |
+| `player_id` | TEXT    | FK → players.id                                                |
+| `body`      | TEXT    | Kommentartekst inkl. @-mentions (fx "@Casper" eller "@alle")   |
+| `edited_at` | TEXT    | Tidsstempel for seneste redigering (NULL hvis uændret)         |
+| `deleted`   | INTEGER | 1 = slettet, vises som grå placeholder i UI                   |
+| `created_at`| TEXT    | Oprettelsestidspunkt                                           |
+
+### Ulæst-tracking (`comment_reads` tabel)
+
+| Felt           | Type | Beskrivelse                                        |
+|----------------|------|----------------------------------------------------|
+| `player_id`    | TEXT | FK → players.id                                    |
+| `event_id`     | TEXT | FK → events.id                                     |
+| `last_read_at` | TEXT | Tidsstempel for seneste åbning af kommentarsektion |
+
+PRIMARY KEY på `(player_id, event_id)`. Ulæste beregnes dynamisk: kommentarer med `created_at > last_read_at` og `deleted = 0`.
+
+### Regler
+- Alle spillere kan skrive kommentarer på alle events og kampe
+- Spillere kan **redigere** egne kommentarer — `edited_at` opdateres
+- Spillere kan **slette** egne kommentarer — soft delete (`deleted=1`), vises som "[Denne kommentar er slettet]"
+- Trainer/admin kan **ikke** slette andres kommentarer
+- `last_read_at` opdateres når spilleren åbner kommentarsektionen
+
+### @-mentions
+- `@Navn` matcher mod aktive spilleres alias/fornavn (case-insensitive autocomplete)
+- `@alle` er en særlig tag — vises øverst i dropdown
+- @-mentions highlightes med blå baggrund (`#1a2a4a` / `#5b8dd9`) i kommentarteksten
+- Autocomplete-dropdown vises når man skriver `@` — kun visuelt, ingen email-notifikationer
+
+### Ulæst-badge i event-listeview
+- Blåt badge (`💬 N`) vises på event-kortet hvis der er ulæste kommentarer
+- Farve: `#1a3a5c` bg / `#5b8dd9` tekst
+- Nulstilles når spilleren åbner kommentarsektionen
+
+### Frontend — kommentarsektion (i event-detaljemodal)
+- Foldbar sektion "💬 Kommentarer (N)" under tilmeldingslisten
+- Åbner/lukker med toggle — markerer kommentarer som læst ved åbning
+- Sorteringstoggle: "↑ Ældste først" (default) / "↓ Nyeste først"
+- Textarea med `@`-autocomplete og Enter-to-send (Shift+Enter = linjeskift)
+- Slettede kommentarer vises som grå kursiv-placeholder uden avatar/navn
+- Redigerede kommentarer viser "· redigeret" i grå
+
+### API-routes
+
+| Method | Path                              | Rolle    | Beskrivelse                                      |
+|--------|-----------------------------------|----------|--------------------------------------------------|
+| GET    | /api/events/:id/comments          | player+  | Hent alle kommentarer for event (inkl. deleted)  |
+| POST   | /api/events/:id/comments          | player+  | Opret kommentar                                  |
+| PUT    | /api/events/:id/comments/:cid     | self     | Rediger egen kommentar                           |
+| DELETE | /api/events/:id/comments/:cid     | self     | Slet egen kommentar (soft delete, deleted=1)     |
+| POST   | /api/events/:id/comments/read     | player+  | Markér kommentarer som læst (UPSERT last_read_at)|
+
+`GET /api/events` returnerer nu `unread_comments` count per event. `GET /api/events/:id` returnerer `comment_count`.

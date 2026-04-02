@@ -204,6 +204,31 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Migrate DB — fase 7 kommentarer
+        run: |
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS event_comments (
+              id TEXT PRIMARY KEY,
+              event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              body TEXT NOT NULL,
+              edited_at TEXT,
+              deleted INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS comment_reads (
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+              last_read_at TEXT NOT NULL DEFAULT (datetime('now')),
+              PRIMARY KEY (player_id, event_id)
+            );
+          " 2>&1 || true
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: npx wrangler deploy
         working-directory: worker
         env:

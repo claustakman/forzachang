@@ -105,7 +105,17 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
       SELECT id, name, added_by FROM event_guests WHERE event_id = ? ORDER BY created_at
     `).bind(id).all();
 
-    return json({ ...event, signups: signups.results, organizers: organizers.results, guests: guests.results });
+    const commentCount = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM event_comments WHERE event_id=? AND deleted=0'
+    ).bind(id).first<{ count: number }>();
+
+    return json({
+      ...event,
+      signups: signups.results,
+      organizers: organizers.results,
+      guests: guests.results,
+      comment_count: commentCount?.count ?? 0,
+    });
   }
 
   // ── GET /api/events ──────────────────────────────────────────────────────
@@ -140,11 +150,18 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
       SELECT e.*,
         (SELECT COUNT(*) FROM event_signups es WHERE es.event_id = e.id AND es.status = 'tilmeldt')
         + (SELECT COUNT(*) FROM event_guests eg WHERE eg.event_id = e.id) AS signup_count,
-        (SELECT es2.status FROM event_signups es2 WHERE es2.event_id = e.id AND es2.player_id = ?) AS my_status
+        (SELECT es2.status FROM event_signups es2 WHERE es2.event_id = e.id AND es2.player_id = ?) AS my_status,
+        (SELECT COUNT(*) FROM event_comments ec
+          WHERE ec.event_id = e.id AND ec.deleted = 0
+          AND ec.created_at > COALESCE(
+            (SELECT last_read_at FROM comment_reads WHERE player_id = ? AND event_id = e.id),
+            '1970-01-01'
+          )
+        ) AS unread_comments
       FROM events e
       ${where}
       ORDER BY e.start_time ${order}
-    `).bind(user.sub, ...binds).all();
+    `).bind(user.sub, user.sub, ...binds).all();
 
     return json(events.results);
   }
