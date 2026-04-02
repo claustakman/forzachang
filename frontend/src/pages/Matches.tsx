@@ -307,23 +307,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Tilmeldte inkl. gæster */}
             {(tilmeldte.length > 0 || guests.length > 0) && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a9e5a', marginBottom: 6 }}>
-                  Tilmeldte ({tilmeldte.length + guests.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {tilmeldte.map(s => (
-                    <PlayerRow key={s.player_id} name={s.name} avatarUrl={s.avatar_url} message={s.message} />
-                  ))}
-                  {guests.map(g => (
-                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>G</div>
-                      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
-                      <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>gæst</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TilmeldteSection tilmeldte={tilmeldte} guests={guests} isTrainer={isTrainer} isAdmin={isAdmin} />
             )}
 
             {/* Afmeldte */}
@@ -861,6 +845,54 @@ function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
   );
 }
 
+// ── TilmeldteSection (kollapsbar, husker valg) ────────────────────────────────
+
+function TilmeldteSection({ tilmeldte, guests, isTrainer, isAdmin }: {
+  tilmeldte: import('../lib/api').EventSignup[];
+  guests: EventGuest[];
+  isTrainer: boolean;
+  isAdmin: boolean;
+}) {
+  const LS_KEY = 'cfc_tilmeldte_collapsed';
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(LS_KEY) === '1');
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem(LS_KEY, next ? '1' : '0');
+  }
+
+  const count = tilmeldte.length + guests.length;
+
+  return (
+    <div>
+      <button
+        onClick={toggle}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, marginBottom: collapsed ? 0 : 6 }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a9e5a' }}>
+          Tilmeldte ({count})
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{collapsed ? '▼' : '▲'}</span>
+      </button>
+      {!collapsed && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {tilmeldte.map(s => (
+            <PlayerRow key={s.player_id} name={s.name} avatarUrl={s.avatar_url} message={s.message} />
+          ))}
+          {guests.map(g => (
+            <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>G</div>
+              <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>gæst</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CommentSection ────────────────────────────────────────────────────────────
 
 function CommentSection({ eventId, currentPlayerId }: { eventId: string; currentPlayerId: string }) {
@@ -972,82 +1004,80 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
         onClick={() => {
           const next = !open;
           setOpen(next);
-          if (next) {
-            api.markCommentsRead(eventId).catch(() => {});
-          }
+          if (next) api.markCommentsRead(eventId).catch(() => {});
         }}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}
       >
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
           💬 Kommentarer{visibleCount > 0 ? ` (${visibleCount})` : ''}
         </span>
-        <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginLeft: 'auto' }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', marginLeft: 'auto' }}>{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           {/* Sortering */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
             <button
               onClick={() => setSortOldest(s => !s)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--cfc-text-subtle)', padding: 0 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--cfc-text-muted)', padding: 0 }}
             >
               {sortOldest ? '↑ Ældste først' : '↓ Nyeste først'}
             </button>
           </div>
 
           {/* Kommentarliste */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 14 }}>
             {comments.length === 0 && (
-              <div style={{ fontSize: 13, color: 'var(--cfc-text-subtle)', textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 14, color: 'var(--cfc-text-muted)', textAlign: 'center', padding: '10px 0' }}>
                 Ingen kommentarer endnu
               </div>
             )}
             {displayedComments.map(c => {
               if (c.deleted) return (
-                <div key={c.id} style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', fontStyle: 'italic' }}>
+                <div key={c.id} style={{ fontSize: 13, color: 'var(--cfc-text-subtle)', fontStyle: 'italic' }}>
                   [Denne kommentar er slettet]
                 </div>
               );
               const isOwn = c.player_id === currentPlayerId;
               return (
-                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {/* Avatar */}
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--cfc-text-muted)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
                     {c.author_avatar_url
                       ? <img src={c.author_avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : c.author_name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cfc-text-primary)' }}>{c.author_name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{fmtTime(c.created_at)}</span>
-                      {c.edited_at && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>· redigeret</span>}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{c.author_name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fmtTime(c.created_at)}</span>
+                      {c.edited_at && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>· redigeret</span>}
                     </div>
                     {editingId === c.id ? (
-                      <div style={{ marginTop: 4 }}>
+                      <div>
                         <textarea
                           className="input"
-                          style={{ width: '100%', fontSize: 13, resize: 'vertical', minHeight: 56 }}
+                          style={{ width: '100%', fontSize: 14, resize: 'vertical', minHeight: 60 }}
                           value={editBody}
                           onChange={e => setEditBody(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(c.id); } }}
                           autoFocus
                         />
-                        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                          <button className="btn btn-sm btn-primary" onClick={() => saveEdit(c.id)} style={{ fontSize: 11 }}>Gem</button>
-                          <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)} style={{ fontSize: 11 }}>Annuller</button>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <button className="btn btn-sm btn-primary" onClick={() => saveEdit(c.id)} style={{ fontSize: 12 }}>Gem</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)} style={{ fontSize: 12 }}>Annuller</button>
                         </div>
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', marginTop: 2, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                        <div style={{ fontSize: 14, color: '#ffffff', wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                           {renderBody(c.body)}
                         </div>
                         {isOwn && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
-                            <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--cfc-text-subtle)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
-                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#e57373', padding: 0, textDecoration: 'underline' }}>Slet</button>
+                          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                            <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--cfc-text-muted)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
+                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#e57373', padding: 0, textDecoration: 'underline' }}>Slet</button>
                           </div>
                         )}
                       </>
@@ -1063,8 +1093,8 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
             <textarea
               ref={inputRef}
               className="input"
-              style={{ width: '100%', fontSize: 13, resize: 'none', minHeight: 56 }}
-              placeholder="Skriv en kommentar… (@ for mention)"
+              style={{ width: '100%', fontSize: 14, resize: 'none', minHeight: 60, color: '#ffffff' }}
+              placeholder="Skriv en kommentar… (@ for at nævne nogen)"
               value={newBody}
               onChange={handleInput}
               onKeyDown={e => {
@@ -1080,7 +1110,7 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
                   <button
                     key={s.id}
                     onMouseDown={e => { e.preventDefault(); insertMention(s.name); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--cfc-text-primary)' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#ffffff' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
@@ -1089,12 +1119,12 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
                 ))}
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
               <button
                 className="btn btn-sm btn-primary"
                 onClick={send}
                 disabled={sending || !newBody.trim()}
-                style={{ fontSize: 12 }}
+                style={{ fontSize: 13 }}
               >
                 {sending ? '...' : 'Send'}
               </button>

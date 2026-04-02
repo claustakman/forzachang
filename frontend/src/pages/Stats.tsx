@@ -174,8 +174,23 @@ export default function Stats() {
 
   const sortedBySeason = [...filtered].sort((a, b) => b.matches - a.matches || b.goals - a.goals);
 
+  const isNarrowScreen = typeof window !== 'undefined' && window.innerWidth < 600;
+  const showRotateBanner = (view === 'saeson' || view === 'spiller') && isNarrowScreen;
+
   return (
     <div className="page" style={{ color: 'var(--cfc-text-primary)' }}>
+
+      {/* Rotér-banner til mobil */}
+      {showRotateBanner && (
+        <div style={{
+          background: '#1a1200', border: '0.5px solid #c4a000', borderRadius: 8,
+          padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#c4a000',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 20 }}>↻</span>
+          <span>Vend skærmen for bedre visning</span>
+        </div>
+      )}
 
       {/* Visningsskift */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
