@@ -506,7 +506,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         )}
 
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {isTrainer && isKamp && new Date(event.start_time) < new Date() && (
+          {isTrainer && isKamp && (() => { const d = new Date(event.start_time); d.setHours(0,0,0,0); return d <= new Date(); })() && (
             <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => setShowStats(true)}>
               📊 Statistik & Bøder
             </button>
