@@ -305,7 +305,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
 
 ### Kampstatistik & Bøder (fase 5+6)
-- Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (kun afsluttede kampe)
+- Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (synlig fra kampdagen og frem)
 - Knappen har sin egen fuldbred-række over Rediger/Luk/Påmind
 - **Statistik-sektion**: tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
 - **Auto-udfyld statistik**: played=1 for tilmeldte, late_signup=1 for sent tilmeldte, absence=1 for afmeldte, no_signup=1 for spillere uden nogen reaktion
@@ -321,6 +321,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
   - Tre visninger: **Top 10** (6 søjlediagrammer inkl. røde kort og bøder), **Sæsonoversigt** (tabel inkl. bøder), **Spillerprofil** (klik → modal med sæson-for-sæson inkl. bøder)
   - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
   - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
+  - På mobil (< 600px) vises et gult banner "Vend skærmen for bedre visning" ved Sæsonoversigt og Spillerprofil
 
 ### Bødekasse (fase 6)
 - **Saldi beregnes dynamisk**: skyldig = SUM(fines.amount) − SUM(fine_payments.amount)
@@ -546,6 +547,10 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Åbner panel med liste over spillere der ikke har meldt ud (checkboxes, alle pre-selected)
 - Sender email-påmindelser direkte — ingen bekræftelsesdialog
 - Viser "✓ Påmindelse sendt til X spillere" efter afsendelse
+
+### Tilmeldte-sektion (kollapsbar)
+- Overskriften "Tilmeldte (N)" er klikbar og folder listen ind/ud
+- Valget huskes i `localStorage` (`cfc_tilmeldte_collapsed`) på tværs af events og sessioner
 
 ---
 
