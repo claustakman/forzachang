@@ -264,8 +264,8 @@ jobs:
           npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-50',   'maal_50', '50 mål', 'auto', 'goals', 50, 9);" 2>&1 || true
           npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-100',  'maal_100', '100 mål', 'auto', 'goals', 100, 10);" 2>&1 || true
           npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-150',  'maal_150', '150 mål', 'auto', 'goals', 150, 11);" 2>&1 || true
-          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-fighter',   'fighter', 'Årets fighter', 'manual', NULL, NULL, 12);" 2>&1 || true
-          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-spiller',   'spiller', 'Årets spiller', 'manual', NULL, NULL, 13);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-spiller',   'spiller', 'Årets spiller', 'manual', NULL, NULL, 12);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-fighter',   'fighter', 'Årets fighter', 'manual', NULL, NULL, 13);" 2>&1 || true
           npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-kammerat',  'kammerat', 'Årets kammerat', 'manual', NULL, NULL, 14);" 2>&1 || true
         working-directory: worker
         env:

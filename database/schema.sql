@@ -252,8 +252,8 @@ INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshol
   ('ht-maal-50',     'maal_50',     '50 mål',          'auto',   'goals',    50,  9),
   ('ht-maal-100',    'maal_100',    '100 mål',         'auto',   'goals',   100, 10),
   ('ht-maal-150',    'maal_150',    '150 mål',         'auto',   'goals',   150, 11),
-  ('ht-fighter',     'fighter',     'Årets fighter',   'manual', NULL,     NULL, 12),
-  ('ht-spiller',     'spiller',     'Årets spiller',   'manual', NULL,     NULL, 13),
+  ('ht-spiller',     'spiller',     'Årets spiller',   'manual', NULL,     NULL, 12),
+  ('ht-fighter',     'fighter',     'Årets fighter',   'manual', NULL,     NULL, 13),
   ('ht-kammerat',    'kammerat',    'Årets kammerat',  'manual', NULL,     NULL, 14);
 
 -- Migrations (safe to re-run — ignored if column already exists)
