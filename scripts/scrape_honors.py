@@ -75,7 +75,7 @@ def hent_pokaler(spiller_id):
     imgs = soup.find_all("img")
     for img in imgs:
         src = img.get("src", "")
-        if "/pokaler/" not in src:
+        if "pokaler/" not in src:
             continue
 
         # Hent filnavn uden extension og uden _shadow
