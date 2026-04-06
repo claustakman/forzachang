@@ -49,8 +49,8 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
   if (request.method === 'GET') {
     const includeInactive = url.searchParams.get('include_inactive') === '1' && user.role === 'admin';
     const query = includeInactive
-      ? `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url, last_seen FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
-      : `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url, last_seen FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
+      ? `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url, last_seen, COALESCE(notify_email,1) as notify_email, COALESCE(notify_push,1) as notify_push FROM players ORDER BY active DESC, CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`
+      : `SELECT id, name, alias, email, role, active, birth_date, shirt_number, license_number, avatar_url, last_seen, COALESCE(notify_email,1) as notify_email, COALESCE(notify_push,1) as notify_push FROM players WHERE active=1 ORDER BY CASE WHEN shirt_number IS NULL THEN 1 ELSE 0 END, shirt_number`;
     const players = await env.DB.prepare(query).all();
     return json(players.results);
   }
@@ -100,6 +100,12 @@ export async function handlePlayers(request: Request, env: Env, user: JWTPayload
     // alias: self eller admin kan sætte
     if (body.alias !== undefined) {
       await env.DB.prepare('UPDATE players SET alias=? WHERE id=?').bind(body.alias || null, id).run();
+    }
+    if (body.notify_email !== undefined) {
+      await env.DB.prepare('UPDATE players SET notify_email=? WHERE id=?').bind(body.notify_email ? 1 : 0, id).run();
+    }
+    if (body.notify_push !== undefined) {
+      await env.DB.prepare('UPDATE players SET notify_push=? WHERE id=?').bind(body.notify_push ? 1 : 0, id).run();
     }
     return json({ ok: true });
   }

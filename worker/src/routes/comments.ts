@@ -1,5 +1,6 @@
 import { json, Env } from '../index';
 import type { JWTPayload } from '../lib/auth';
+import { sendPushToPlayer } from '../lib/sendPush';
 
 function nanoid() {
   return crypto.randomUUID();
@@ -52,6 +53,45 @@ export async function handleComments(
     const player = await env.DB.prepare(
       'SELECT COALESCE(alias, name) as author_name, avatar_url as author_avatar_url FROM players WHERE id=?'
     ).bind(user.sub).first();
+
+    // Detect @-mentions and send push (fire-and-forget)
+    const bodyText = (body as string).trim();
+    const allMention = bodyText.toLowerCase().includes('@alle');
+    const mentionMatches = [...bodyText.matchAll(/@([\w\u00C0-\u024F\-]+)/gi)];
+
+    if (allMention || mentionMatches.length > 0) {
+      const eventRow = await env.DB.prepare('SELECT title FROM events WHERE id=?').bind(eventId).first() as any;
+      const eventTitle = eventRow?.title || 'et event';
+      const authorRow = await env.DB.prepare('SELECT COALESCE(alias, name) as display_name FROM players WHERE id=?').bind(user.sub).first() as any;
+      const authorName = authorRow?.display_name || 'Nogen';
+
+      if (allMention) {
+        const allPlayers = await env.DB.prepare(
+          "SELECT id FROM players WHERE active=1 AND id != ?"
+        ).bind(user.sub).all();
+        for (const p of allPlayers.results as any[]) {
+          sendPushToPlayer(env, p.id, {
+            title: `💬 ${authorName} nævnte alle`,
+            body: `...i kommentarer til ${eventTitle}`,
+            url: '/kalender',
+          }).catch(() => {});
+        }
+      } else {
+        for (const match of mentionMatches) {
+          const mentionName = match[1];
+          const mentioned = await env.DB.prepare(
+            "SELECT id FROM players WHERE active=1 AND (LOWER(alias)=LOWER(?) OR name LIKE ?) AND id != ? LIMIT 1"
+          ).bind(mentionName, `${mentionName}%`, user.sub).first() as any;
+          if (mentioned) {
+            sendPushToPlayer(env, mentioned.id, {
+              title: `💬 ${authorName} nævnte dig`,
+              body: `...i kommentarer til ${eventTitle}`,
+              url: '/kalender',
+            }).catch(() => {});
+          }
+        }
+      }
+    }
 
     return json({ ...comment, ...player }, 201);
   }

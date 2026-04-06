@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../lib/push';
 
 export default function Profile() {
   const { player, updatePlayer } = useAuth();
@@ -17,6 +18,12 @@ export default function Profile() {
   const [msg, setMsg] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const [pwErr, setPwErr] = useState('');
+
+  const [notifyEmail, setNotifyEmail] = useState(player?.notify_email !== undefined ? !!player.notify_email : true);
+  const [notifyPush, setNotifyPush] = useState(player?.notify_push !== undefined ? !!player.notify_push : true);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(getPushPermission());
+  const [notifySaving, setNotifySaving] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState('');
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(player?.avatar_url || null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -54,6 +61,27 @@ export default function Profile() {
       setMsg('Gemt');
     } catch (e: any) { setMsg(e.message); }
     setSaving(false);
+  }
+
+  async function saveNotificationPrefs() {
+    setNotifySaving(true); setNotifyMsg('');
+    try {
+      await api.updatePlayer(player!.id, { notify_email: notifyEmail ? 1 : 0, notify_push: notifyPush ? 1 : 0 } as any);
+      updatePlayer({ notify_email: notifyEmail ? 1 : 0, notify_push: notifyPush ? 1 : 0 } as any);
+      if (notifyPush && isPushSupported()) {
+        const perm = await Notification.requestPermission();
+        setPushPermission(perm);
+        if (perm === 'granted') {
+          await subscribeToPush(localStorage.getItem('fc_token') || '');
+        }
+      } else {
+        await unsubscribeFromPush(localStorage.getItem('fc_token') || '');
+      }
+      setNotifyMsg('Gemt');
+    } catch (e: any) {
+      setNotifyMsg(e.message || 'Fejl');
+    }
+    setNotifySaving(false);
   }
 
   async function changePassword() {
@@ -159,6 +187,46 @@ export default function Profile() {
         {pwMsg && <p style={{ fontSize: 13, color: 'var(--green)', marginBottom: 8 }}>{pwMsg}</p>}
         <button className="btn btn-primary" onClick={changePassword} disabled={pwSaving} style={{ width: '100%', justifyContent: 'center' }}>
           {pwSaving ? '...' : 'Skift kodeord'}
+        </button>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Notifikationer</h2>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <label style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>Email-påmindelser</label>
+          <input
+            type="checkbox"
+            checked={notifyEmail}
+            onChange={e => setNotifyEmail(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: 'pointer' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>Push-notifikationer</div>
+            {!isPushSupported() && (
+              <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', marginTop: 2 }}>Ikke understøttet i denne browser</div>
+            )}
+            {isPushSupported() && pushPermission === 'denied' && (
+              <div style={{ fontSize: 11, color: '#e57373', marginTop: 2 }}>Blokeret i browser-indstillinger</div>
+            )}
+          </div>
+          <input
+            type="checkbox"
+            checked={notifyPush}
+            onChange={e => setNotifyPush(e.target.checked)}
+            disabled={!isPushSupported() || pushPermission === 'denied'}
+            style={{ width: 18, height: 18, cursor: isPushSupported() && pushPermission !== 'denied' ? 'pointer' : 'not-allowed', marginTop: 2 }}
+          />
+        </div>
+
+        {notifyMsg && (
+          <p style={{ fontSize: 13, color: notifyMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{notifyMsg}</p>
+        )}
+        <button className="btn btn-primary" onClick={saveNotificationPrefs} disabled={notifySaving} style={{ width: '100%', justifyContent: 'center' }}>
+          {notifySaving ? '...' : 'Gem notifikationsindstillinger'}
         </button>
       </div>
     </div>

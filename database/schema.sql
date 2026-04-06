@@ -265,3 +265,20 @@ INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshol
 -- ALTER TABLE players ADD COLUMN license_number TEXT;
 -- ALTER TABLE players ADD COLUMN phone TEXT;
 -- ALTER TABLE players ADD COLUMN avatar_url TEXT;
+
+-- ── Fase 9: PWA + Push-notifikationer ────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(endpoint)
+);
+
+-- Kør mod prod (én gang):
+-- ALTER TABLE players ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1;
+-- ALTER TABLE players ADD COLUMN notify_push   INTEGER NOT NULL DEFAULT 1;

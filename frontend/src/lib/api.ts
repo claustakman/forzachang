@@ -198,6 +198,8 @@ export interface Player {
   license_number?: string;
   avatar_url?: string;
   last_seen?: string;
+  notify_email?: number;
+  notify_push?: number;
 }
 
 /** Returnerer alias hvis sat, ellers fornavn */

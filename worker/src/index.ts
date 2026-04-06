@@ -13,6 +13,8 @@ import { handleComments } from './routes/comments';
 import { handleHonors } from './routes/honors';
 import { autoAssignHonors } from './routes/honors';
 import { verifyJWT, corsHeaders } from './lib/auth';
+import { handlePushSubscriptions } from './routes/push';
+import { sendPushToPlayer } from './lib/sendPush';
 
 export interface Env {
   DB: D1Database;
@@ -20,6 +22,9 @@ export interface Env {
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   APP_URL: string;
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
+  VAPID_SUBJECT: string;
 }
 
 export default {
@@ -36,6 +41,11 @@ export default {
       // Public routes (no auth needed)
       if (path.startsWith('/api/auth')) {
         return await handleAuth(request, env);
+      }
+
+      // VAPID public key (public — no auth)
+      if (path === '/api/vapid-public-key') {
+        return json({ publicKey: env.VAPID_PUBLIC_KEY || '' });
       }
 
       // All other routes require JWT
@@ -78,6 +88,10 @@ export default {
       {
         const m = path.match(/^\/api\/honors\/?([^/]*)$/);
         if (m) return await handleHonors(request, env, payload, m[1] || undefined);
+      }
+
+      if (path.startsWith('/api/push-subscriptions')) {
+        return await handlePushSubscriptions(request, env, payload);
       }
 
       return json({ error: 'Not found' }, 404);
@@ -290,6 +304,11 @@ async function sendReminders(env: Env): Promise<void> {
       if (!player.email) continue;
       try {
         await sendReminderEmail(env, player as any, ev as any);
+        sendPushToPlayer(env, (player as any).id, {
+          title: '⚽ Husk tilmelding',
+          body: `Du mangler at melde dig til ${(ev as any).title}`,
+          url: '/kalender?filter=manglende',
+        }).catch(e => console.error('Push reminder failed:', e));
         await env.DB.prepare(
           'INSERT OR IGNORE INTO reminder_log (id, event_id, player_id, type) VALUES (?, ?, ?, ?)'
         ).bind(crypto.randomUUID(), ev.id, player.id, 'auto').run();
@@ -312,6 +331,11 @@ export async function sendManualReminders(env: Env, eventId: string, playerIds: 
     if (!player?.email) continue;
     try {
       await sendReminderEmail(env, player as any, ev as any);
+      sendPushToPlayer(env, playerId, {
+        title: '⚽ Husk tilmelding',
+        body: `Du mangler at melde dig til ${(ev as any).title}`,
+        url: '/kalender?filter=manglende',
+      }).catch(e => console.error('Push manual reminder failed:', e));
       await env.DB.prepare(
         'INSERT OR REPLACE INTO reminder_log (id, event_id, player_id, type) VALUES (?, ?, ?, ?)'
       ).bind(crypto.randomUUID(), eventId, playerId, 'manual').run();

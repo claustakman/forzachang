@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import logo from '../assets/logo.svg';
+import PwaBanner from './PwaBanner';
 
 const NAV_ITEMS = [
   { to: '/kalender',  label: 'Kalender',  icon: '📅', comingSoon: false },
@@ -318,6 +319,8 @@ export default function Layout() {
           )
         ))}
       </nav>
+
+      <PwaBanner />
 
       {/* Responsive CSS */}
       <style>{`
