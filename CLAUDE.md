@@ -51,6 +51,7 @@ forzachang/
 │   │       ├── Login.tsx
 │   │       ├── Matches.tsx     # Kalender: events + tilmeldinger (rutet som /kalender)
 │   │       ├── Stats.tsx       # Statistik (19 sæsoner)
+│   │       ├── Haeder.tsx      # Hæder: Præstationer + Kåringer (fase 8)
 │   │       ├── Fines.tsx       # Bødekasse
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings)
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload
@@ -693,7 +694,9 @@ wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql
 - Kræver: `pip install requests beautifulsoup4`
 
 ### Frontend
-- **Statistik-siden**: ny fane "Hædersbevisninger" med automatiske milestones (alle modtagere) og manuelle priser (årstal → spiller, faldende)
+- **Hæder-siden** (`/hæder`, `Haeder.tsx`): selvstændig overordnet fane i navigationen med to underfaner:
+  - **Præstationer**: automatiske milestones (alle modtagere alfabetisk, badges)
+  - **Kåringer**: manuelle årspriser (årstal → spiller, faldende) — Årets spiller vises før Årets fighter
 - **Spillerprofil-modal**: kollapsbar sektion "🏅 Hædersbevisninger (N)" over statistiktabellen — kollapset som default; milestones som blå badges, manuelle priser som `Årets spiller 2013, 2021`
 - **Admin → Spillere → fold ud**: sektion "Hædersbevisninger" med liste over tildelte + "+ Tildel hædersbevisning"-knap → dropdown (kun manuelle typer) + årstal-input
 
@@ -702,6 +705,6 @@ wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql
 | Method | Path                  | Rolle    | Beskrivelse                                          |
 |--------|-----------------------|----------|------------------------------------------------------|
 | GET    | /api/honors           | player+  | Alle hædersbevisninger (?player_id= filter)          |
-| GET    | /api/honors/summary   | player+  | Aggregeret per honor_type (til Hædersbevisninger-fane)|
+| GET    | /api/honors/summary   | player+  | Aggregeret per honor_type (til Hæder-siden)          |
 | POST   | /api/honors           | admin    | Tildel manuel hædersbevisning                        |
 | DELETE | /api/honors/:id       | admin    | Slet hædersbevisning (kun manuelle)                  |
