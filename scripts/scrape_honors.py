@@ -83,7 +83,13 @@ def hent_pokaler(spiller_id):
         if filename.endswith("_shadow"):
             continue  # Ikke opnået
 
+        # Prøv title/alt-attribut først, ellers parse onMouseover="ddrivetip('...')"
         title = img.get("title", "") or img.get("alt", "")
+        if not title:
+            mouseover = img.get("onmouseover", "") or img.get("onMouseover", "")
+            m = re.search(r"ddrivetip\(['\"](.+?)['\"]\)", mouseover)
+            if m:
+                title = m.group(1)
 
         # Automatiske pokaler
         if filename in AUTO_MAP:
