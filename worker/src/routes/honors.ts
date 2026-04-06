@@ -161,10 +161,14 @@ export async function autoAssignHonors(env: Env, playerIds: string[]): Promise<v
       else if (ht.threshold_type === 'seasons') total = totals.seasons;
 
       if (total >= ht.threshold_value) {
-        // season = NULL for automatiske hædersbevisninger
-        await env.DB.prepare(
-          'INSERT OR IGNORE INTO player_honors (id, player_id, honor_type_id, season, awarded_by) VALUES (?,?,?,NULL,NULL)'
-        ).bind(crypto.randomUUID(), playerId, ht.id).run();
+        // season = NULL for automatiske — brug WHERE NOT EXISTS da UNIQUE ikke fanger NULL=NULL i SQLite
+        await env.DB.prepare(`
+          INSERT INTO player_honors (id, player_id, honor_type_id, season, awarded_by)
+          SELECT ?, ?, ?, NULL, NULL
+          WHERE NOT EXISTS (
+            SELECT 1 FROM player_honors WHERE player_id=? AND honor_type_id=? AND season IS NULL
+          )
+        `).bind(crypto.randomUUID(), playerId, ht.id, playerId, ht.id).run();
       }
     }
   }

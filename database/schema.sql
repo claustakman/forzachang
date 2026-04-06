@@ -245,16 +245,17 @@ INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshol
   ('ht-kampe-200',   'kampe_200',   '200 kampe',       'auto',   'matches', 200,  2),
   ('ht-saes-5',      'saesoner_5',  '5 sæsoner',       'auto',   'seasons',   5,  3),
   ('ht-saes-10',     'saesoner_10', '10 sæsoner',      'auto',   'seasons',  10,  4),
-  ('ht-saes-20',     'saesoner_20', '20 sæsoner',      'auto',   'seasons',  20,  5),
-  ('ht-mom-10',      'mom_10',      '10 MoM',          'auto',   'mom',      10,  6),
-  ('ht-mom-20',      'mom_20',      '20 MoM',          'auto',   'mom',      20,  7),
-  ('ht-mom-50',      'mom_50',      '50 MoM',          'auto',   'mom',      50,  8),
-  ('ht-maal-50',     'maal_50',     '50 mål',          'auto',   'goals',    50,  9),
-  ('ht-maal-100',    'maal_100',    '100 mål',         'auto',   'goals',   100, 10),
-  ('ht-maal-150',    'maal_150',    '150 mål',         'auto',   'goals',   150, 11),
-  ('ht-spiller',     'spiller',     'Årets spiller',   'manual', NULL,     NULL, 12),
-  ('ht-fighter',     'fighter',     'Årets fighter',   'manual', NULL,     NULL, 13),
-  ('ht-kammerat',    'kammerat',    'Årets kammerat',  'manual', NULL,     NULL, 14);
+  ('ht-saes-15',     'saesoner_15', '15 sæsoner',      'auto',   'seasons',  15,  5),
+  ('ht-saes-20',     'saesoner_20', '20 sæsoner',      'auto',   'seasons',  20,  6),
+  ('ht-mom-10',      'mom_10',      '10 MoM',          'auto',   'mom',      10,  7),
+  ('ht-mom-20',      'mom_20',      '20 MoM',          'auto',   'mom',      20,  8),
+  ('ht-mom-50',      'mom_50',      '50 MoM',          'auto',   'mom',      50,  9),
+  ('ht-maal-50',     'maal_50',     '50 mål',          'auto',   'goals',    50, 10),
+  ('ht-maal-100',    'maal_100',    '100 mål',         'auto',   'goals',   100, 11),
+  ('ht-maal-150',    'maal_150',    '150 mål',         'auto',   'goals',   150, 12),
+  ('ht-spiller',     'spiller',     'Årets spiller',   'manual', NULL,     NULL, 13),
+  ('ht-fighter',     'fighter',     'Årets fighter',   'manual', NULL,     NULL, 14),
+  ('ht-kammerat',    'kammerat',    'Årets kammerat',  'manual', NULL,     NULL, 15);
 
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
