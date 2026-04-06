@@ -229,6 +229,48 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Migrate DB — fase 8 hædersbevisninger
+        run: |
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS honor_types (
+              id TEXT PRIMARY KEY,
+              key TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL DEFAULT 'auto',
+              threshold_type TEXT,
+              threshold_value INTEGER,
+              sort_order INTEGER NOT NULL DEFAULT 0
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "
+            CREATE TABLE IF NOT EXISTS player_honors (
+              id TEXT PRIMARY KEY,
+              player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+              honor_type_id TEXT NOT NULL REFERENCES honor_types(id) ON DELETE CASCADE,
+              season INTEGER,
+              awarded_by TEXT REFERENCES players(id),
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(player_id, honor_type_id, season)
+            );
+          " 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-kampe-100', 'kampe_100', '100 kampe', 'auto', 'matches', 100, 1);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-kampe-200', 'kampe_200', '200 kampe', 'auto', 'matches', 200, 2);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-saes-5',    'saesoner_5',  '5 sæsoner', 'auto', 'seasons', 5, 3);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-saes-10',   'saesoner_10', '10 sæsoner', 'auto', 'seasons', 10, 4);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-saes-20',   'saesoner_20', '20 sæsoner', 'auto', 'seasons', 20, 5);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-mom-10',    'mom_10', '10 MoM', 'auto', 'mom', 10, 6);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-mom-20',    'mom_20', '20 MoM', 'auto', 'mom', 20, 7);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-mom-50',    'mom_50', '50 MoM', 'auto', 'mom', 50, 8);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-50',   'maal_50', '50 mål', 'auto', 'goals', 50, 9);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-100',  'maal_100', '100 mål', 'auto', 'goals', 100, 10);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-maal-150',  'maal_150', '150 mål', 'auto', 'goals', 150, 11);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-fighter',   'fighter', 'Årets fighter', 'manual', NULL, NULL, 12);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-spiller',   'spiller', 'Årets spiller', 'manual', NULL, NULL, 13);" 2>&1 || true
+          npx wrangler d1 execute forzachang-db --remote --command "INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES ('ht-kammerat',  'kammerat', 'Årets kammerat', 'manual', NULL, NULL, 14);" 2>&1 || true
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: npx wrangler deploy
         working-directory: worker
         env:

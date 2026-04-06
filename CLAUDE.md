@@ -36,7 +36,9 @@ forzachang/
 │   │       ├── matches.ts      # Gamle kampe (legacy)
 │   │       ├── signups.ts      # Gamle tilmeldinger (legacy)
 │   │       ├── stats.ts
-│   │       └── fines.ts
+│   │       ├── fines.ts
+│   │       ├── comments.ts     # Kommentarer (fase 7)
+│   │       └── honors.ts       # Hædersbevisninger (fase 8)
 │   └── wrangler.toml
 ├── frontend/                   # React app
 │   ├── src/
@@ -54,7 +56,8 @@ forzachang/
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload
 │   └── vite.config.ts
 ├── scripts/
-│   └── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
+│   ├── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
+│   └── scrape_honors.py        # Scraper hædersbevisninger fra forzachang.dk → seed SQL
 └── .github/workflows/
     ├── deploy.yml              # CI/CD: auto-deploy + DB-migrationer ved push til main
     └── migrate.yml             # Manuel workflow til DB-migrationer
@@ -339,6 +342,13 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Kør: `python3 scripts/scrape_stats.py > database/seed_stats.sql`
 - Erstat `OLD_ID_X` placeholders med rigtige UUIDs fra `players`-tabellen
 - Kør mod prod: `wrangler d1 execute forzachang-db --remote --file=database/seed_stats.sql`
+- Kræver: `pip install requests beautifulsoup4`
+
+### Import af historiske hædersbevisninger
+- Script: `scripts/scrape_honors.py` — scraper forzachang.dk spillersider for pokalbilleder og årstal
+- Kør: `python3 scripts/scrape_honors.py` → genererer `database/seed_honors.sql`
+- Tjek efter `MANGLER_ÅRSTAL`-kommentarer i den genererede fil og udfyld manuelt
+- Kør mod prod: `wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql`
 - Kræver: `pip install requests beautifulsoup4`
 
 ### Påmindelser (fase 4)
@@ -627,3 +637,71 @@ PRIMARY KEY på `(player_id, event_id)`. Ulæste beregnes dynamisk: kommentarer 
 | POST   | /api/events/:id/comments/read     | player+  | Markér kommentarer som læst (UPSERT last_read_at)|
 
 `GET /api/events` returnerer nu `unread_comments` count per event. `GET /api/events/:id` returnerer `comment_count`.
+
+---
+
+## Fase 8 — Hædersbevisninger
+
+### Hædersbevisningskatalog (`honor_types` tabel)
+
+| Felt              | Type    | Beskrivelse                                              |
+|-------------------|---------|----------------------------------------------------------|
+| `id`              | TEXT    | UUID                                                     |
+| `key`             | TEXT    | Unik nøgle, fx `kampe_100` (UNIQUE)                      |
+| `name`            | TEXT    | Visningsnavn, fx "100 kampe"                             |
+| `type`            | TEXT    | `auto` eller `manual`                                    |
+| `threshold_type`  | TEXT    | `matches`, `seasons`, `mom`, `goals` eller NULL          |
+| `threshold_value` | INTEGER | Grænseværdi, fx 100 — eller NULL for manuelle            |
+| `sort_order`      | INTEGER | Rækkefølge i UI                                          |
+
+Seed-data (14 typer): 11 automatiske milestones (kampe 100/200, sæsoner 5/10/20, MoM 10/20/50, mål 50/100/150) + 3 manuelle priser (Årets fighter, Årets spiller, Årets kammerat).
+
+### Tildelte hædersbevisninger (`player_honors` tabel)
+
+| Felt            | Type    | Beskrivelse                                              |
+|-----------------|---------|----------------------------------------------------------|
+| `id`            | TEXT    | UUID                                                     |
+| `player_id`     | TEXT    | FK → players.id                                          |
+| `honor_type_id` | TEXT    | FK → honor_types.id                                      |
+| `season`        | INTEGER | Årstal (påkrævet for manuelle, NULL for automatiske)     |
+| `awarded_by`    | TEXT    | FK → players.id (NULL for auto-tildelte)                 |
+| `created_at`    | TEXT    | Tidsstempel                                              |
+
+UNIQUE constraint på `(player_id, honor_type_id, season)`.
+- Automatiske: `season = NULL` — én spiller kan kun have én "100 kampe"-hædersbevisning
+- Manuelle: `season` er årstallet — en spiller kan vinde "Årets spiller" flere gange
+
+### Automatisk tildeling
+- Tjekkes server-side ved `POST /api/stats` (gem kampstatistik) og ved webcal-sync (dagligt)
+- Beregner totaler fra `match_stats` + `player_stats_legacy` kombineret
+- Indsættes med `INSERT OR IGNORE` for idempotens
+- Implementeret i `worker/src/routes/honors.ts` → `autoAssignHonors(env, playerIds)`
+
+### Import af historiske hædersbevisninger
+Script: `scripts/scrape_honors.py` — parser `title`-attributter på pokalbilderne fra forzachang.dk
+
+```bash
+python3 scripts/scrape_honors.py
+# Generer database/seed_honors.sql
+
+wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql
+```
+
+- Automatiske pokaler importeres uden årstal (season = NULL)
+- Manuelle pokaler forsøges importeret med årstal fra title-attribut
+- Linjer markeret med `MANGLER_ÅRSTAL` i SQL-filen skal udfyldes manuelt
+- Kræver: `pip install requests beautifulsoup4`
+
+### Frontend
+- **Statistik-siden**: ny fane "Hædersbevisninger" med automatiske milestones (alle modtagere) og manuelle priser (årstal → spiller, faldende)
+- **Spillerprofil-modal**: kollapsbar sektion "🏅 Hædersbevisninger (N)" over statistiktabellen — kollapset som default; milestones som blå badges, manuelle priser som `Årets spiller 2013, 2021`
+- **Admin → Spillere → fold ud**: sektion "Hædersbevisninger" med liste over tildelte + "+ Tildel hædersbevisning"-knap → dropdown (kun manuelle typer) + årstal-input
+
+### API-routes
+
+| Method | Path                  | Rolle    | Beskrivelse                                          |
+|--------|-----------------------|----------|------------------------------------------------------|
+| GET    | /api/honors           | player+  | Alle hædersbevisninger (?player_id= filter)          |
+| GET    | /api/honors/summary   | player+  | Aggregeret per honor_type (til Hædersbevisninger-fane)|
+| POST   | /api/honors           | admin    | Tildel manuel hædersbevisning                        |
+| DELETE | /api/honors/:id       | admin    | Slet hædersbevisning (kun manuelle)                  |

@@ -1,5 +1,6 @@
 import { json, Env } from '../index';
 import type { JWTPayload } from '../lib/auth';
+import { autoAssignHonors } from './honors';
 
 function nanoid() { return crypto.randomUUID(); }
 
@@ -225,6 +226,17 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
           ).bind(nanoid(), player_id, noSignupFineType.id, body.event_id, noSignupFineType.amount, user.sub).run();
         }
       }
+
+      // Auto-tildel hædersbevisninger for alle spillere der netop fik gemt stats
+      try {
+        const playerIds = (body.rows as any[]).map((r: any) => r.player_id).filter(Boolean);
+        if (playerIds.length) {
+          await autoAssignHonors(env, playerIds);
+        }
+      } catch (e) {
+        console.error('autoAssignHonors failed:', e);
+      }
+
       return json({ ok: true });
     }
 

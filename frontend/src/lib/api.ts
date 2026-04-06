@@ -172,6 +172,16 @@ export const api = {
     req<{ ok: boolean }>('POST', '/fines', data),
   payFine: (id: string) =>
     req<{ ok: boolean }>('PUT', `/fines/${id}/pay`, {}),
+
+  // Hædersbevisninger (fase 8)
+  getHonors: (playerId?: string) =>
+    req<PlayerHonor[]>('GET', `/honors${playerId ? `?player_id=${playerId}` : ''}`),
+  getHonorsSummary: () =>
+    req<HonorsSummary>('GET', '/honors/summary'),
+  createHonor: (data: { player_id: string; honor_type_id: string; season: number }) =>
+    req<{ ok: boolean }>('POST', '/honors', data),
+  deleteHonor: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/honors/${id}`),
 };
 
 // Types
@@ -388,6 +398,38 @@ export interface PlayerSeasonStats {
   yellow_cards: number;
   red_cards: number;
   fines_amount?: number;
+}
+
+export interface HonorType {
+  id: string;
+  key: string;
+  name: string;
+  type: 'auto' | 'manual';
+  threshold_type?: string;
+  threshold_value?: number;
+  sort_order: number;
+}
+
+export interface PlayerHonor {
+  id: string;
+  player_id: string;
+  honor_type_id: string;
+  honor_key: string;
+  honor_name: string;
+  honor_type: 'auto' | 'manual';
+  season?: number;
+  sort_order: number;
+  awarded_by?: string;
+  created_at: string;
+  // Kun i summary/list endpoints
+  player_name?: string;
+  avatar_url?: string;
+  player_active?: number;
+}
+
+export interface HonorsSummary {
+  types: HonorType[];
+  honors: PlayerHonor[];
 }
 
 // Udvidet StatRow med mom, active, avatar og fuldt navn

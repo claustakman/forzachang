@@ -10,6 +10,8 @@ import { handlePlayers } from './routes/players';
 import { handleEvents } from './routes/events';
 import { handleSettings } from './routes/settings';
 import { handleComments } from './routes/comments';
+import { handleHonors } from './routes/honors';
+import { autoAssignHonors } from './routes/honors';
 import { verifyJWT, corsHeaders } from './lib/auth';
 
 export interface Env {
@@ -72,6 +74,11 @@ export default {
       }
       if (path.startsWith('/api/events'))   return await handleEvents(request, env, payload);
       if (path.startsWith('/api/settings')) return await handleSettings(request, env, payload);
+      // /api/honors/summary + /api/honors/:id
+      {
+        const m = path.match(/^\/api\/honors\/?([^/]*)$/);
+        if (m) return await handleHonors(request, env, payload, m[1] || undefined);
+      }
 
       return json({ error: 'Not found' }, 404);
     } catch (e) {
@@ -139,6 +146,17 @@ export async function syncWebcal(env: Env): Promise<void> {
         ev.start_time, ev.end_time || null, meetingTime, signupDeadline, ev.uid, ev.season || now
       ).run();
     }
+  }
+
+  // Auto-tildel hædersbevisninger for alle spillere med statistik
+  try {
+    const allPlayers = await env.DB.prepare(
+      "SELECT DISTINCT player_id as id FROM match_stats UNION SELECT DISTINCT player_id as id FROM player_stats_legacy"
+    ).all();
+    const ids = (allPlayers.results as any[]).map((r: any) => r.id).filter(Boolean);
+    if (ids.length) await autoAssignHonors(env, ids);
+  } catch (e) {
+    console.error('autoAssignHonors (webcal-sync) failed:', e);
   }
 
   // Markér events der er forsvundet fra feed som aflyst (kun fremtidige)

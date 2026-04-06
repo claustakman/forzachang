@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, StatsRow, PlayerSeasonStats, Player } from '../lib/api';
+import { api, StatsRow, PlayerSeasonStats, Player, HonorsSummary, PlayerHonor } from '../lib/api';
 
 const THIS_YEAR = new Date().getFullYear();
 const SEASONS = Array.from({ length: THIS_YEAR - 2006 }, (_, i) => THIS_YEAR - i);
@@ -37,18 +37,109 @@ function BarChart({ rows, label, color }: {
   );
 }
 
+// ── Hædersbevisninger-fane ────────────────────────────────────────────────────
+
+function HedersbevisningerTab() {
+  const [summary, setSummary] = useState<HonorsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getHonorsSummary().then(data => {
+      setSummary(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
+  if (!summary) return <div className="empty">Kunne ikke hente hædersbevisninger.</div>;
+
+  const autoTypes = summary.types.filter(t => t.type === 'auto');
+  const manualTypes = summary.types.filter(t => t.type === 'manual');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Automatiske milestones */}
+      {autoTypes.map(ht => {
+        const recipients = summary.honors.filter(h => h.honor_type_id === ht.id);
+        if (recipients.length === 0) return null;
+        return (
+          <div key={ht.id} style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 10 }}>
+              🏅 {ht.name}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {[...recipients].sort((a, b) => (a.player_name || '').localeCompare(b.player_name || '', 'da')).map(h => (
+                <span key={h.id} style={{ fontSize: 13, padding: '3px 10px', borderRadius: 100, background: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-primary)', border: '0.5px solid var(--cfc-border)' }}>
+                  {h.player_name}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Manuelle priser */}
+      {manualTypes.map(ht => {
+        const prizes = summary.honors.filter(h => h.honor_type_id === ht.id && h.season != null);
+        if (prizes.length === 0) return null;
+        const sorted = [...prizes].sort((a, b) => (b.season || 0) - (a.season || 0));
+        return (
+          <div key={ht.id} style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 10 }}>
+              🏆 {ht.name}
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '0.5px solid var(--cfc-border)' }}>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Årstal</th>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Spiller</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(h => (
+                  <tr key={h.id} style={{ borderBottom: '0.5px solid var(--cfc-border)' }}>
+                    <td style={{ padding: '6px 8px', color: 'var(--cfc-text-muted)' }}>{h.season}</td>
+                    <td style={{ padding: '6px 8px', color: 'var(--cfc-text-primary)', fontWeight: 500 }}>{h.player_name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+
+      {summary.honors.length === 0 && <div className="empty">Ingen hædersbevisninger registreret endnu.</div>}
+    </div>
+  );
+}
+
 // ── Spillerprofil-modal ───────────────────────────────────────────────────────
 
 function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () => void }) {
   const [seasons, setSeasons] = useState<PlayerSeasonStats[]>([]);
+  const [honors, setHonors] = useState<PlayerHonor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [honorsOpen, setHonorsOpen] = useState(false);
 
   useEffect(() => {
-    api.getPlayerStats(player.id).then(data => {
-      setSeasons(data as unknown as PlayerSeasonStats[]);
+    Promise.all([
+      api.getPlayerStats(player.id),
+      api.getHonors(player.id),
+    ]).then(([statsData, honorsData]) => {
+      setSeasons(statsData as unknown as PlayerSeasonStats[]);
+      setHonors(honorsData);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [player.id]);
+
+  const autoHonors = honors.filter(h => h.honor_type === 'auto');
+  const manualHonors = honors.filter(h => h.honor_type === 'manual');
+  // Gruppér manuelle per honor_type_id
+  const manualByType = manualHonors.reduce((acc, h) => {
+    if (!acc[h.honor_type_id]) acc[h.honor_type_id] = { name: h.honor_name, years: [] };
+    acc[h.honor_type_id].years.push(h.season!);
+    return acc;
+  }, {} as Record<string, { name: string; years: number[] }>);
 
   const totals = seasons.reduce((acc, s) => ({
     matches: acc.matches + s.matches,
@@ -95,6 +186,41 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
           ))}
         </div>
 
+        {/* Hædersbevisninger — kollapsbar */}
+        {honors.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <button
+              onClick={() => setHonorsOpen(o => !o)}
+              style={{ width: '100%', textAlign: 'left', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', color: 'var(--cfc-text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}
+            >
+              <span>🏅 Hædersbevisninger ({honors.length})</span>
+              <span style={{ color: 'var(--cfc-text-subtle)' }}>{honorsOpen ? '▲' : '▼'}</span>
+            </button>
+            {honorsOpen && (
+              <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {autoHonors.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', marginBottom: 5 }}>Milestones</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {autoHonors.map(h => (
+                        <span key={h.id} style={{ fontSize: 12, padding: '2px 9px', borderRadius: 100, background: '#0f1a2e', color: '#5b8dd9', border: '0.5px solid #1a3a5c' }}>
+                          {h.honor_name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Object.values(manualByType).map(({ name, years }) => (
+                  <div key={name} style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>
+                    <span style={{ color: '#c4a000', fontWeight: 600 }}>{name}</span>
+                    {' '}{years.sort((a, b) => b - a).join(', ')}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
         ) : seasons.length === 0 ? (
@@ -138,7 +264,7 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
 
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
-type View = 'top10' | 'saeson' | 'spiller';
+type View = 'top10' | 'saeson' | 'spiller' | 'haedersbevisninger';
 
 export default function Stats() {
   const [view, setView] = useState<View>('top10');
@@ -195,9 +321,10 @@ export default function Stats() {
       {/* Visningsskift */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
         {([
-          ['top10',  'Top 10'],
-          ['saeson', 'Sæsonoversigt'],
-          ['spiller','Spillerprofil'],
+          ['top10',                'Top 10'],
+          ['saeson',              'Sæsonoversigt'],
+          ['spiller',             'Spillerprofil'],
+          ['haedersbevisninger',  'Hædersbevisninger'],
         ] as [View, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setView(v)} className="btn btn-sm" style={{
             background: view === v ? 'var(--cfc-bg-hover)' : 'transparent',
@@ -207,25 +334,30 @@ export default function Stats() {
         ))}
       </div>
 
-      {/* Filtre */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select className="input" style={{ width: 110, fontSize: 13 }} value={season} onChange={e => setSeason(e.target.value)}>
-          <option value="">Alle sæsoner</option>
-          {SEASONS.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select className="input" style={{ width: 120, fontSize: 13 }} value={activeFilter} onChange={e => setActiveFilter(e.target.value as any)}>
-          <option value="all">Alle spillere</option>
-          <option value="active">Kun aktive</option>
-          <option value="inactive">Pensionerede</option>
-        </select>
-        {view !== 'top10' && (
-          <input className="input" style={{ flex: 1, minWidth: 120, fontSize: 13 }} placeholder="Søg spiller..." value={q} onChange={e => setQ(e.target.value)} />
-        )}
-      </div>
+      {/* Filtre — skjules på hædersbevisninger-fane */}
+      {view !== 'haedersbevisninger' && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="input" style={{ width: 110, fontSize: 13 }} value={season} onChange={e => setSeason(e.target.value)}>
+            <option value="">Alle sæsoner</option>
+            {SEASONS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select className="input" style={{ width: 120, fontSize: 13 }} value={activeFilter} onChange={e => setActiveFilter(e.target.value as any)}>
+            <option value="all">Alle spillere</option>
+            <option value="active">Kun aktive</option>
+            <option value="inactive">Pensionerede</option>
+          </select>
+          {view !== 'top10' && (
+            <input className="input" style={{ flex: 1, minWidth: 120, fontSize: 13 }} placeholder="Søg spiller..." value={q} onChange={e => setQ(e.target.value)} />
+          )}
+        </div>
+      )}
 
-      {loading ? (
+      {/* ── Hædersbevisninger ── */}
+      {view === 'haedersbevisninger' && <HedersbevisningerTab />}
+
+      {view !== 'haedersbevisninger' && loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
-      ) : (
+      ) : view !== 'haedersbevisninger' ? (
         <>
           {/* ── Top 10 diagrammer ── */}
           {view === 'top10' && (
@@ -325,7 +457,7 @@ export default function Stats() {
             </div>
           )}
         </>
-      )}
+      ) : null}
 
       {selectedPlayer && (
         <PlayerProfileModal

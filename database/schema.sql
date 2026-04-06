@@ -217,6 +217,45 @@ CREATE TABLE IF NOT EXISTS comment_reads (
   PRIMARY KEY (player_id, event_id)
 );
 
+-- ── Fase 8: Hædersbevisninger ────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS honor_types (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'auto',         -- 'auto' | 'manual'
+  threshold_type TEXT,                        -- 'matches' | 'seasons' | 'mom' | 'goals' | NULL
+  threshold_value INTEGER,                    -- grænseværdi, fx 100
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS player_honors (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  honor_type_id TEXT NOT NULL REFERENCES honor_types(id) ON DELETE CASCADE,
+  season INTEGER,                             -- NULL for auto, årstal for manuelle
+  awarded_by TEXT REFERENCES players(id),    -- NULL for auto-tildelte
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(player_id, honor_type_id, season)
+);
+
+-- Seed: hædersbevisningskatalog
+INSERT OR IGNORE INTO honor_types (id, key, name, type, threshold_type, threshold_value, sort_order) VALUES
+  ('ht-kampe-100',   'kampe_100',   '100 kampe',       'auto',   'matches', 100,  1),
+  ('ht-kampe-200',   'kampe_200',   '200 kampe',       'auto',   'matches', 200,  2),
+  ('ht-saes-5',      'saesoner_5',  '5 sæsoner',       'auto',   'seasons',   5,  3),
+  ('ht-saes-10',     'saesoner_10', '10 sæsoner',      'auto',   'seasons',  10,  4),
+  ('ht-saes-20',     'saesoner_20', '20 sæsoner',      'auto',   'seasons',  20,  5),
+  ('ht-mom-10',      'mom_10',      '10 MoM',          'auto',   'mom',      10,  6),
+  ('ht-mom-20',      'mom_20',      '20 MoM',          'auto',   'mom',      20,  7),
+  ('ht-mom-50',      'mom_50',      '50 MoM',          'auto',   'mom',      50,  8),
+  ('ht-maal-50',     'maal_50',     '50 mål',          'auto',   'goals',    50,  9),
+  ('ht-maal-100',    'maal_100',    '100 mål',         'auto',   'goals',   100, 10),
+  ('ht-maal-150',    'maal_150',    '150 mål',         'auto',   'goals',   150, 11),
+  ('ht-fighter',     'fighter',     'Årets fighter',   'manual', NULL,     NULL, 12),
+  ('ht-spiller',     'spiller',     'Årets spiller',   'manual', NULL,     NULL, 13),
+  ('ht-kammerat',    'kammerat',    'Årets kammerat',  'manual', NULL,     NULL, 14);
+
 -- Migrations (safe to re-run — ignored if column already exists)
 -- ALTER TABLE players ADD COLUMN alias TEXT;
 -- ALTER TABLE players ADD COLUMN last_seen TEXT;

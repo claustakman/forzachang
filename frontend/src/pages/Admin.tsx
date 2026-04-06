@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, Player, LoginEntry, FineType } from '../lib/api';
+import { api, Player, LoginEntry, FineType, HonorType, PlayerHonor } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -168,6 +168,43 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
   onShowLogins: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [honors, setHonors] = useState<PlayerHonor[]>([]);
+  const [honorTypes, setHonorTypes] = useState<HonorType[]>([]);
+  const [showAddHonor, setShowAddHonor] = useState(false);
+  const [addHonorTypeId, setAddHonorTypeId] = useState('');
+  const [addHonorYear, setAddHonorYear] = useState(String(new Date().getFullYear()));
+  const [savingHonor, setSavingHonor] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    api.getHonors(p.id).then(setHonors).catch(() => {});
+    if (honorTypes.length === 0) {
+      api.getHonorsSummary().then(s => setHonorTypes(s.types)).catch(() => {});
+    }
+  }, [open]);
+
+  const manualTypes = honorTypes.filter(t => t.type === 'manual');
+
+  async function saveHonor() {
+    if (!addHonorTypeId || !addHonorYear) return;
+    setSavingHonor(true);
+    try {
+      await api.createHonor({ player_id: p.id, honor_type_id: addHonorTypeId, season: Number(addHonorYear) });
+      setHonors(await api.getHonors(p.id));
+      setShowAddHonor(false);
+      setAddHonorTypeId('');
+    } catch (e: any) {
+      alert('Fejl: ' + e.message);
+    }
+    setSavingHonor(false);
+  }
+
+  async function deleteHonor(id: string) {
+    if (!confirm('Slet hædersbevisning?')) return;
+    await api.deleteHonor(id);
+    setHonors(await api.getHonors(p.id));
+  }
+
   return (
     <div style={{ borderBottom: isLast ? 'none' : '0.5px solid var(--cfc-border)', opacity: p.active === 0 ? 0.7 : 1 }}>
       {/* Hovedrække */}
@@ -237,6 +274,37 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
                   <button className="btn btn-sm btn-danger" onClick={onDelete}>Slet permanent</button>
                 </>
             }
+          </div>
+
+          {/* Hædersbevisninger */}
+          <div style={{ marginTop: 10, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 6 }}>
+              Hædersbevisninger
+            </div>
+            {honors.length === 0 && <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', marginBottom: 6 }}>Ingen endnu</div>}
+            {honors.map(h => (
+              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12 }}>
+                <span style={{ padding: '2px 8px', borderRadius: 100, background: h.honor_type === 'auto' ? '#0f1a2e' : '#1a1200', color: h.honor_type === 'auto' ? '#5b8dd9' : '#c4a000', border: `0.5px solid ${h.honor_type === 'auto' ? '#1a3a5c' : '#3a2a00'}` }}>
+                  {h.honor_name}{h.season ? ` ${h.season}` : ''}
+                </span>
+                {h.honor_type === 'manual' && (
+                  <button onClick={() => deleteHonor(h.id)} style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }} title="Slet">✕</button>
+                )}
+              </div>
+            ))}
+            {!showAddHonor ? (
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowAddHonor(true)} style={{ marginTop: 4, fontSize: 12 }}>+ Tildel hædersbevisning</button>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <select className="input" style={{ fontSize: 12, width: 160 }} value={addHonorTypeId} onChange={e => setAddHonorTypeId(e.target.value)}>
+                  <option value="">Vælg type...</option>
+                  {manualTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <input className="input" style={{ fontSize: 12, width: 70 }} type="number" value={addHonorYear} onChange={e => setAddHonorYear(e.target.value)} placeholder="Årstal" />
+                <button className="btn btn-sm btn-primary" disabled={savingHonor || !addHonorTypeId} onClick={saveHonor}>Gem</button>
+                <button className="btn btn-sm btn-secondary" onClick={() => setShowAddHonor(false)}>Annullér</button>
+              </div>
+            )}
           </div>
         </div>
       )}
