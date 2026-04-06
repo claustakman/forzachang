@@ -28,25 +28,35 @@ forzachang/
 │   ├── src/
 │   │   ├── index.ts            # Router + scheduled jobs (webcal-sync + reminders)
 │   │   ├── lib/auth.ts         # JWT + password helpers
+│   │   ├── lib/webpush.ts      # Web Push Protocol (RFC 8030/8291/8292) via crypto.subtle
+│   │   ├── lib/sendPush.ts     # Fan-out helper: send push til én spiller (alle enheder)
 │   │   └── routes/
 │   │       ├── auth.ts
-│   │       ├── players.ts      # Inkl. POST /:id/avatar → R2
+│   │       ├── players.ts      # Inkl. POST /:id/avatar → R2, notify_email/notify_push
 │   │       ├── events.ts       # Events + tilmeldinger + gæster + påmindelser
 │   │       ├── settings.ts     # App-indstillinger (webcal URL m.m.)
 │   │       ├── matches.ts      # Gamle kampe (legacy)
 │   │       ├── signups.ts      # Gamle tilmeldinger (legacy)
 │   │       ├── stats.ts
 │   │       ├── fines.ts
-│   │       ├── comments.ts     # Kommentarer (fase 7)
-│   │       └── honors.ts       # Hædersbevisninger (fase 8)
+│   │       ├── comments.ts     # Kommentarer (fase 7) + @-mention push
+│   │       ├── honors.ts       # Hædersbevisninger (fase 8)
+│   │       └── push.ts         # Push-subscriptions + VAPID public key (fase 9)
 │   └── wrangler.toml
 ├── frontend/                   # React app
+│   ├── public/
+│   │   ├── manifest.json       # PWA manifest
+│   │   ├── sw.js               # Service worker (push + offline-cache)
+│   │   ├── icon-192.png        # App-ikon 192x192
+│   │   └── icon-512.png        # App-ikon 512x512
 │   ├── src/
 │   │   ├── lib/
 │   │   │   ├── api.ts          # API client (BASE_URL skifter prod/dev)
-│   │   │   └── auth.tsx        # Auth context (JWT i localStorage)
+│   │   │   ├── auth.tsx        # Auth context (JWT i localStorage)
+│   │   │   └── push.ts         # Browser-side push-subscription helpers
 │   │   ├── components/
-│   │   │   └── Layout.tsx      # Navigation shell
+│   │   │   ├── Layout.tsx      # Navigation shell
+│   │   │   └── PwaBanner.tsx   # Installationsbanner (iOS/Android instruktioner)
 │   │   └── pages/
 │   │       ├── Login.tsx
 │   │       ├── Matches.tsx     # Kalender: events + tilmeldinger (rutet som /kalender)
@@ -54,7 +64,7 @@ forzachang/
 │   │       ├── Haeder.tsx      # Hæder: Præstationer + Kåringer (fase 8)
 │   │       ├── Fines.tsx       # Bødekasse
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings)
-│   │       └── Profile.tsx     # Profil inkl. avatar-upload
+│   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
 │   └── vite.config.ts
 ├── scripts/
 │   ├── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
@@ -266,6 +276,25 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 | `registered_by`   | TEXT    | FK → players.id (admin/træner)     |
 | `created_at`      | TEXT    | Tidsstempel                        |
 
+### Push-subscriptions (`push_subscriptions` tabel)
+
+| Felt         | Type | Beskrivelse                                  |
+|--------------|------|----------------------------------------------|
+| `id`         | TEXT | UUID                                         |
+| `player_id`  | TEXT | FK → players.id                              |
+| `endpoint`   | TEXT | Push-endpoint URL (UNIQUE)                   |
+| `p256dh`     | TEXT | Klientens ECDH public key (base64url)        |
+| `auth`       | TEXT | Auth secret (base64url)                      |
+| `user_agent` | TEXT | Browser/enhed                                |
+| `created_at` | TEXT | Oprettelsestidspunkt                         |
+
+### Notifikationsindstillinger på spillere (`players`-kolonner)
+
+| Felt            | Type    | Beskrivelse                      |
+|-----------------|---------|----------------------------------|
+| `notify_email`  | INTEGER | 1 = modtag email-påmindelser (default) |
+| `notify_push`   | INTEGER | 1 = modtag push-notifikationer (default) |
+
 ### Legacy-tabeller (bruges stadig til gammel statistik-integration)
 - `matches` — gamle kampe (bruges af stats-integration)
 - `signups` — gamle tilmeldinger
@@ -476,6 +505,9 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | GET    | /api/fine-payments            | player+        | Indbetalinger (?player_id= filter)   |
 | POST   | /api/fine-payments            | trainer+       | Registrér indbetaling                |
 | DELETE | /api/fine-payments/:id        | trainer+       | Slet indbetaling                     |
+| GET    | /api/vapid-public-key         | Alle           | VAPID public key (ingen auth)        |
+| POST   | /api/push-subscriptions       | player+        | Gem push-subscription                |
+| DELETE | /api/push-subscriptions       | player+        | Slet push-subscription               |
 
 ---
 
@@ -655,7 +687,7 @@ PRIMARY KEY på `(player_id, event_id)`. Ulæste beregnes dynamisk: kommentarer 
 | `threshold_value` | INTEGER | Grænseværdi, fx 100 — eller NULL for manuelle            |
 | `sort_order`      | INTEGER | Rækkefølge i UI                                          |
 
-Seed-data (14 typer): 11 automatiske milestones (kampe 100/200, sæsoner 5/10/20, MoM 10/20/50, mål 50/100/150) + 3 manuelle priser (Årets fighter, Årets spiller, Årets kammerat).
+Seed-data (15 typer): 12 automatiske milestones (kampe 100/200, sæsoner 5/10/15/20, MoM 10/20/50, mål 50/100/150) + 3 manuelle priser (Årets spiller, Årets fighter, Årets kammerat).
 
 ### Tildelte hædersbevisninger (`player_honors` tabel)
 
@@ -708,3 +740,73 @@ wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql
 | GET    | /api/honors/summary   | player+  | Aggregeret per honor_type (til Hæder-siden)          |
 | POST   | /api/honors           | admin    | Tildel manuel hædersbevisning                        |
 | DELETE | /api/honors/:id       | admin    | Slet hædersbevisning (kun manuelle)                  |
+
+### Auto-tildeling — duplikat-håndtering
+SQLite UNIQUE constraint ignorerer `NULL = NULL`, så `season=NULL` rækker kan duplikeres. `autoAssignHonors()` bruger derfor `INSERT ... WHERE NOT EXISTS` i stedet for `INSERT OR IGNORE` for automatiske hædersbevisninger.
+
+---
+
+## Fase 9 — PWA og Push-notifikationer
+
+### PWA-opsætning
+- `frontend/public/manifest.json`: navn "Copenhagen Forza Chang", kort navn "CFC", `display: standalone`, sort baggrund
+- `frontend/public/sw.js`: service worker — push-events, notifikationsklik, offline-cache af navigationsrequests
+- `frontend/public/icon-192.png` + `icon-512.png`: genereret fra `logo-email` med sips
+- Service worker registreres i `main.tsx` ved `window load`-event
+
+### Installationsbanner (`PwaBanner.tsx`)
+- Vises 3 sekunder efter login — kun første gang (`localStorage` nøgle `pwa_prompt_dismissed`)
+- Vises ikke hvis appen allerede kører i standalone-mode
+- Klik → modal med platformsspecifikke instruktioner:
+  - **iOS (Safari)**: Del-ikon → "Føj til hjemmeskærm"
+  - **Android (Chrome)**: `beforeinstallprompt`-event → native prompt, eller menu-instruktioner
+  - **Andet**: "Brug Chrome eller Safari på din telefon"
+- "Luk og vis ikke igen"-knap afviser permanent
+
+### Push-notifikationer — Web Push Protocol
+Implementeret manuelt med `crypto.subtle` (Cloudflare Workers understøtter ikke Node.js `crypto`):
+- **`worker/src/lib/webpush.ts`**: RFC 8030 + RFC 8291 (aes128gcm-kryptering) + RFC 8292 (VAPID JWT)
+  - ECDH nøgleudveksling, HKDF-SHA256 key derivation, AES-128-GCM kryptering
+  - VAPID JWT signeret med ECDSA P-256
+- **`worker/src/lib/sendPush.ts`**: fan-out til alle enheder for én spiller, rydder op i udløbne subscriptions (410/404)
+- **VAPID secrets** (Worker secrets): `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+
+### Notifikationstyper
+
+| Hændelse | Title | Body | URL |
+|----------|-------|------|-----|
+| Auto-påmindelse (cron) | "⚽ Husk tilmelding" | "Du mangler at melde dig til [event]" | `/kalender?filter=manglende` |
+| Manuel påmindelse | "⚽ Husk tilmelding" | "Du mangler at melde dig til [event]" | `/kalender?filter=manglende` |
+| @-mention i kommentar | "💬 [Navn] nævnte dig" | "...i kommentarer til [event]" | `/kalender` |
+| @alle i kommentar | "💬 [Navn] nævnte alle" | "...i kommentarer til [event]" | `/kalender` |
+
+### Notifikationsindstillinger (Min profil)
+- Ny sektion "Notifikationer" i `Profile.tsx`
+- Toggle for email-påmindelser (`notify_email`) og push-notifikationer (`notify_push`)
+- Gem-knap kalder `PUT /api/players/:id` + håndterer `Notification.requestPermission()` + subscribe/unsubscribe
+
+### API-routes
+
+| Method | Path                      | Rolle   | Beskrivelse                                     |
+|--------|---------------------------|---------|-------------------------------------------------|
+| GET    | /api/vapid-public-key     | Alle    | Returnerer VAPID public key (ingen auth)        |
+| POST   | /api/push-subscriptions   | player+ | Gem push-subscription for aktuel bruger         |
+| DELETE | /api/push-subscriptions   | player+ | Slet push-subscription (ved afmelding)          |
+
+### VAPID-nøgler (generering)
+```bash
+node -e "
+const { webcrypto } = require('crypto');
+(async () => {
+  const kp = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const pub = new Uint8Array(await webcrypto.subtle.exportKey('raw', kp.publicKey));
+  const privJwk = await webcrypto.subtle.exportKey('jwk', kp.privateKey);
+  const b64url = buf => Buffer.from(buf).toString('base64url');
+  console.log('PUBLIC_KEY=' + b64url(pub));
+  console.log('PRIVATE_KEY=' + privJwk.d);
+})();"
+
+wrangler secret put VAPID_PUBLIC_KEY
+wrangler secret put VAPID_PRIVATE_KEY
+wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
+```
