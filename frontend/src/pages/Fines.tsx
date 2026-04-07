@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { api, Fine, FineType, FinePayment, PlayerFinesSummary, Event, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
+function autoAssignLabel(v?: string) {
+  if (v === 'absence')     return { label: 'Auto: afbud',          bg: '#2a1010', color: '#e57373' };
+  if (v === 'late_signup') return { label: 'Auto: sen tilmelding', bg: '#1a1200', color: '#c4a000' };
+  if (v === 'no_signup')   return { label: 'Auto: ingen udmelding', bg: '#1a1200', color: '#c4a000' };
+  return null;
+}
+
 function fmtKr(kr: number) {
   return kr.toLocaleString('da-DK', { style: 'currency', currency: 'DKK', minimumFractionDigits: 0 });
 }
@@ -11,9 +18,11 @@ function fmtDate(iso: string) {
 }
 
 export default function Fines() {
-  const { player, isTrainer } = useAuth();
+  const { player, isTrainer, isAdmin } = useAuth();
+  const [tab, setTab] = useState<'oversigt' | 'katalog'>('oversigt');
   const [summary, setSummary] = useState<PlayerFinesSummary[]>([]);
   const [fineTypes, setFineTypes] = useState<FineType[]>([]);
+  const [allFineTypes, setAllFineTypes] = useState<FineType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllPlayers, setShowAllPlayers] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerFinesSummary | null>(null);
@@ -28,6 +37,7 @@ export default function Fines() {
         api.getFineTypes(),
       ]);
       setSummary(summaryData);
+      setAllFineTypes(typesData);
       setFineTypes(typesData.filter(t => t.active));
     } finally {
       setLoading(false);
@@ -48,6 +58,29 @@ export default function Fines() {
 
   return (
     <div className="page">
+      {/* ── Faner ─────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+        {(['oversigt', 'katalog'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="btn btn-sm"
+            style={{
+              background: tab === t ? 'var(--cfc-bg-hover)' : 'transparent',
+              color: tab === t ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+              border: `0.5px solid ${tab === t ? 'var(--cfc-border)' : 'transparent'}`,
+            }}
+          >
+            {t === 'oversigt' ? 'Bødeoversigt' : 'Bødekatalog'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'katalog' && (
+        <FineCatalog allTypes={allFineTypes} isAdmin={!!isAdmin} onReload={load} />
+      )}
+
+      {tab === 'oversigt' && <>
       {/* ── Holdoversigt ─────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
         <div className="card" style={{ textAlign: 'center' }}>
@@ -137,6 +170,165 @@ export default function Fines() {
           onClose={() => { setSelectedPlayer(null); load(); }}
         />
       )}
+      </>}
+    </div>
+  );
+}
+
+// ── FineCatalog ───────────────────────────────────────────────────────────────
+
+function FineCatalog({ allTypes, isAdmin, onReload }: { allTypes: FineType[]; isAdmin: boolean; onReload: () => void }) {
+  const [editType, setEditType] = useState<FineType | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+
+  async function archive(id: string, name: string) {
+    if (!confirm(`Arkivér bødetype "${name}"? Den vises ikke længere ved tildeling af bøder.`)) return;
+    await api.deleteFineType(id);
+    onReload();
+  }
+
+  async function restore(id: string) {
+    await api.updateFineType(id, { active: 1 } as any);
+    onReload();
+  }
+
+  const active = allTypes.filter(t => t.active);
+  const archived = allTypes.filter(t => !t.active);
+
+  return (
+    <>
+      {isAdmin && (
+        <button
+          className="btn btn-primary"
+          style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
+          onClick={() => setShowAdd(true)}
+        >
+          + Ny bødetype
+        </button>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+        {active.length === 0 && <div className="empty">Ingen aktive bødetyper</div>}
+        {active.map((t, i) => {
+          const badge = autoAssignLabel(t.auto_assign);
+          return (
+            <div key={t.id} style={{ borderBottom: i < active.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>
+                    {t.name}
+                    {badge && (
+                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 100, background: badge.bg, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>{t.amount} kr.</div>
+                </div>
+                {isAdmin && (
+                  <>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setEditType(t)}>Rediger</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => archive(t.id, t.name)}>Arkivér</button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {archived.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginBottom: 6 }}>Arkiverede</div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {archived.map((t, i) => (
+              <div key={t.id} style={{ borderBottom: i < archived.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', opacity: 0.6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 400, fontSize: 14 }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>{t.amount} kr.</div>
+                  </div>
+                  {isAdmin && (
+                    <button className="btn btn-sm btn-secondary" onClick={() => restore(t.id)}>Genaktivér</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {showAdd && <FineTypeModal onClose={() => { setShowAdd(false); onReload(); }} />}
+      {editType && <FineTypeModal fineType={editType} onClose={() => { setEditType(null); onReload(); }} />}
+    </>
+  );
+}
+
+function FineTypeModal({ fineType, onClose }: { fineType?: FineType; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: fineType?.name || '',
+    amount: fineType?.amount?.toString() || '',
+    auto_assign: fineType?.auto_assign || '',
+    sort_order: fineType?.sort_order?.toString() || '0',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function submit() {
+    if (!form.name || !form.amount) { setError('Navn og beløb kræves'); return; }
+    setSaving(true);
+    try {
+      const data = {
+        name: form.name,
+        amount: Number(form.amount),
+        auto_assign: form.auto_assign || null,
+        sort_order: Number(form.sort_order) || 0,
+      };
+      if (fineType) {
+        await api.updateFineType(fineType.id, data as any);
+      } else {
+        await api.createFineType(data as any);
+      }
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>{fineType ? 'Rediger bødetype' : 'Ny bødetype'}</h2>
+        <div className="form-row">
+          <label className="form-label">Navn</label>
+          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="fx Gult kort" />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Beløb (kr.)</label>
+          <input className="input" type="number" min="1" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="fx 25" />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Auto-tildeling</label>
+          <select className="input" value={form.auto_assign} onChange={e => set('auto_assign', e.target.value)}>
+            <option value="">Ingen (manuelt)</option>
+            <option value="absence">Ved afbud (absence)</option>
+            <option value="late_signup">Ved sen tilmelding (late_signup)</option>
+            <option value="no_signup">Ved ingen udmelding (no_signup)</option>
+          </select>
+        </div>
+        <div className="form-row">
+          <label className="form-label">Sorteringsorden</label>
+          <input className="input" type="number" value={form.sort_order} onChange={e => set('sort_order', e.target.value)} placeholder="0" />
+        </div>
+        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : (fineType ? 'Gem' : 'Opret')}</button>
+        </div>
+      </div>
     </div>
   );
 }

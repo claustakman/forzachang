@@ -191,8 +191,8 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
 type View = 'top10' | 'saeson' | 'spiller';
 
 export default function Stats() {
-  const [view, setView] = useState<View>('top10');
-  const [season, setSeason] = useState<string>('');
+  const [view, setView] = useState<View>('saeson');
+  const [season, setSeason] = useState<string>(String(THIS_YEAR));
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [stats, setStats] = useState<StatsRow[]>([]);
   const [loading, setLoading] = useState(true);

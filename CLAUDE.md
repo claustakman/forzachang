@@ -94,12 +94,12 @@ forzachang/
 |------------------|---------|----------------------------------------------------|
 | `id`             | TEXT    | UUID (bruges også som login-brugernavn)            |
 | `name`           | TEXT    | Fulde navn                                         |
-| `alias`          | TEXT    | Kaldenavn — vises i stedet for fornavn i frontend  |
+| `alias`          | TEXT    | Kaldenavn — vises i stedet for fuldt navn i frontend  |
 | `birth_date`     | TEXT    | Fødselsdato (ISO 8601)                             |
 | `email`          | TEXT    | Email                                              |
 | `phone`          | TEXT    | Telefonnummer                                      |
 | `shirt_number`   | INTEGER | Trøjenummer                                        |
-| `license_number` | TEXT    | DBU licensnummer                                   |
+| `license_number` | TEXT    | DAI licensnummer                                   |
 | `avatar_url`     | TEXT    | URL til profilbillede i R2                         |
 | `active`         | INTEGER | 1 = aktiv, 0 = pensioneret                         |
 | `role`           | TEXT    | `player`, `trainer` eller `admin`                  |
@@ -232,7 +232,7 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 | `sort_order`  | INTEGER | Rækkefølge i UI                                          |
 | `created_at`  | TEXT    | Oprettelsestidspunkt                                     |
 
-Bødekatalog (13 typer — administreres via Admin → Bødekatalog):
+Bødekatalog (13 typer — vises under Bødekasse → Bødekatalog, administreres af admin):
 
 | Navn | Beløb | auto_assign |
 |------|-------|-------------|
@@ -318,7 +318,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 ### Alias
 - Spillere kan sætte alias på egen profil (Min profil → Oplysninger)
 - Admin kan sætte alias i Admin → Spillere → Rediger
-- `displayName(p)` helper i `api.ts` returnerer `alias ?? fornavn`
+- `displayName(p)` helper i `api.ts` returnerer `alias ?? fuldt navn`
 - Backend bruger `COALESCE(p.alias, p.name)` i alle JOIN-queries (events, stats, fines)
 - Alias er rent kosmetisk — tilmeldinger og statistik er altid gemt på `player_id`
 
@@ -351,7 +351,8 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
 - **Statistiksiden** (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
   - Moderne data (`match_stats`) vinder over legacy for samme sæson/spiller
-  - Tre visninger: **Top 10** (6 søjlediagrammer inkl. røde kort og bøder), **Sæsonoversigt** (tabel inkl. bøder), **Spillerprofil** (klik → modal med sæson-for-sæson inkl. bøder)
+  - Tre visninger: **Sæsonoversigt** (default, tabel inkl. bøder, filtreret på seneste sæson), **Top 10** (6 søjlediagrammer inkl. røde kort og bøder), **Spillerprofil** (klik → modal med sæson-for-sæson inkl. bøder)
+  - Default sæsonfilter: indeværende år (fx 2026) — kan ændres til andre sæsoner eller "Alle sæsoner"
   - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
   - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
   - På mobil (< 600px) vises et gult banner "Vend skærmen for bedre visning" ved Sæsonoversigt og Spillerprofil
@@ -364,7 +365,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
   - `no_signup` → tildeles spillere der slet ikke har reageret (hverken tilmeldt eller afmeldt)
 - **Manuelle bøder** tildeles af trainer/admin — enten fra Statistik & Bøder-modalen eller direkte fra Bødekassen
 - **Bødeside** (`/bøder`): holdoversigt (total skyldig + total bøder), spillertabel (klik → detaljemodal), detaljemodal med bøder/indbetalinger-tabs
-- **Admin → Bødekatalog**: liste over bødetyper, opret/rediger/arkivér, auto_assign-typer markeret med badge
+- **Bødeside → Bødekatalog-fane**: liste over bødetyper synlig for alle; opret/rediger/arkivér kun for admin; auto_assign-typer markeret med badge
 - Alle kan se alles bøder og saldi
 
 ### Import af historisk statistik
@@ -603,7 +604,8 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
 - Navigation: tab "Kalender" (ikon 📅) rutet til `/kalender` → `Matches.tsx`
-- Admin-siden har tre tabs: **Spillere**, **Indstillinger** og **Bødekatalog**
+- Admin-siden har to tabs: **Spillere** og **Indstillinger**
+- Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
 

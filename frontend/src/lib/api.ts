@@ -202,9 +202,9 @@ export interface Player {
   notify_push?: number;
 }
 
-/** Returnerer alias hvis sat, ellers fornavn */
+/** Returnerer alias hvis sat, ellers fuldt navn */
 export function displayName(p: { name: string; alias?: string }): string {
-  return p.alias?.trim() || p.name.split(' ')[0];
+  return p.alias?.trim() || p.name;
 }
 
 export interface Match {

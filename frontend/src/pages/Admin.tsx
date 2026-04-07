@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, Player, LoginEntry, FineType, HonorType, PlayerHonor } from '../lib/api';
+import { api, Player, LoginEntry, HonorType, PlayerHonor } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,12 +11,11 @@ export default function Admin() {
     if (!isAdmin) navigate('/kalender');
   }, [isAdmin]);
 
-  const [tab, setTab] = useState<'players' | 'settings' | 'fines'>('players');
+  const [tab, setTab] = useState<'players' | 'settings'>('players');
 
   const tabs: { key: typeof tab; label: string }[] = [
     { key: 'players',  label: 'Spillere' },
     { key: 'settings', label: 'Indstillinger' },
-    { key: 'fines',    label: 'Bødekatalog' },
   ];
 
   return (
@@ -42,7 +41,6 @@ export default function Admin() {
 
       {tab === 'players'  && <AdminPlayers />}
       {tab === 'settings' && <AdminSettings />}
-      {tab === 'fines'    && <AdminFineTypes />}
     </div>
   );
 }
@@ -55,7 +53,7 @@ function AdminPlayers() {
   const [showAdd, setShowAdd] = useState(false);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
   const [loginPlayer, setLoginPlayer] = useState<Player | null>(null);
-  const [subTab, setSubTab] = useState<'active' | 'inactive'>('active');
+  const [subTab, setSubTab] = useState<'active' | 'inactive' | 'licenses'>('active');
 
   useEffect(() => { load(); }, []);
 
@@ -71,7 +69,10 @@ function AdminPlayers() {
 
   const active = players.filter(p => p.active === 1);
   const inactive = players.filter(p => p.active === 0);
-  const shown = subTab === 'active' ? active : inactive;
+  const withLicense = [...players]
+    .filter(p => p.license_number)
+    .sort((a, b) => (a.license_number! > b.license_number! ? 1 : -1));
+  const shown = subTab === 'active' ? active : subTab === 'inactive' ? inactive : [];
 
   async function deactivate(id: string) {
     if (!confirm('Deaktiver spiller? De kan ikke længere logge ind.')) return;
@@ -111,9 +112,9 @@ function AdminPlayers() {
         + Tilføj spiller
       </button>
 
-      {/* Sub-tabs: Aktive / Passive */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {(['active', 'inactive'] as const).map(t => (
+      {/* Sub-tabs: Aktive / Pensionerede / Licensliste */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+        {(['active', 'inactive', 'licenses'] as const).map(t => (
           <button
             key={t}
             onClick={() => setSubTab(t)}
@@ -124,11 +125,42 @@ function AdminPlayers() {
               border: `0.5px solid ${subTab === t ? 'var(--cfc-border)' : 'transparent'}`,
             }}
           >
-            {t === 'active' ? `Aktive (${active.length})` : `Pensionerede (${inactive.length})`}
+            {t === 'active' ? `Aktive (${active.length})` : t === 'inactive' ? `Pensionerede (${inactive.length})` : 'Licensliste'}
           </button>
         ))}
       </div>
 
+      {subTab === 'licenses' ? (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {withLicense.length === 0 ? (
+            <div className="empty">Ingen spillere med licensnummer</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '0.5px solid var(--cfc-border)', background: 'var(--cfc-bg-hover)' }}>
+                  <th style={{ padding: '8px 14px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>DAI-licensnummer</th>
+                  <th style={{ padding: '8px 14px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Navn</th>
+                  <th style={{ padding: '8px 14px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withLicense.map((p, i) => (
+                  <tr key={p.id} style={{ borderBottom: i < withLicense.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
+                    <td style={{ padding: '8px 14px', fontFamily: 'monospace', color: 'var(--cfc-text-primary)' }}>{p.license_number}</td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <span style={{ fontWeight: 500 }}>{p.name}</span>
+                      {p.alias && <span style={{ fontSize: 11, color: 'var(--cfc-text-muted)', marginLeft: 6 }}>"{p.alias}"</span>}
+                    </td>
+                    <td style={{ padding: '8px 14px' }}>
+                      {p.active === 0 && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>pensioneret</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : (
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {shown.length === 0 && (
           <div className="empty">
@@ -149,6 +181,7 @@ function AdminPlayers() {
           />
         ))}
       </div>
+      )}
 
       {showAdd && <AddPlayerModal onClose={() => { setShowAdd(false); load(); }} />}
       {editPlayer && <EditPlayerModal player={editPlayer} onClose={() => { setEditPlayer(null); load(); }} />}
@@ -355,7 +388,7 @@ function AddPlayerModal({ onClose }: { onClose: () => void }) {
           { key: 'email',          label: 'Email',                 placeholder: 'anders@email.dk' },
           { key: 'birth_date',     label: 'Fødselsdato',           placeholder: 'YYYY-MM-DD' },
           { key: 'shirt_number',   label: 'Trøjenummer',           placeholder: 'fx 10' },
-          { key: 'license_number', label: 'DBU-licensnummer',      placeholder: '' },
+          { key: 'license_number', label: 'DAI-licensnummer',      placeholder: '' },
           { key: 'password',       label: 'Startadgangskode',      placeholder: '' },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="form-row">
@@ -496,7 +529,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
           { key: 'email',          label: 'Email',            placeholder: 'anders@email.dk' },
           { key: 'birth_date',     label: 'Fødselsdato',      placeholder: 'YYYY-MM-DD' },
           { key: 'shirt_number',   label: 'Trøjenummer',      placeholder: 'fx 10' },
-          { key: 'license_number', label: 'DBU-licensnummer', placeholder: '' },
+          { key: 'license_number', label: 'DAI-licensnummer', placeholder: '' },
         ].map(({ key, label, placeholder }) => (
           <div key={key} className="form-row">
             <label className="form-label">{label}</label>
@@ -583,179 +616,6 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
 
         <div className="modal-footer" style={{ marginTop: 16 }}>
           <button className="btn btn-secondary" onClick={onClose}>Luk</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── AdminFineTypes ────────────────────────────────────────────────────────────
-
-function AdminFineTypes() {
-  const [types, setTypes] = useState<FineType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [editType, setEditType] = useState<FineType | null>(null);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setTypes(await api.getFineTypes());
-    } catch (e: any) {
-      alert('Fejl: ' + e.message);
-    }
-    setLoading(false);
-  }
-
-  async function archive(id: string, name: string) {
-    if (!confirm(`Arkivér bødetype "${name}"? Den vises ikke længere ved tildeling af bøder.`)) return;
-    await api.deleteFineType(id);
-    load();
-  }
-
-  async function restore(id: string) {
-    await api.updateFineType(id, { active: 1 } as any);
-    load();
-  }
-
-  const active = types.filter(t => t.active);
-  const archived = types.filter(t => !t.active);
-
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
-
-  function autoAssignLabel(v?: string) {
-    if (v === 'absence')    return { label: 'Auto: afbud',          bg: '#2a1010', color: '#e57373' };
-    if (v === 'late_signup') return { label: 'Auto: sen tilmelding', bg: '#1a1200', color: '#c4a000' };
-    return null;
-  }
-
-  return (
-    <>
-      <button
-        className="btn btn-primary"
-        style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
-        onClick={() => setShowAdd(true)}
-      >
-        + Ny bødetype
-      </button>
-
-      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
-        {active.length === 0 && <div className="empty">Ingen aktive bødetyper</div>}
-        {active.map((t, i) => {
-          const badge = autoAssignLabel(t.auto_assign);
-          return (
-            <div key={t.id} style={{ borderBottom: i < active.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: 14 }}>
-                    {t.name}
-                    {badge && (
-                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 100, background: badge.bg, color: badge.color }}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>
-                    {t.amount} kr.
-                  </div>
-                </div>
-                <button className="btn btn-sm btn-secondary" onClick={() => setEditType(t)}>Rediger</button>
-                <button className="btn btn-sm btn-danger" onClick={() => archive(t.id, t.name)}>Arkivér</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {archived.length > 0 && (
-        <>
-          <div className="section-label" style={{ marginBottom: 6 }}>Arkiverede</div>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            {archived.map((t, i) => (
-              <div key={t.id} style={{ borderBottom: i < archived.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', opacity: 0.6 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 400, fontSize: 14 }}>{t.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>{t.amount} kr.</div>
-                  </div>
-                  <button className="btn btn-sm btn-secondary" onClick={() => restore(t.id)}>Genaktivér</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {showAdd && <FineTypeModal onClose={() => { setShowAdd(false); load(); }} />}
-      {editType && <FineTypeModal fineType={editType} onClose={() => { setEditType(null); load(); }} />}
-    </>
-  );
-}
-
-function FineTypeModal({ fineType, onClose }: { fineType?: FineType; onClose: () => void }) {
-  const [form, setForm] = useState({
-    name: fineType?.name || '',
-    amount: fineType?.amount?.toString() || '',
-    auto_assign: fineType?.auto_assign || '',
-    sort_order: fineType?.sort_order?.toString() || '0',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
-
-  async function submit() {
-    if (!form.name || !form.amount) { setError('Navn og beløb kræves'); return; }
-    setSaving(true);
-    try {
-      const data = {
-        name: form.name,
-        amount: Number(form.amount),
-        auto_assign: form.auto_assign || null,
-        sort_order: Number(form.sort_order) || 0,
-      };
-      if (fineType) {
-        await api.updateFineType(fineType.id, data as any);
-      } else {
-        await api.createFineType(data as any);
-      }
-      onClose();
-    } catch (e: any) {
-      setError(e.message);
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>{fineType ? 'Rediger bødetype' : 'Ny bødetype'}</h2>
-        <div className="form-row">
-          <label className="form-label">Navn</label>
-          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="fx Gult kort" />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Beløb (kr.)</label>
-          <input className="input" type="number" min="1" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="fx 25" />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Auto-tildeling</label>
-          <select className="input" value={form.auto_assign} onChange={e => set('auto_assign', e.target.value)}>
-            <option value="">Ingen (manuelt)</option>
-            <option value="absence">Ved afbud (absence)</option>
-            <option value="late_signup">Ved sen tilmelding (late_signup)</option>
-          </select>
-        </div>
-        <div className="form-row">
-          <label className="form-label">Sorteringsorden</label>
-          <input className="input" type="number" value={form.sort_order} onChange={e => set('sort_order', e.target.value)} placeholder="0" />
-        </div>
-        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
-          <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : (fineType ? 'Gem' : 'Opret')}</button>
         </div>
       </div>
     </div>

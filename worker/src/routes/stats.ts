@@ -135,7 +135,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     for (const r of modernRows.results as any[]) {
       if (!modernSeasonsByPlayer.has(r.id)) modernSeasonsByPlayer.set(r.id, new Set());
       modernSeasonsByPlayer.get(r.id)!.add(r.season);
-      const displayName = r.alias?.trim() || r.full_name.split(' ')[0];
+      const displayName = r.alias?.trim() || r.full_name;
       const ex = map.get(r.id);
       if (ex) {
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
@@ -149,7 +149,7 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
     for (const r of legacyRows.results as any[]) {
       const coveredSeasons = modernSeasonsByPlayer.get(r.id);
       if (coveredSeasons?.has(r.season)) continue; // moderne data vinder
-      const displayName = r.alias?.trim() || r.full_name.split(' ')[0];
+      const displayName = r.alias?.trim() || r.full_name;
       const ex = map.get(r.id);
       if (ex) {
         ex.matches += r.matches; ex.goals += r.goals; ex.mom += r.mom;
