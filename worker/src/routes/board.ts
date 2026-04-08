@@ -4,6 +4,15 @@ import { sendPushToPlayer } from '../lib/sendPush';
 
 function nanoid() { return crypto.randomUUID(); }
 
+function parseAttachments(row: any) {
+  const json = row.attachments_json;
+  const parsed = json ? JSON.parse(json) : [];
+  // JSON_GROUP_ARRAY returnerer '[null]' hvis ingen rækker matcher
+  const attachments = Array.isArray(parsed) ? parsed.filter((a: any) => a && a.id) : [];
+  const { attachments_json: _, ...rest } = row;
+  return { ...rest, attachments };
+}
+
 export async function handleBoard(
   request: Request,
   env: Env,
@@ -37,14 +46,16 @@ export async function handleBoard(
       const results = await env.DB.prepare(`
         SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
           (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-          (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count
+          (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
+          (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
         FROM board_posts bp
         JOIN players p ON p.id = bp.player_id
         WHERE bp.deleted=0 AND (bp.title LIKE ? OR bp.body LIKE ?)
         ORDER BY bp.pinned DESC, bp.created_at DESC
         LIMIT 50
       `).bind(like, like).all();
-      return json({ pinned: [], posts: results.results, total: results.results.length, page: 1, hasMore: false });
+      const searchPosts = (results.results as any[]).map(parseAttachments);
+      return json({ pinned: [], posts: searchPosts, total: searchPosts.length, page: 1, hasMore: false });
     }
 
     const total = await env.DB.prepare(
@@ -55,7 +66,8 @@ export async function handleBoard(
     const pinned = await env.DB.prepare(`
       SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
         (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count
+        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
+        (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
       FROM board_posts bp
       JOIN players p ON p.id = bp.player_id
       WHERE bp.deleted=0 AND bp.pinned=1
@@ -65,7 +77,8 @@ export async function handleBoard(
     const posts = await env.DB.prepare(`
       SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
         (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count
+        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
+        (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
       FROM board_posts bp
       JOIN players p ON p.id = bp.player_id
       WHERE bp.deleted=0 AND bp.pinned=0
@@ -74,8 +87,8 @@ export async function handleBoard(
     `).bind(limit, offset).all();
 
     return json({
-      pinned: pinned.results,
-      posts: posts.results,
+      pinned: (pinned.results as any[]).map(parseAttachments),
+      posts: (posts.results as any[]).map(parseAttachments),
       total: total?.n || 0,
       page,
       hasMore: offset + limit < (total?.n || 0),
