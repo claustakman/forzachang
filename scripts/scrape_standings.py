@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Scraper til historiske sæsonstillinger fra forzachang.dk/stilling.php
-Genererer SQL til season_standings-tabellen.
+Scraper til historiske stillinger OG kampresultater fra forzachang.dk/stilling.php
+Genererer SQL til season_standings og season_matches tabellerne.
 
 Kør:
     python3 scripts/scrape_standings.py > database/seed_standings.sql
@@ -14,62 +14,121 @@ Kræver:
 import sys
 import re
 import uuid
+import time
 from datetime import datetime
+from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-URL = "https://www.forzachang.dk/stilling.php"
+BASE_URL = "https://www.forzachang.dk/stilling.php"
+CFC_NAMES = {"cfc", "forza chang", "copenhagen forza chang"}
+
+SENIOR_YEARS   = list(range(2007, 2019))   # 2007-2018
+OLDBOYS_YEARS  = list(range(2019, 2026))   # 2019-2025
+
+NOW = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def fetch_page(url: str) -> BeautifulSoup:
-    r = requests.get(url, timeout=15)
-    r.raise_for_status()
-    r.encoding = r.apparent_encoding
-    return BeautifulSoup(r.text, "html.parser")
+def fetch(year: int, vis: str) -> BeautifulSoup:
+    url = f"{BASE_URL}?vis={vis}&aar={year}"
+    for attempt in range(3):
+        r = requests.get(url, timeout=15)
+        if r.status_code == 429:
+            wait = 3 + attempt * 2
+            print(f" (rate limit, venter {wait}s...)", file=sys.stderr, end="")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding or "utf-8"
+        time.sleep(1)  # høflig pause mellem requests
+        return BeautifulSoup(r.text, "html.parser")
+    r.raise_for_status()  # kast fejl ved tredje forsøg
 
 
-def parse_int(s: str) -> int | None:
-    s = s.strip()
+def is_cfc(name: str) -> bool:
+    return name.strip().lower() in CFC_NAMES
+
+
+# ── Stillinger ─────────────────────────────────────────────────────────────────
+
+def scrape_standing(year: int, team_type: str) -> Optional[dict]:
+    """
+    Returnerer én dict med CFC's stilling for det givne år, eller None.
+
+    Tabelformat (whitespace-adskilt pr. celle):
+      Placering | Hold | Kampe | Vundne | Uafgjorte | Tabte | Score (X-Y) | Point
+    """
     try:
-        return int(s)
-    except ValueError:
+        soup = fetch(year, "stilling")
+    except Exception as e:
+        print(f"  FEJL {year} stilling: {e}", file=sys.stderr)
         return None
 
+    table = soup.find("table")
+    if not table:
+        print(f"  {year}: ingen tabel fundet", file=sys.stderr)
+        return None
 
-def find_cfc_row(table) -> dict | None:
-    """
-    Finder rækken der indeholder 'forza' eller 'chang' (case-insensitive)
-    i en HTML-tabel og returnerer den som dict.
-    Kolonnerækkefølge: Placering, Hold, Kampe, Vundne, Uafgjort, Tabte,
-                       Mål for, Mål imod, Pointtal
-    """
     rows = table.find_all("tr")
     for row in rows:
         cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-        if len(cells) < 4:
-            continue
-        # Slå på hold-navn (anden kolonne efter placering)
-        team_name = cells[1] if len(cells) > 1 else ""
-        if not re.search(r"forza|chang|cfc", team_name, re.IGNORECASE):
+        if not cells:
             continue
 
-        # Prøv at parse tallene — kolonner kan variere lidt
-        # Prøv standard layout: [pos, hold, kampe, v, u, t, mål+, mål-, point]
-        try:
-            position    = parse_int(cells[0])
-            played      = parse_int(cells[2])
-            won         = parse_int(cells[3])
-            drawn       = parse_int(cells[4])
-            lost        = parse_int(cells[5])
-            goals_for   = parse_int(cells[6])
-            goals_against = parse_int(cells[7])
-            points      = parse_int(cells[8])
-        except IndexError:
-            position = played = won = drawn = lost = goals_for = goals_against = points = None
+        # Find holdranden — anden celle er holdnavn hvis første er et tal
+        # men layout kan variere; prøv begge første celler
+        name_idx = None
+        for idx in range(min(2, len(cells))):
+            if is_cfc(cells[idx]):
+                name_idx = idx
+                break
+        if name_idx is None:
+            continue
+
+        # Placering er cellen FØR holdnavnet (hvis den er et tal)
+        position = None
+        if name_idx > 0 and cells[name_idx - 1].isdigit():
+            position = int(cells[name_idx - 1])
+
+        # Resten af tallene efter holdnavnet (filtrér tomme celler fra)
+        rest = [c for c in cells[name_idx + 1:] if c != ""]
+
+        def pi(s):
+            try: return int(s)
+            except: return None
+
+        played = pi(rest[0]) if len(rest) > 0 else None
+        won    = pi(rest[1]) if len(rest) > 1 else None
+        drawn  = pi(rest[2]) if len(rest) > 2 else None
+        lost   = pi(rest[3]) if len(rest) > 3 else None
+
+        # Score: kan være "X-Y" (én celle), eller tre celler: gf, "-", ga
+        goals_for = goals_against = points = None
+        if len(rest) > 4:
+            score_str = rest[4]
+            m = re.match(r"(\d+)[-–](\d+)", score_str)
+            if m:
+                # Ét felt: "42-49"
+                goals_for     = int(m.group(1))
+                goals_against = int(m.group(2))
+                points = pi(rest[5]) if len(rest) > 5 else None
+            elif pi(score_str) is not None and len(rest) > 5 and rest[5] in ("-", "–"):
+                # Tre-celle-format: rest[4]=gf, rest[5]="-", rest[6]=ga, rest[7]=points
+                goals_for     = pi(score_str)
+                goals_against = pi(rest[6]) if len(rest) > 6 else None
+                points        = pi(rest[7]) if len(rest) > 7 else None
+            elif pi(score_str) is not None:
+                # Fallback: gf, ga, points direkte
+                goals_for     = pi(score_str)
+                goals_against = pi(rest[5]) if len(rest) > 5 else None
+                points        = pi(rest[6]) if len(rest) > 6 else None
 
         return {
-            "team_name": team_name,
+            "id": str(uuid.uuid4()),
+            "team_type": team_type,
+            "season": year,
             "position": position,
+            "league": None,   # udfyldes manuelt
             "played": played,
             "won": won,
             "drawn": drawn,
@@ -78,127 +137,203 @@ def find_cfc_row(table) -> dict | None:
             "goals_against": goals_against,
             "points": points,
         }
+
+    print(f"  {year}: CFC ikke fundet i stilling", file=sys.stderr)
     return None
 
 
-def detect_season_and_type(heading_text: str) -> tuple[int | None, str | None]:
+# ── Kampresultater ─────────────────────────────────────────────────────────────
+
+def scrape_matches(year: int, team_type: str) -> list[dict]:
     """
-    Forsøger at udtrække årstal og holdtype fra en overskrift som
-    'Stilling 2024', 'Oldboys 2019-2020', 'Senior 2007' osv.
+    Returnerer liste af kampresultater for CFC i det givne år.
+
+    Tabelformat (typisk 5 kolonner):
+      Dato | Kl. | Hjemmehold | Udehold | Score
+    Dato: DD-MM-YY
+    Score: X-Y  (evt. efterfulgt af "(LP)" for walkover-tab)
     """
-    text = heading_text.strip()
+    try:
+        soup = fetch(year, "program")
+    except Exception as e:
+        print(f"  FEJL {year} program: {e}", file=sys.stderr)
+        return []
 
-    # Holdtype
-    team_type = None
-    if re.search(r"oldboys|old boys|veteran", text, re.IGNORECASE):
-        team_type = "oldboys"
-    elif re.search(r"senior", text, re.IGNORECASE):
-        team_type = "senior"
+    table = soup.find("table")
+    if not table:
+        return []
 
-    # Årstal — tag det FØRSTE firecifrede tal (startåret for sæsonen)
-    years = re.findall(r"\b(20\d{2}|19\d{2})\b", text)
-    season = int(years[0]) if years else None
-
-    return season, team_type
-
-
-def scrape(url: str) -> list[dict]:
-    soup = fetch_page(url)
     results = []
+    for row in table.find_all("tr"):
+        cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
 
-    # Find alle sektioner: typisk en <h2>/<h3> eller <strong> efterfulgt af <table>
-    # Prøv alle tabeller og find overskriften der er nærmest ovenfor
-    tables = soup.find_all("table")
-
-    for table in tables:
-        # Find nærmeste overskrift-element ovenfor tabellen
-        heading_el = None
-        for sibling in table.find_all_previous(["h1","h2","h3","h4","strong","b","p"]):
-            text = sibling.get_text(strip=True)
-            if re.search(r"\b(20\d{2}|19\d{2})\b", text):
-                heading_el = sibling
-                break
-
-        if not heading_el:
+        # Header-rækker og tomme rækker
+        if len(cells) < 4:
+            continue
+        if cells[0].lower() in {"dato", ""}:
             continue
 
-        season, team_type = detect_season_and_type(heading_el.get_text())
+        # Dato i første celle: DD-MM-YY eller DD-MM-YYYY
+        date_str = cells[0]
+        m = re.match(r"(\d{1,2})-(\d{2})-(\d{2,4})", date_str)
+        if not m:
+            continue
+        day, mon, yr = m.group(1), m.group(2), m.group(3)
+        if len(yr) == 2:
+            yr = "20" + yr
+        match_date = f"{yr}-{mon}-{day.zfill(2)}"
 
-        if not season:
+        # Hold: enten [dato, kl, hjem, ude, score] eller [dato, hjem, ude, score]
+        if len(cells) >= 5:
+            home, away, score_raw = cells[2], cells[3], cells[4]
+        else:
+            home, away, score_raw = cells[1], cells[2], cells[3]
+
+        home = home.strip()
+        away = away.strip()
+
+        # Kun kampe hvor CFC spiller
+        if not (is_cfc(home) or is_cfc(away)):
             continue
 
-        # Fallback holdtype: hvis overskriften ikke siger det, gæt på oldboys
-        if not team_type:
-            team_type = "oldboys"
+        # Parse score — "X-Y" evt. med "(LP)" eller "(W.O.)"
+        goals_for = goals_against = result = None
+        score_clean = re.sub(r"\(.*?\)", "", score_raw).strip()
+        sm = re.match(r"(\d+)[-–](\d+)", score_clean)
+        if sm:
+            gf_raw, ga_raw = int(sm.group(1)), int(sm.group(2))
+            # Justér ift. om CFC er hjemme eller ude
+            if is_cfc(home):
+                goals_for, goals_against = gf_raw, ga_raw
+            else:
+                goals_for, goals_against = ga_raw, gf_raw
 
-        row = find_cfc_row(table)
-        if not row:
-            continue
+            if goals_for > goals_against:
+                result = "V"
+            elif goals_for == goals_against:
+                result = "U"
+            else:
+                result = "T"
+
+        # Modstander og venue
+        if is_cfc(home):
+            opponent = away
+            venue = "H"
+        else:
+            opponent = home
+            venue = "U"
+
+        notes = None
+        if re.search(r"\bLP\b|W\.O\.", score_raw, re.IGNORECASE):
+            notes = "Walkover"
 
         results.append({
             "id": str(uuid.uuid4()),
             "team_type": team_type,
-            "season": season,
-            **row,
+            "season": year,
+            "match_date": match_date,
+            "opponent": opponent,
+            "venue": venue,
+            "goals_for": goals_for,
+            "goals_against": goals_against,
+            "result": result,
+            "notes": notes,
         })
 
     return results
 
 
-def to_sql(rows: list[dict]) -> str:
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    lines = [
-        "-- Genereret af scripts/scrape_standings.py",
-        f"-- Kilde: {URL}",
-        f"-- Dato: {now}",
-        "",
-    ]
+# ── SQL-generering ─────────────────────────────────────────────────────────────
 
-    if not rows:
-        lines.append("-- ADVARSEL: Ingen rækker fundet — tjek HTML-strukturen på siden")
-        return "\n".join(lines)
+def v(x):
+    if x is None:
+        return "NULL"
+    if isinstance(x, str):
+        return "'" + x.replace("'", "''") + "'"
+    return str(x)
 
-    def v(x):
-        if x is None:
-            return "NULL"
-        if isinstance(x, str):
-            return "'" + x.replace("'", "''") + "'"
-        return str(x)
 
+def standings_to_sql(rows: list[dict]) -> list[str]:
+    lines = []
     for r in rows:
-        league = "NULL"  # forzachang.dk viser ikke rækkenavn — udfyld manuelt
         lines.append(
             f"INSERT OR IGNORE INTO season_standings "
             f"(id, team_type, season, position, league, played, won, drawn, lost, "
             f"goals_for, goals_against, points, imported_at) VALUES ("
             f"{v(r['id'])}, {v(r['team_type'])}, {r['season']}, "
-            f"{v(r['position'])}, {league}, "
+            f"{v(r['position'])}, {v(r['league'])}, "
             f"{v(r['played'])}, {v(r['won'])}, {v(r['drawn'])}, {v(r['lost'])}, "
             f"{v(r['goals_for'])}, {v(r['goals_against'])}, {v(r['points'])}, "
-            f"'{now}');"
+            f"'{NOW}');"
         )
+    return lines
 
-    lines += [
-        "",
-        "-- Udfyld league-kolonnen manuelt (fx '5. division', 'Oldboys række A' osv.)",
-        "-- UPDATE season_standings SET league = '5. division' WHERE team_type = 'oldboys' AND season = 2024;",
-    ]
-    return "\n".join(lines)
 
+def matches_to_sql(rows: list[dict]) -> list[str]:
+    lines = []
+    for r in rows:
+        lines.append(
+            f"INSERT OR IGNORE INTO season_matches "
+            f"(id, team_type, season, match_date, opponent, venue, "
+            f"goals_for, goals_against, result, notes) VALUES ("
+            f"{v(r['id'])}, {v(r['team_type'])}, {r['season']}, "
+            f"{v(r['match_date'])}, {v(r['opponent'])}, {v(r['venue'])}, "
+            f"{v(r['goals_for'])}, {v(r['goals_against'])}, {v(r['result'])}, "
+            f"{v(r['notes'])});"
+        )
+    return lines
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    print(f"-- Henter {URL} ...", file=sys.stderr)
-    try:
-        rows = scrape(URL)
-    except Exception as e:
-        print(f"FEJL: {e}", file=sys.stderr)
-        sys.exit(1)
+    all_standings = []
+    all_matches = []
 
-    print(f"-- Fandt {len(rows)} sæsoner med CFC-data", file=sys.stderr)
-    for r in rows:
-        print(f"   {r['team_type']} {r['season']}: pos={r['position']}, {r['played']}k {r['won']}v {r['points']}p", file=sys.stderr)
+    seasons = [
+        ("senior",  SENIOR_YEARS),
+        ("oldboys", OLDBOYS_YEARS),
+    ]
 
-    print(to_sql(rows))
+    for team_type, years in seasons:
+        print(f"\n── {team_type.upper()} ──", file=sys.stderr)
+        for year in years:
+            print(f"  {year} stilling...", file=sys.stderr, end=" ")
+            s = scrape_standing(year, team_type)
+            if s:
+                all_standings.append(s)
+                print(f"pos={s['position']} {s['played']}k {s['points']}p", file=sys.stderr)
+            else:
+                print("ingen data", file=sys.stderr)
+
+            print(f"  {year} program... ", file=sys.stderr, end="")
+            ms = scrape_matches(year, team_type)
+            all_matches.extend(ms)
+            print(f"{len(ms)} kampe", file=sys.stderr)
+
+    # Output SQL
+    lines = [
+        f"-- Genereret af scripts/scrape_standings.py",
+        f"-- Kilde: {BASE_URL}",
+        f"-- Dato: {NOW}",
+        f"-- Stillinger: {len(all_standings)}, Kampe: {len(all_matches)}",
+        "",
+        "-- ── STILLINGER ──────────────────────────────────────────────────────",
+        "-- NB: league-kolonnen er NULL — udfyld manuelt bagefter:",
+        "-- UPDATE season_standings SET league = '5. division' WHERE team_type = 'oldboys' AND season = 2024;",
+        "",
+    ]
+    lines += standings_to_sql(all_standings)
+    lines += [
+        "",
+        "-- ── KAMPRESULTATER ──────────────────────────────────────────────────",
+        "",
+    ]
+    lines += matches_to_sql(all_matches)
+
+    print("\n".join(lines))
+
+    print(f"\nFærdig: {len(all_standings)} stillinger, {len(all_matches)} kampe", file=sys.stderr)
 
 
 if __name__ == "__main__":
