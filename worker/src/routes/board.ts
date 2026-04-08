@@ -196,14 +196,23 @@ export async function handleBoard(
   if (postId && sub === 'attachments' && request.method === 'POST') {
     const contentType = request.headers.get('Content-Type') || '';
     const isImage = contentType.startsWith('image/');
-    const isDoc   = contentType === 'application/pdf';
-    if (!isImage && !isDoc) return json({ error: 'Kun billeder (JPG/PNG/WebP) og PDF understøttes' }, 400);
+    const DOC_TYPES: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.ms-powerpoint': 'ppt',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    };
+    const isDoc = contentType in DOC_TYPES;
+    if (!isImage && !isDoc) return json({ error: 'Kun billeder og dokumenter (PDF, Word, Excel, PowerPoint) understøttes' }, 400);
 
     const maxBytes = isImage ? 10 * 1024 * 1024 : 20 * 1024 * 1024;
     const arrayBuf = await request.arrayBuffer();
     if (arrayBuf.byteLength > maxBytes) return json({ error: `Maks filstørrelse er ${isImage ? '10' : '20'} MB` }, 413);
 
-    const ext = isImage ? (contentType.split('/')[1] || 'jpg') : 'pdf';
+    const ext = isImage ? (contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg') : DOC_TYPES[contentType];
     const id = nanoid();
     const r2Key = `board/${postId}/${id}.${ext}`;
     const filename = `attachment.${ext}`;

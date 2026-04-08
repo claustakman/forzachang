@@ -488,12 +488,12 @@ function PostModal({
               className="btn btn-sm"
               style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}
             >
-              📎 Vedhæft fil (billede/PDF)
+              📎 Vedhæft fil
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,.pdf"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
               multiple
               style={{ display: 'none' }}
               onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files ?? [])])}
