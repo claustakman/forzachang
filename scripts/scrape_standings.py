@@ -209,23 +209,19 @@ def scrape_matches(year: int, team_type: str) -> list[dict]:
                 goals_for, goals_against = ga_raw, gf_raw
 
             if goals_for > goals_against:
-                result = "V"
+                result = "sejr"
             elif goals_for == goals_against:
-                result = "U"
+                result = "uafgjort"
             else:
-                result = "T"
+                result = "nederlag"
 
-        # Modstander og venue
+        # Modstander og home_away
         if is_cfc(home):
             opponent = away
-            venue = "H"
+            home_away = "hjemme"
         else:
             opponent = home
-            venue = "U"
-
-        notes = None
-        if re.search(r"\bLP\b|W\.O\.", score_raw, re.IGNORECASE):
-            notes = "Walkover"
+            home_away = "ude"
 
         results.append({
             "id": str(uuid.uuid4()),
@@ -233,11 +229,10 @@ def scrape_matches(year: int, team_type: str) -> list[dict]:
             "season": year,
             "match_date": match_date,
             "opponent": opponent,
-            "venue": venue,
+            "home_away": home_away,
             "goals_for": goals_for,
             "goals_against": goals_against,
             "result": result,
-            "notes": notes,
         })
 
     return results
@@ -274,12 +269,11 @@ def matches_to_sql(rows: list[dict]) -> list[str]:
     for r in rows:
         lines.append(
             f"INSERT OR IGNORE INTO season_matches "
-            f"(id, team_type, season, match_date, opponent, venue, "
-            f"goals_for, goals_against, result, notes) VALUES ("
+            f"(id, team_type, season, match_date, opponent, home_away, "
+            f"goals_for, goals_against, result) VALUES ("
             f"{v(r['id'])}, {v(r['team_type'])}, {r['season']}, "
-            f"{v(r['match_date'])}, {v(r['opponent'])}, {v(r['venue'])}, "
-            f"{v(r['goals_for'])}, {v(r['goals_against'])}, {v(r['result'])}, "
-            f"{v(r['notes'])});"
+            f"{v(r['match_date'])}, {v(r['opponent'])}, {v(r['home_away'])}, "
+            f"{v(r['goals_for'])}, {v(r['goals_against'])}, {v(r['result'])});"
         )
     return lines
 
