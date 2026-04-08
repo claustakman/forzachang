@@ -374,7 +374,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}><div className="spinner" /></div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {allPlayers.filter(p => p.active).map(p => {
+                      {allPlayers.filter(p => p.active && p.role !== 'admin').map(p => {
                         const signup = detail.signups.find(s => s.player_id === p.id);
                         return (
                           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -383,7 +383,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 8px', fontSize: 11, opacity: signup?.status === 'tilmeldt' ? 0.4 : 1 }}
+                                style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'tilmeldt' ? 0.4 : 1 }}
                                 disabled={signing !== null || signup?.status === 'tilmeldt'}
                                 onClick={() => doSignup(p.id, 'tilmeldt')}
                               >
@@ -391,14 +391,14 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                               </button>
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 8px', fontSize: 11, opacity: signup?.status === 'afmeldt' ? 0.4 : 1 }}
+                                style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'afmeldt' ? 0.4 : 1 }}
                                 disabled={signing !== null || signup?.status === 'afmeldt'}
                                 onClick={() => doSignup(p.id, 'afmeldt')}
                               >
                                 Afmeld
                               </button>
                               {signup && (
-                                <button className="btn btn-sm" style={{ padding: '2px 6px', fontSize: 11 }} disabled={signing !== null} onClick={() => doDelete(p.id)} title="Fjern tilmelding">
+                                <button className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 13 }} disabled={signing !== null} onClick={() => doDelete(p.id)} title="Fjern tilmelding">
                                   ↩
                                 </button>
                               )}
