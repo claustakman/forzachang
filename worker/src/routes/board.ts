@@ -29,9 +29,26 @@ export async function handleBoard(
     const page  = Number(url.searchParams.get('page') || '1');
     const limit = Number(url.searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
+    const q = url.searchParams.get('q')?.trim() || '';
+
+    if (q) {
+      // Søgning: ingen paginering, ingen pinned-split, søg i titel+body
+      const like = `%${q}%`;
+      const results = await env.DB.prepare(`
+        SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
+          (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
+          (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count
+        FROM board_posts bp
+        JOIN players p ON p.id = bp.player_id
+        WHERE bp.deleted=0 AND (bp.title LIKE ? OR bp.body LIKE ?)
+        ORDER BY bp.pinned DESC, bp.created_at DESC
+        LIMIT 50
+      `).bind(like, like).all();
+      return json({ pinned: [], posts: results.results, total: results.results.length, page: 1, hasMore: false });
+    }
 
     const total = await env.DB.prepare(
-      "SELECT COUNT(*) as n FROM board_posts WHERE deleted=0"
+      "SELECT COUNT(*) as n FROM board_posts WHERE deleted=0 AND pinned=0"
     ).first() as any;
 
     // Pinned altid øverst, derefter faldende created_at, med paginering (pinned excl. fra offset)
@@ -68,14 +85,14 @@ export async function handleBoard(
   // ── POST /api/board/posts ─────────────────────────────────────────────────
   if (!postId && request.method === 'POST') {
     const body = await request.json() as any;
-    const { body: text } = body;
+    const { body: text, title } = body;
     if (!text?.trim()) return json({ error: 'Tekst må ikke være tom' }, 400);
 
     const id = nanoid();
     await env.DB.prepare(`
-      INSERT INTO board_posts (id, player_id, body, created_at)
-      VALUES (?, ?, ?, datetime('now'))
-    `).bind(id, user.sub, text.trim()).run();
+      INSERT INTO board_posts (id, player_id, title, body, created_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+    `).bind(id, user.sub, title?.trim() || null, text.trim()).run();
 
     // @-mentions
     await handleMentions(env, user.sub, text, 'opslag', `/opslagstavle`);
@@ -105,11 +122,11 @@ export async function handleBoard(
     const existing = await env.DB.prepare('SELECT player_id FROM board_posts WHERE id=?').bind(postId).first() as any;
     if (!existing) return json({ error: 'Ikke fundet' }, 404);
     if (existing.player_id !== user.sub) return json({ error: 'Forbidden' }, 403);
-    const { body: text } = await request.json() as any;
+    const { body: text, title } = await request.json() as any;
     if (!text?.trim()) return json({ error: 'Tekst må ikke være tom' }, 400);
     await env.DB.prepare(
-      "UPDATE board_posts SET body=?, edited_at=datetime('now') WHERE id=?"
-    ).bind(text.trim(), postId).run();
+      "UPDATE board_posts SET title=?, body=?, edited_at=datetime('now') WHERE id=?"
+    ).bind(title?.trim() || null, text.trim(), postId).run();
     return json({ ok: true });
   }
 

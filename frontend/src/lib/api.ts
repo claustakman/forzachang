@@ -204,12 +204,12 @@ export const api = {
   },
 
   // Opslagstavle (fase 11)
-  getBoardPosts: (page = 1) =>
-    req<{ pinned: BoardPost[]; posts: BoardPost[]; total: number; page: number; hasMore: boolean }>('GET', `/board/posts?page=${page}&limit=20`),
-  createBoardPost: (body: string) =>
-    req<BoardPost>('POST', '/board/posts', { body }),
-  updateBoardPost: (id: string, body: string) =>
-    req<{ ok: boolean }>('PUT', `/board/posts/${id}`, { body }),
+  getBoardPosts: (page = 1, q?: string) =>
+    req<{ pinned: BoardPost[]; posts: BoardPost[]; total: number; page: number; hasMore: boolean }>('GET', `/board/posts?page=${page}&limit=20${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  createBoardPost: (body: string, title?: string) =>
+    req<BoardPost>('POST', '/board/posts', { body, title }),
+  updateBoardPost: (id: string, body: string, title?: string) =>
+    req<{ ok: boolean }>('PUT', `/board/posts/${id}`, { body, title }),
   deleteBoardPost: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/board/posts/${id}`),
   pinBoardPost: (id: string) =>
@@ -552,6 +552,7 @@ export interface BoardAttachment {
 export interface BoardPost {
   id: string;
   player_id: string;
+  title?: string;
   body: string;
   pinned: number;
   pinned_by?: string;

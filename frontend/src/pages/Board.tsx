@@ -348,6 +348,13 @@ function PostCard({
         </div>
       </div>
 
+      {/* Titel */}
+      {post.title && (
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
+          {post.title}
+        </div>
+      )}
+
       {/* Body */}
       <div style={{ fontSize: 14, color: 'var(--cfc-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.55, marginBottom: 10 }}>
         {highlightMentions(post.body)}
@@ -428,6 +435,7 @@ function PostModal({
   onSave: (post: BoardPost) => void;
   onClose: () => void;
 }) {
+  const [title, setTitle] = useState(initial?.title ?? '');
   const [body, setBody] = useState(initial?.body ?? '');
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -440,10 +448,10 @@ function PostModal({
     try {
       let post: BoardPost;
       if (isEdit) {
-        await api.updateBoardPost(initial!.id, body.trim());
-        post = { ...initial!, body: body.trim(), edited_at: new Date().toISOString() };
+        await api.updateBoardPost(initial!.id, body.trim(), title.trim() || undefined);
+        post = { ...initial!, title: title.trim() || undefined, body: body.trim(), edited_at: new Date().toISOString() };
       } else {
-        post = await api.createBoardPost(body.trim());
+        post = await api.createBoardPost(body.trim(), title.trim() || undefined);
         // Upload attachments
         for (const file of files) {
           try {
@@ -474,6 +482,14 @@ function PostModal({
         maxHeight: '90dvh', overflowY: 'auto',
       }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 14px', fontSize: 16 }}>{isEdit ? 'Rediger opslag' : 'Nyt opslag'}</h3>
+        <input
+          className="input"
+          style={{ marginBottom: 8, fontSize: 14, fontWeight: 600 }}
+          placeholder="Titel (valgfri)"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          maxLength={120}
+        />
         <MentionTextarea
           value={body}
           onChange={setBody}
@@ -540,16 +556,18 @@ export default function Board() {
   const [hasMore, setHasMore] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editPost, setEditPost] = useState<BoardPost | null>(null);
+  const [searchQ, setSearchQ] = useState('');
+  const [activeQ, setActiveQ] = useState('');
 
-  const load = useCallback(async (p = 1) => {
+  const load = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
       const [boardData, playersData] = await Promise.all([
-        api.getBoardPosts(p),
+        api.getBoardPosts(p, q || undefined),
         p === 1 ? api.getPlayers() : Promise.resolve(players),
       ]);
       if (p === 1) {
-        setPinned(boardData.pinned);
+        setPinned(q ? [] : boardData.pinned);
         setPosts(boardData.posts);
         setPlayers(playersData as Player[]);
       } else {
@@ -563,7 +581,6 @@ export default function Board() {
 
   useEffect(() => {
     load(1);
-    // Mark board as read
     api.markBoardRead().catch(() => {});
   }, []);
 
@@ -607,18 +624,51 @@ export default function Board() {
     }
   }
 
+  function doSearch() {
+    const q = searchQ.trim();
+    setActiveQ(q);
+    setPage(1);
+    load(1, q);
+  }
+
+  function clearSearch() {
+    setSearchQ('');
+    setActiveQ('');
+    setPage(1);
+    load(1, '');
+  }
+
   if (!player) return null;
 
   const allPosts = [...pinned, ...posts];
 
   return (
     <div className="page">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: 20 }}>Opslagstavle</h2>
         <button onClick={() => setShowModal(true)} className="btn btn-primary btn-sm">
           + Nyt opslag
         </button>
       </div>
+
+      {/* Søgefelt */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <input
+          className="input"
+          style={{ flex: 1, fontSize: 13 }}
+          placeholder="Søg i opslag…"
+          value={searchQ}
+          onChange={e => setSearchQ(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && doSearch()}
+        />
+        <button className="btn btn-sm btn-primary" onClick={doSearch}>Søg</button>
+        {activeQ && <button className="btn btn-sm btn-secondary" onClick={clearSearch}>Ryd</button>}
+      </div>
+      {activeQ && (
+        <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 10 }}>
+          Søgeresultater for "{activeQ}" — {allPosts.length} opslag
+        </div>
+      )}
 
       {loading && posts.length === 0 ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
@@ -647,7 +697,7 @@ export default function Board() {
           ))}
           {hasMore && (
             <button
-              onClick={() => { const next = page + 1; setPage(next); load(next); }}
+              onClick={() => { const next = page + 1; setPage(next); load(next, activeQ); }}
               disabled={loading}
               className="btn btn-sm"
               style={{ alignSelf: 'center', color: 'var(--cfc-text-muted)' }}

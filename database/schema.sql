@@ -344,6 +344,7 @@ CREATE INDEX IF NOT EXISTS idx_season_standings_season ON season_standings(seaso
 CREATE TABLE IF NOT EXISTS board_posts (
   id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL REFERENCES players(id),
+  title TEXT,
   body TEXT NOT NULL,
   pinned INTEGER NOT NULL DEFAULT 0,
   pinned_by TEXT REFERENCES players(id),
