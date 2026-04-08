@@ -200,7 +200,7 @@ def scrape_matches(year: int, team_type: str) -> list[dict]:
             if re.match(r"^\d{1,2}[:.]\d{2}$", home_candidate):
                 # base+1 er klokkeslæt → hjem=base+2, ude=base+3, score=base+4
                 home, away, score_raw = cells[base + 2], cells[base + 3], cells[base + 4]
-            elif base + 4 < len(cells) and re.match(r"\d+\s*[-–]\s*\d+", cells[base + 4]):
+            elif base + 4 < len(cells) and re.match(r"\d+\s*[-–]\s*\d+", cells[base + 4].replace("\xa0", " ")):
                 # score er i base+4 (nyt format med bane imellem)
                 home, away, score_raw = cells[base + 1], cells[base + 2], cells[base + 4]
             else:
@@ -220,7 +220,7 @@ def scrape_matches(year: int, team_type: str) -> list[dict]:
         # Parse score — "X-Y" evt. med "(LP)" eller "(W.O.)"
         goals_for = goals_against = result = None
         score_clean = re.sub(r"\(.*?\)", "", score_raw).strip()
-        sm = re.match(r"(\d+)[-–](\d+)", score_clean)
+        sm = re.match(r"(\d+)\s*[-–]\s*(\d+)", score_clean)
         if sm:
             gf_raw, ga_raw = int(sm.group(1)), int(sm.group(2))
             # Justér ift. om CFC er hjemme eller ude
