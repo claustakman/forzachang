@@ -24,7 +24,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
         ), 0) as total_payments
       FROM players p
       LEFT JOIN fines f ON f.player_id = p.id
-      WHERE p.active = 1
+      WHERE p.active = 1 AND p.role != 'admin'
       GROUP BY p.id
       ORDER BY (COALESCE(SUM(f.amount), 0) - COALESCE((
         SELECT SUM(fp2.amount) FROM fine_payments fp2 WHERE fp2.player_id = p.id
