@@ -165,29 +165,50 @@ def scrape_matches(year: int, team_type: str) -> list[dict]:
 
     results = []
     for row in table.find_all("tr"):
-        cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
+        # Normaliser whitespace og non-breaking spaces i alle celler
+        cells = [re.sub(r"\s+", " ", td.get_text(" ", strip=True)).replace("\xa0", " ").strip()
+                 for td in row.find_all(["td", "th"])]
 
         # Header-rækker og tomme rækker
         if len(cells) < 4:
             continue
-        if cells[0].lower() in {"dato", ""}:
+
+        # Find dato-celle: søg i alle celler efter DD-MM-YY(YY)-mønster
+        match_date = None
+        date_cell_idx = None
+        for idx, cell in enumerate(cells):
+            dm = re.search(r"(\d{1,2})-(\d{2})-(\d{2,4})", cell)
+            if dm:
+                day, mon, yr = dm.group(1), dm.group(2), dm.group(3)
+                if len(yr) == 2:
+                    yr = "20" + yr
+                match_date = f"{yr}-{mon}-{day.zfill(2)}"
+                date_cell_idx = idx
+                break
+
+        if not match_date or date_cell_idx is None:
             continue
 
-        # Dato i første celle: DD-MM-YY eller DD-MM-YYYY
-        date_str = cells[0]
-        m = re.match(r"(\d{1,2})-(\d{2})-(\d{2,4})", date_str)
-        if not m:
-            continue
-        day, mon, yr = m.group(1), m.group(2), m.group(3)
-        if len(yr) == 2:
-            yr = "20" + yr
-        match_date = f"{yr}-{mon}-{day.zfill(2)}"
-
-        # Hold: enten [dato, kl, hjem, ude, score] eller [dato, hjem, ude, score]
-        if len(cells) >= 5:
-            home, away, score_raw = cells[2], cells[3], cells[4]
+        # Bestem hold og score ud fra positionen af dato-cellen
+        # Gammelt format: [dato, kl, hjem, ude, score, ...]  date_cell_idx=0
+        # Nyt format 2025: [id, dato+tid, hjem, ude, bane, score, ...] date_cell_idx=1
+        base = date_cell_idx  # index for dato-celle
+        if len(cells) > base + 4:
+            # 5+ felter efter base → hjem=base+1, ude=base+2, score=base+4 (springer bane/kl over)
+            # Men tjek om base+1 ligner et hold (ikke kun tal/tid)
+            home_candidate = cells[base + 1]
+            if re.match(r"^\d{1,2}[:.]\d{2}$", home_candidate):
+                # base+1 er klokkeslæt → hjem=base+2, ude=base+3, score=base+4
+                home, away, score_raw = cells[base + 2], cells[base + 3], cells[base + 4]
+            elif base + 4 < len(cells) and re.match(r"\d+\s*[-–]\s*\d+", cells[base + 4]):
+                # score er i base+4 (nyt format med bane imellem)
+                home, away, score_raw = cells[base + 1], cells[base + 2], cells[base + 4]
+            else:
+                home, away, score_raw = cells[base + 1], cells[base + 2], cells[base + 3]
+        elif len(cells) > base + 3:
+            home, away, score_raw = cells[base + 1], cells[base + 2], cells[base + 3]
         else:
-            home, away, score_raw = cells[1], cells[2], cells[3]
+            continue
 
         home = home.strip()
         away = away.strip()
