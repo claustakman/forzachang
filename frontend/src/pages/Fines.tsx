@@ -85,7 +85,7 @@ export default function Fines() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
         <div className="card" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
-            Holdets skyldig
+            Udestående bøder
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, color: totalBalance > 0 ? '#e57373' : '#5a9e5a' }}>
             {fmtKr(totalBalance)}

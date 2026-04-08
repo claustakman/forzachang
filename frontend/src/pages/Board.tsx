@@ -287,18 +287,22 @@ function PostCard({
   post,
   currentPlayerId,
   isTrainer,
+  isAdmin,
   players,
   onEdit,
   onDelete,
   onPin,
+  onArchive,
 }: {
   post: BoardPost;
   currentPlayerId: string;
   isTrainer: boolean;
+  isAdmin: boolean;
   players: Player[];
   onEdit: (post: BoardPost) => void;
   onDelete: (postId: string) => void;
   onPin: (postId: string) => void;
+  onArchive: (postId: string) => void;
 }) {
   const [commentsOpen, setCommentsOpen] = useState(false);
 
@@ -407,6 +411,16 @@ function PostCard({
         >
           💬 {post.comment_count > 0 ? `${post.comment_count} kommentar${post.comment_count !== 1 ? 'er' : ''}` : 'Kommenter'}
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => onArchive(post.id)}
+            className="btn btn-sm"
+            style={{ padding: '4px 10px', fontSize: 12, color: post.archived === 1 ? '#5a9e5a' : 'var(--cfc-text-subtle)', background: 'transparent', marginLeft: 'auto' }}
+            title={post.archived === 1 ? 'De-arkivér opslag' : 'Arkivér opslag'}
+          >
+            {post.archived === 1 ? '↩ De-arkivér' : '🗄 Arkivér'}
+          </button>
+        )}
       </div>
 
       {commentsOpen && (
@@ -547,7 +561,7 @@ function PostModal({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Board() {
-  const { player, isTrainer } = useAuth();
+  const { player, isTrainer, isAdmin } = useAuth();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [pinned, setPinned] = useState<BoardPost[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -558,16 +572,17 @@ export default function Board() {
   const [editPost, setEditPost] = useState<BoardPost | null>(null);
   const [searchQ, setSearchQ] = useState('');
   const [activeQ, setActiveQ] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
-  const load = useCallback(async (p = 1, q = '') => {
+  const load = useCallback(async (p = 1, q = '', archived = false) => {
     setLoading(true);
     try {
       const [boardData, playersData] = await Promise.all([
-        api.getBoardPosts(p, q || undefined),
+        api.getBoardPosts(p, q || undefined, archived),
         p === 1 ? api.getPlayers().catch(() => [] as Player[]) : Promise.resolve(players),
       ]);
       if (p === 1) {
-        setPinned(q ? [] : boardData.pinned);
+        setPinned(q || archived ? [] : boardData.pinned);
         setPosts(boardData.posts);
         setPlayers(playersData as Player[]);
       } else {
@@ -604,23 +619,28 @@ export default function Board() {
 
   async function handlePin(postId: string) {
     const res = await api.pinBoardPost(postId);
-    const update = (p: BoardPost) => p.id === postId ? { ...p, pinned: res.pinned, pinned_by: player?.id } : p;
     if (res.pinned) {
-      // Move to pinned
       const post = posts.find(p => p.id === postId) ?? pinned.find(p => p.id === postId);
       if (post) {
-        const updated = { ...post, pinned: 1 };
-        setPinned(prev => [updated, ...prev.filter(p => p.id !== postId)]);
+        setPinned(prev => [{ ...post, pinned: 1 }, ...prev.filter(p => p.id !== postId)]);
         setPosts(prev => prev.filter(p => p.id !== postId));
       }
     } else {
-      // Move back to posts
       const post = pinned.find(p => p.id === postId);
       if (post) {
-        const updated = { ...post, pinned: 0 };
-        setPosts(prev => [updated, ...prev]);
+        setPosts(prev => [{ ...post, pinned: 0 }, ...prev]);
         setPinned(prev => prev.filter(p => p.id !== postId));
       }
+    }
+  }
+
+  async function handleArchive(postId: string) {
+    const res = await api.archiveBoardPost(postId);
+    // Fjern fra den aktive liste (uanset om vi arkiverer eller de-arkiverer)
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    setPinned(prev => prev.filter(p => p.id !== postId));
+    if (showArchived && !res.archived) {
+      // De-arkiveret — vis ikke mere i arkiv-listen
     }
   }
 
@@ -628,14 +648,23 @@ export default function Board() {
     const q = searchQ.trim();
     setActiveQ(q);
     setPage(1);
-    load(1, q);
+    load(1, q, showArchived);
   }
 
   function clearSearch() {
     setSearchQ('');
     setActiveQ('');
     setPage(1);
-    load(1, '');
+    load(1, '', showArchived);
+  }
+
+  function toggleArchived() {
+    const next = !showArchived;
+    setShowArchived(next);
+    setSearchQ('');
+    setActiveQ('');
+    setPage(1);
+    load(1, '', next);
   }
 
   if (!player) return null;
@@ -651,7 +680,21 @@ export default function Board() {
         </button>
       </div>
 
-      {/* Søgefelt */}
+      {/* Quickfilter (kun admin) + søgefelt */}
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+          <button onClick={() => !showArchived || toggleArchived()} className="btn btn-sm" style={{
+            background: !showArchived ? 'var(--cfc-bg-hover)' : 'transparent',
+            color: !showArchived ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+            border: `0.5px solid ${!showArchived ? 'var(--cfc-border)' : 'transparent'}`,
+          }}>Aktive</button>
+          <button onClick={() => showArchived || toggleArchived()} className="btn btn-sm" style={{
+            background: showArchived ? 'var(--cfc-bg-hover)' : 'transparent',
+            color: showArchived ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+            border: `0.5px solid ${showArchived ? 'var(--cfc-border)' : 'transparent'}`,
+          }}>Arkiverede</button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         <input
           className="input"
@@ -689,15 +732,17 @@ export default function Board() {
               post={post}
               currentPlayerId={player.id}
               isTrainer={!!isTrainer}
+              isAdmin={!!isAdmin}
               players={players}
               onEdit={setEditPost}
               onDelete={handleDelete}
               onPin={handlePin}
+              onArchive={handleArchive}
             />
           ))}
           {hasMore && (
             <button
-              onClick={() => { const next = page + 1; setPage(next); load(next, activeQ); }}
+              onClick={() => { const next = page + 1; setPage(next); load(next, activeQ, showArchived); }}
               disabled={loading}
               className="btn btn-sm"
               style={{ alignSelf: 'center', color: 'var(--cfc-text-muted)' }}

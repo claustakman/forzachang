@@ -41,51 +41,55 @@ export async function handleBoard(
     const limit = Number(url.searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
     const q = url.searchParams.get('q')?.trim() || '';
+    const showArchived = url.searchParams.get('archived') === '1';
+    const archiveFilter = showArchived ? 'bp.archived=1' : 'bp.archived=0';
+
+    const COLS = `bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
+        (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
+        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
+        (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json`;
 
     if (q) {
-      // Søgning: ingen paginering, ingen pinned-split, søg i titel+body
       const like = `%${q}%`;
       const results = await env.DB.prepare(`
-        SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
-          (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-          (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
-          (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
-        FROM board_posts bp
-        JOIN players p ON p.id = bp.player_id
-        WHERE bp.deleted=0 AND (bp.title LIKE ? OR bp.body LIKE ?)
-        ORDER BY bp.pinned DESC, bp.created_at DESC
-        LIMIT 50
+        SELECT ${COLS}
+        FROM board_posts bp JOIN players p ON p.id = bp.player_id
+        WHERE bp.deleted=0 AND ${archiveFilter} AND (bp.title LIKE ? OR bp.body LIKE ?)
+        ORDER BY bp.pinned DESC, bp.created_at DESC LIMIT 50
       `).bind(like, like).all();
       const searchPosts = (results.results as any[]).map(parseAttachments);
       return json({ pinned: [], posts: searchPosts, total: searchPosts.length, page: 1, hasMore: false });
     }
 
+    if (showArchived) {
+      const total = await env.DB.prepare(
+        "SELECT COUNT(*) as n FROM board_posts WHERE deleted=0 AND archived=1"
+      ).first() as any;
+      const posts = await env.DB.prepare(`
+        SELECT ${COLS}
+        FROM board_posts bp JOIN players p ON p.id = bp.player_id
+        WHERE bp.deleted=0 AND bp.archived=1
+        ORDER BY bp.created_at DESC LIMIT ? OFFSET ?
+      `).bind(limit, offset).all();
+      return json({ pinned: [], posts: (posts.results as any[]).map(parseAttachments), total: total?.n || 0, page, hasMore: offset + limit < (total?.n || 0) });
+    }
+
     const total = await env.DB.prepare(
-      "SELECT COUNT(*) as n FROM board_posts WHERE deleted=0 AND pinned=0"
+      "SELECT COUNT(*) as n FROM board_posts WHERE deleted=0 AND archived=0 AND pinned=0"
     ).first() as any;
 
-    // Pinned altid øverst, derefter faldende created_at, med paginering (pinned excl. fra offset)
     const pinned = await env.DB.prepare(`
-      SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
-        (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
-        (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
-      FROM board_posts bp
-      JOIN players p ON p.id = bp.player_id
-      WHERE bp.deleted=0 AND bp.pinned=1
+      SELECT ${COLS}
+      FROM board_posts bp JOIN players p ON p.id = bp.player_id
+      WHERE bp.deleted=0 AND bp.archived=0 AND bp.pinned=1
       ORDER BY bp.created_at DESC
     `).all();
 
     const posts = await env.DB.prepare(`
-      SELECT bp.*, COALESCE(p.alias, p.name) as author_name, p.avatar_url as author_avatar_url,
-        (SELECT COUNT(*) FROM board_comments bc WHERE bc.post_id=bp.id AND bc.deleted=0) as comment_count,
-        (SELECT COUNT(*) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachment_count,
-        (SELECT JSON_GROUP_ARRAY(JSON_OBJECT('id',ba.id,'type',ba.type,'filename',ba.filename,'url',ba.url,'size_bytes',ba.size_bytes)) FROM board_attachments ba WHERE ba.post_id=bp.id) as attachments_json
-      FROM board_posts bp
-      JOIN players p ON p.id = bp.player_id
-      WHERE bp.deleted=0 AND bp.pinned=0
-      ORDER BY bp.created_at DESC
-      LIMIT ? OFFSET ?
+      SELECT ${COLS}
+      FROM board_posts bp JOIN players p ON p.id = bp.player_id
+      WHERE bp.deleted=0 AND bp.archived=0 AND bp.pinned=0
+      ORDER BY bp.created_at DESC LIMIT ? OFFSET ?
     `).bind(limit, offset).all();
 
     return json({
@@ -154,6 +158,16 @@ export async function handleBoard(
       "UPDATE board_posts SET deleted=1, deleted_at=datetime('now') WHERE id=?"
     ).bind(postId).run();
     return json({ ok: true });
+  }
+
+  // ── POST /api/board/posts/:id/archive (admin) ────────────────────────────
+  if (postId && sub === 'archive' && request.method === 'POST') {
+    if (user.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+    const post = await env.DB.prepare('SELECT archived FROM board_posts WHERE id=?').bind(postId).first() as any;
+    if (!post) return json({ error: 'Ikke fundet' }, 404);
+    const newArchived = post.archived ? 0 : 1;
+    await env.DB.prepare('UPDATE board_posts SET archived=? WHERE id=?').bind(newArchived, postId).run();
+    return json({ ok: true, archived: newArchived });
   }
 
   // ── POST /api/board/posts/:id/pin (trainer+) ──────────────────────────────

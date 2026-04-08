@@ -289,7 +289,7 @@ def matches_to_sql(rows: list[dict]) -> list[str]:
     lines = []
     for r in rows:
         lines.append(
-            f"INSERT OR IGNORE INTO season_matches "
+            f"INSERT OR REPLACE INTO season_matches "
             f"(id, team_type, season, match_date, opponent, home_away, "
             f"goals_for, goals_against, result) VALUES ("
             f"{v(r['id'])}, {v(r['team_type'])}, {r['season']}, "

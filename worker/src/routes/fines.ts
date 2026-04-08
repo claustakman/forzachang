@@ -33,7 +33,7 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
 
     const result = (rows.results as any[]).map(r => ({
       ...r,
-      name: r.alias?.trim() || r.name.split(' ')[0],
+      name: r.alias?.trim() || r.name,
       full_name: r.name,
       balance: r.total_fines - r.total_payments,
     }));
@@ -115,7 +115,7 @@ export async function handleFineTypes(request: Request, env: Env, user: JWTPaylo
   // GET /api/fine-types — alle aktive (player+)
   if (request.method === 'GET') {
     const types = await env.DB.prepare(
-      'SELECT * FROM fine_types ORDER BY sort_order, name'
+      'SELECT * FROM fine_types ORDER BY amount, sort_order, name'
     ).all();
     return json(types.results);
   }

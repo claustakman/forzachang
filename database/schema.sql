@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS board_posts (
   edited_at TEXT,
   deleted INTEGER NOT NULL DEFAULT 0,
   deleted_at TEXT,
+  archived INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
