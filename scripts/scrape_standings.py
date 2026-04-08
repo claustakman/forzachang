@@ -21,7 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://www.forzachang.dk/stilling.php"
-CFC_NAMES = {"cfc", "forza chang", "copenhagen forza chang"}
+CFC_NAMES = {"cfc", "forza chang", "copenhagen forza chang", "cph. forza chang"}
 
 SENIOR_YEARS   = list(range(2007, 2019))   # 2007-2018
 OLDBOYS_YEARS  = list(range(2019, 2026))   # 2019-2025
