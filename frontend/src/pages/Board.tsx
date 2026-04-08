@@ -14,7 +14,7 @@ function fmtDate(iso: string) {
   return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
-function Avatar({ name, url, size = 32 }: { name: string; url?: string; size?: number }) {
+function Avatar({ name, url, size = 32 }: { name?: string; url?: string; size?: number }) {
   if (url) return (
     <img
       src={url}
@@ -31,7 +31,7 @@ function Avatar({ name, url, size = 32 }: { name: string; url?: string; size?: n
       fontSize: size * 0.4, fontWeight: 700, color: 'var(--cfc-text-muted)',
       flexShrink: 0,
     }}>
-      {name.charAt(0).toUpperCase()}
+      {(name || '?').charAt(0).toUpperCase()}
     </div>
   );
 }
@@ -564,7 +564,7 @@ export default function Board() {
     try {
       const [boardData, playersData] = await Promise.all([
         api.getBoardPosts(p, q || undefined),
-        p === 1 ? api.getPlayers() : Promise.resolve(players),
+        p === 1 ? api.getPlayers().catch(() => [] as Player[]) : Promise.resolve(players),
       ]);
       if (p === 1) {
         setPinned(q ? [] : boardData.pinned);

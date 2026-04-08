@@ -5,10 +5,12 @@ import { sendPushToPlayer } from '../lib/sendPush';
 function nanoid() { return crypto.randomUUID(); }
 
 function parseAttachments(row: any) {
-  const json = row.attachments_json;
-  const parsed = json ? JSON.parse(json) : [];
-  // JSON_GROUP_ARRAY returnerer '[null]' hvis ingen rækker matcher
-  const attachments = Array.isArray(parsed) ? parsed.filter((a: any) => a && a.id) : [];
+  const raw = row.attachments_json;
+  let attachments: any[] = [];
+  try {
+    const parsed = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');
+    attachments = parsed.filter((a: any) => a && a.id);
+  } catch { /* ingen vedhæftninger */ }
   const { attachments_json: _, ...rest } = row;
   return { ...rest, attachments };
 }
