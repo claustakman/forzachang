@@ -29,7 +29,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 async function uploadFile<T>(path: string, file: File): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = { 'Content-Type': file.type };
+  const headers: Record<string, string> = { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(BASE + path, {

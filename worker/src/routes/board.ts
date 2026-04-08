@@ -261,7 +261,8 @@ export async function handleBoard(
     const ext = isImage ? (contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg') : DOC_TYPES[contentType];
     const id = nanoid();
     const r2Key = `board/${postId}/${id}.${ext}`;
-    const filename = `attachment.${ext}`;
+    const rawFilename = request.headers.get('X-Filename');
+    const filename = rawFilename ? decodeURIComponent(rawFilename) : `attachment.${ext}`;
     const publicUrl = `https://pub-afc843d1587d4ae3a4aa8f3d76547493.r2.dev/${r2Key}`;
 
     await env.AVATARS.put(r2Key, arrayBuf, { httpMetadata: { contentType } });
