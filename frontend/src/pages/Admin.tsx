@@ -71,7 +71,7 @@ function AdminPlayers() {
   const inactive = players.filter(p => p.active === 0);
   const withLicense = [...players]
     .filter(p => p.license_number)
-    .sort((a, b) => (a.license_number! > b.license_number! ? 1 : -1));
+    .sort((a, b) => parseInt(a.license_number!) - parseInt(b.license_number!));
   const shown = subTab === 'active' ? active : subTab === 'inactive' ? inactive : [];
 
   async function deactivate(id: string) {

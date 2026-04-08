@@ -34,7 +34,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="historie" element={<Histoire />} />
             {/* Redirects fra gamle ruter */}
             <Route path="statistik" element={<Navigate to="/historie" replace />} />
-            <Route path="hæder" element={<Navigate to="/historie?tab=haeder" replace />} />
+            <Route path="hæder" element={<Navigate to="/historie?tab=hold" replace />} />
             <Route path="bødekasse" element={<Fines />} />
             <Route path="admin" element={<Admin />} />
             <Route path="profil" element={<Profile />} />
