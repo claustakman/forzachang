@@ -1,20 +1,42 @@
-import { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
 import logo from '../assets/logo.svg';
 import PwaBanner from './PwaBanner';
 
 const NAV_ITEMS = [
-  { to: '/kalender',  label: 'Kalender',  icon: '📅', comingSoon: false },
-  { to: '/statistik', label: 'Statistik', icon: '📊', comingSoon: false },
-  { to: '/hæder',     label: 'Hæder',     icon: '🏅', comingSoon: false },
-  { to: '/bødekasse', label: 'Bødekasse', icon: '💰', comingSoon: false },
+  { to: '/kalender',      label: 'Kalender',      icon: '📅', comingSoon: false },
+  { to: '/opslagstavle',  label: 'Opslagstavle',  icon: '📋', comingSoon: false },
+  { to: '/historie',      label: 'Historie',      icon: '📖', comingSoon: false },
+  { to: '/bødekasse',     label: 'Bødekasse',     icon: '💰', comingSoon: false },
 ];
 
 export default function Layout() {
   const { player, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [boardUnread, setBoardUnread] = useState(false);
+
+  // Check for new board posts since last read
+  useEffect(() => {
+    if (!player) return;
+    api.getBoardPosts(1).then(data => {
+      const lastRead = localStorage.getItem('cfc_board_last_read');
+      if (!lastRead) { setBoardUnread(data.posts.length > 0 || data.pinned.length > 0); return; }
+      const allPosts = [...data.pinned, ...data.posts];
+      setBoardUnread(allPosts.some(p => p.created_at > lastRead));
+    }).catch(() => {});
+  }, [location.pathname]);
+
+  // Clear unread when visiting board
+  useEffect(() => {
+    if (location.pathname === '/opslagstavle') {
+      localStorage.setItem('cfc_board_last_read', new Date().toISOString());
+      setBoardUnread(false);
+    }
+  }, [location.pathname]);
 
   const allItems: { to: string; label: string; icon: string; comingSoon: boolean }[] = [
     ...NAV_ITEMS,
@@ -111,9 +133,19 @@ export default function Layout() {
                     color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
                     background: isActive ? 'var(--cfc-bg-hover)' : 'transparent',
                     transition: 'all 0.15s',
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                   })}
                 >
                   {label}
+                  {to === '/opslagstavle' && boardUnread && (
+                    <span style={{
+                      width: 7, height: 7, borderRadius: '50%',
+                      background: '#5b8dd9', flexShrink: 0,
+                    }} />
+                  )}
                 </NavLink>
               )
             ))}
@@ -239,6 +271,13 @@ export default function Layout() {
                 >
                   <span style={{ fontSize: 20 }}>{icon}</span>
                   {label}
+                  {to === '/opslagstavle' && boardUnread && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: '#5b8dd9', flexShrink: 0,
+                    }} />
+                  )}
                 </NavLink>
               )
             ))}
@@ -311,9 +350,19 @@ export default function Layout() {
               gap: 2,
               borderTop: isActive ? '2px solid var(--cfc-text-primary)' : '2px solid transparent',
               transition: 'color 0.1s',
+              position: 'relative',
             })}
           >
-            <span style={{ fontSize: 20 }}>{icon}</span>
+            <span style={{ fontSize: 20, position: 'relative' }}>
+              {icon}
+              {to === '/opslagstavle' && boardUnread && (
+                <span style={{
+                  position: 'absolute', top: 0, right: -2,
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: '#5b8dd9',
+                }} />
+              )}
+            </span>
             {label}
           </NavLink>
           )

@@ -60,15 +60,18 @@ forzachang/
 │   │   └── pages/
 │   │       ├── Login.tsx
 │   │       ├── Matches.tsx     # Kalender: events + tilmeldinger (rutet som /kalender)
-│   │       ├── Stats.tsx       # Statistik (19 sæsoner)
-│   │       ├── Haeder.tsx      # Hæder: Præstationer + Kåringer (fase 8)
-│   │       ├── Fines.tsx       # Bødekasse
-│   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings)
+│   │       ├── Board.tsx       # Opslagstavle: opslag, kommentarer, vedhæftninger (fase 11)
+│   │       ├── Historie.tsx    # Historie: Sæsonoversigt + Holdrekorder + Holdhistorik (fase 10)
+│   │       ├── Stats.tsx       # (bibeholdt, nu kun eksporteret og brugt internt af Historie.tsx)
+│   │       ├── Haeder.tsx      # (bibeholdt, nu kun eksporteret og brugt internt af Historie.tsx)
+│   │       ├── Fines.tsx       # Bødekasse + Bødekatalog-fane
+│   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings) + Licensliste
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
 │   └── vite.config.ts
 ├── scripts/
 │   ├── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
-│   └── scrape_honors.py        # Scraper hædersbevisninger fra forzachang.dk → seed SQL
+│   ├── scrape_honors.py        # Scraper hædersbevisninger fra forzachang.dk → seed SQL
+│   └── scrape_standings.py     # (valgfri) Scraper historiske tabeltalsdata → seed SQL
 └── .github/workflows/
     ├── deploy.yml              # CI/CD: auto-deploy + DB-migrationer ved push til main
     └── migrate.yml             # Manuel workflow til DB-migrationer
@@ -603,7 +606,9 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - JWT gemmes i `localStorage` på frontend
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
-- Navigation: tab "Kalender" (ikon 📅) rutet til `/kalender` → `Matches.tsx`
+- Navigation (fase 10+11): **Kalender** → **Opslagstavle** → **Historie** → **Bødekasse** → **Admin**
+- `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
+- `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
@@ -812,3 +817,187 @@ wrangler secret put VAPID_PUBLIC_KEY
 wrangler secret put VAPID_PRIVATE_KEY
 wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 ```
+
+---
+
+## Fase 10 — Historie (Statistik + Hæder + Holdrekorder + Holdhistorik)
+
+### Oversigt
+`Historie.tsx` erstatter de separate `/statistik`- og `/hæder`-sider og samler dem i én side (`/historie`) med tre hoved-tabs navigeret via URL-params (`?tab=`):
+
+| Tab | URL | Indhold |
+|-----|-----|---------|
+| Sæsonoversigt (default) | `/historie` | Existing Stats.tsx + Haeder.tsx indhold (sub-tabs: saeson/top10/spiller/haeder) |
+| Holdrekorder | `/historie?tab=rekorder` | Hold-rekorder fra `team_records`-tabellen, admin kan redigere manuelt |
+| Holdhistorik | `/historie?tab=historik` | Sæsontabel + kampprogram + modstandersøgning fra `season_standings`/`season_matches` |
+
+`Stats.tsx` og `Haeder.tsx` er bibeholdt som filer men bruges nu kun internt.
+
+### Holdrekorder (`team_records` tabel)
+
+| Felt         | Type    | Beskrivelse                                              |
+|--------------|---------|----------------------------------------------------------|
+| `id`         | TEXT    | UUID                                                     |
+| `team_type`  | TEXT    | `oldboys` eller `senior`                                 |
+| `record_key` | TEXT    | Unik nøgle per team_type, fx `most_goals_season`         |
+| `label`      | TEXT    | Visningsnavn, fx "Flest mål i en sæson"                  |
+| `value`      | TEXT    | Rekordværdi, fx "12 mål"                                 |
+| `context`    | TEXT    | Kontekst, fx "Casper Takman, 2019"                       |
+| `auto_update`| INTEGER | 1 = opdateres automatisk af `updateTeamRecords()`        |
+| `sort_order` | INTEGER | Rækkefølge i UI                                          |
+| `updated_at` | TEXT    | Tidsstempel                                              |
+
+UNIQUE på `(team_type, record_key)`.
+
+**Auto-opdatering**: `updateTeamRecords(env)` i `worker/src/routes/records.ts` kaldes:
+- Fire-and-forget efter `POST /api/stats` (gem kampstatistik)
+- I scheduled cron (dagligt kl. 09:00 UTC)
+
+Beregner: mest mål en sæson, flest kampe en sæson, længste vinde/ubesejret-stræk, flest mål i én kamp m.m.
+
+### Sæsonstillinger (`season_standings` tabel)
+
+| Felt               | Type    | Beskrivelse                                  |
+|--------------------|---------|----------------------------------------------|
+| `id`               | TEXT    | UUID                                         |
+| `team_type`        | TEXT    | `oldboys` eller `senior`                     |
+| `season`           | INTEGER | Årstal                                       |
+| `position`         | INTEGER | Placering i rækken                           |
+| `league`           | TEXT    | Rækkenavn                                    |
+| `played/won/...`   | INTEGER | Kampstatistik                                |
+| `goals_for/against`| INTEGER | Målscore                                     |
+| `points`           | INTEGER | Point                                        |
+| `dai_standings_url`| TEXT    | URL til DAI-sport stilling (til scraping)    |
+
+UNIQUE på `(team_type, season)`.
+
+**Live-opdatering fra DAI-sport**: `fetchDAIStandings(env)` i `worker/src/routes/standings.ts`:
+- Kører dagligt (cron) — læser `dai_standings_url` fra `app_settings`
+- Henter HTML fra DAI-sport, parser CFC-rækken i tabellen
+- Upserts `season_standings` for indeværende år
+
+Sæt URL: `PUT /api/settings` med `{ dai_standings_url: "https://..." }` via Admin → Indstillinger.
+
+### Kamphistorik (`season_matches` tabel)
+
+| Felt           | Type    | Beskrivelse                       |
+|----------------|---------|-----------------------------------|
+| `id`           | TEXT    | UUID                              |
+| `team_type`    | TEXT    | `oldboys` eller `senior`          |
+| `season`       | INTEGER | Årstal                            |
+| `match_date`   | TEXT    | Kampdate (ISO 8601)               |
+| `opponent`     | TEXT    | Modstander                        |
+| `venue`        | TEXT    | `H` = hjemme, `U` = ude          |
+| `goals_for`    | INTEGER | Mål for                           |
+| `goals_against`| INTEGER | Mål imod                          |
+| `result`       | TEXT    | `V`, `U` eller `T`               |
+| `notes`        | TEXT    | Valgfri noter                     |
+
+UNIQUE på `(team_type, season, match_date, opponent)`.
+
+### Worker-routes
+
+| Method | Path                      | Rolle   | Beskrivelse                                         |
+|--------|---------------------------|---------|-----------------------------------------------------|
+| GET    | /api/records              | player+ | Alle holdrekorder `{oldboys: [], senior: []}`       |
+| PUT    | /api/records/:id          | admin   | Rediger rekordværdi/kontekst/label                  |
+| GET    | /api/standings            | player+ | Sæsonstillinger (?team_type=&season= filter)        |
+| POST   | /api/standings            | admin   | Opret sæsonstilling                                 |
+| PUT    | /api/standings/:id        | admin   | Opdater sæsonstilling                               |
+| GET    | /api/standings/matches    | player+ | Kamphistorik (?team_type=&season=&opponent= filter) |
+
+---
+
+## Fase 11 — Opslagstavle
+
+### Opslag (`board_posts` tabel)
+
+| Felt         | Type    | Beskrivelse                                |
+|--------------|---------|--------------------------------------------|
+| `id`         | TEXT    | UUID                                       |
+| `player_id`  | TEXT    | FK → players.id                            |
+| `body`       | TEXT    | Oplagstekst (inkl. @-mentions)             |
+| `pinned`     | INTEGER | 1 = fastgjort                              |
+| `pinned_by`  | TEXT    | FK → players.id (NULL hvis ikke fastgjort) |
+| `edited_at`  | TEXT    | Tidsstempel for redigering (NULL = aldrig) |
+| `deleted`    | INTEGER | 1 = soft-slettet                           |
+| `deleted_at` | TEXT    | Tidsstempel for sletning                   |
+| `created_at` | TEXT    | Oprettelsestidspunkt                       |
+
+### Vedhæftninger (`board_attachments` tabel)
+
+| Felt         | Type    | Beskrivelse                                  |
+|--------------|---------|----------------------------------------------|
+| `id`         | TEXT    | UUID                                         |
+| `post_id`    | TEXT    | FK → board_posts.id                          |
+| `type`       | TEXT    | `image` eller `document`                     |
+| `filename`   | TEXT    | Filnavn                                      |
+| `r2_key`     | TEXT    | R2-nøgle (format: `board/{postId}/{uuid}.ext`) |
+| `url`        | TEXT    | Public R2 URL                                |
+| `size_bytes` | INTEGER | Filstørrelse i bytes                         |
+| `created_at` | TEXT    | Oprettelsestidspunkt                         |
+
+Maks filstørrelse: billeder 10 MB, PDF 20 MB. Accepts: `image/*` og `application/pdf`.
+Lagres i samme R2-bucket som avatarer (`forzachang-avatars`) under `board/`-præfiks.
+
+### Kommentarer (`board_comments` tabel)
+
+| Felt         | Type    | Beskrivelse                                     |
+|--------------|---------|-------------------------------------------------|
+| `id`         | TEXT    | UUID                                            |
+| `post_id`    | TEXT    | FK → board_posts.id                             |
+| `player_id`  | TEXT    | FK → players.id                                 |
+| `body`       | TEXT    | Kommentartekst                                  |
+| `edited_at`  | TEXT    | Tidsstempel for redigering                      |
+| `deleted`    | INTEGER | 1 = soft-slettet                                |
+| `deleted_at` | TEXT    | Tidsstempel for sletning                        |
+| `created_at` | TEXT    | Oprettelsestidspunkt                            |
+
+### Læst-tracking (`board_reads` tabel)
+
+| Felt           | Type | Beskrivelse                              |
+|----------------|------|------------------------------------------|
+| `player_id`    | TEXT | PRIMARY KEY — FK → players.id            |
+| `last_read_at` | TEXT | Tidsstempel for seneste besøg på tavlen  |
+
+### Regler
+- Alle spillere kan oprette opslag og kommentarer
+- Spillere kan kun redigere/slette egne opslag og kommentarer (soft delete)
+- Trainer/admin kan fastgøre (pin) opslag — fastgjorte vises øverst
+- `@Navn` og `@alle` udløser push-notifikationer (samme mønster som event-kommentarer)
+- Ulæst-badge i navigation: blå prik (`#5b8dd9`) hvis nye opslag siden sidst besøg
+
+### Frontend — Board.tsx
+- Opslag-liste: fastgjorte øverst, derefter faldende created_at
+- "Nyt opslag"-modal med `@`-autocomplete og filvedhæftning (billeder vises inline, PDF som link)
+- Oplagskort med avatar, navn, tidsstempel, tekst (highlights @-mentions), vedhæftningslinje
+- Foldbar kommentarsektion per opslag med inline editor og @-autocomplete
+- Pin/unpin-knap for trainer/admin
+- `localStorage` nøgle `cfc_board_last_read` til unread-tracking
+
+### Notifikationstyper (opslagstavle)
+
+| Hændelse | Title | Body | URL |
+|----------|-------|------|-----|
+| @-mention i opslag | "📌 [Navn] nævnte dig" | "...i et opslag på opslagstavlen" | `/opslagstavle` |
+| @alle i opslag | "📌 [Navn] nævnte alle" | "...i et opslag på opslagstavlen" | `/opslagstavle` |
+| @-mention i kommentar | "📌 [Navn] nævnte dig" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
+| @alle i kommentar | "📌 [Navn] nævnte alle" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
+
+### Worker-routes
+
+| Method | Path                                    | Rolle    | Beskrivelse                                      |
+|--------|-----------------------------------------|----------|--------------------------------------------------|
+| POST   | /api/board/read                         | player+  | Opdater last_read_at                             |
+| GET    | /api/board/posts                        | player+  | Hent opslag (pinned + pagineret, ?page=&limit=)  |
+| POST   | /api/board/posts                        | player+  | Opret opslag                                     |
+| GET    | /api/board/posts/:id                    | player+  | Hent enkelt opslag                               |
+| PUT    | /api/board/posts/:id                    | self     | Rediger eget opslag                              |
+| DELETE | /api/board/posts/:id                    | self     | Slet eget opslag (soft delete)                   |
+| POST   | /api/board/posts/:id/pin                | trainer+ | Toggle fastgørelse                               |
+| GET    | /api/board/posts/:id/comments           | player+  | Hent kommentarer til opslag                      |
+| POST   | /api/board/posts/:id/comments           | player+  | Opret kommentar                                  |
+| PUT    | /api/board/posts/:id/comments/:cid      | self     | Rediger kommentar                                |
+| DELETE | /api/board/posts/:id/comments/:cid      | self     | Slet kommentar (soft delete)                     |
+| POST   | /api/board/posts/:id/attachments        | self     | Upload vedhæftning til R2                        |
+| DELETE | /api/board/attachments/:aid             | self     | Slet vedhæftning fra R2 + DB                     |

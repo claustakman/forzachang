@@ -283,3 +283,104 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 -- Kør mod prod (én gang):
 -- ALTER TABLE players ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1;
 -- ALTER TABLE players ADD COLUMN notify_push   INTEGER NOT NULL DEFAULT 1;
+
+-- ── Fase 10: Holdrekorder ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS team_records (
+  id TEXT PRIMARY KEY,
+  team_type TEXT NOT NULL CHECK(team_type IN ('oldboys','senior')),
+  record_key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  value TEXT NOT NULL,
+  context TEXT,
+  auto_update INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  UNIQUE(team_type, record_key)
+);
+
+-- ── Fase 10: Slutstillinger ───────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS season_standings (
+  id TEXT PRIMARY KEY,
+  team_type TEXT NOT NULL CHECK(team_type IN ('oldboys','senior')),
+  season INTEGER NOT NULL,
+  position INTEGER,
+  league TEXT,
+  played INTEGER,
+  won INTEGER,
+  drawn INTEGER,
+  lost INTEGER,
+  goals_for INTEGER,
+  goals_against INTEGER,
+  points INTEGER,
+  dai_standings_url TEXT,
+  imported_at TEXT NOT NULL,
+  UNIQUE(team_type, season)
+);
+
+-- ── Fase 10: Kamphistorik ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS season_matches (
+  id TEXT PRIMARY KEY,
+  team_type TEXT NOT NULL CHECK(team_type IN ('oldboys','senior')),
+  season INTEGER NOT NULL,
+  match_date TEXT,
+  opponent TEXT NOT NULL,
+  home_away TEXT CHECK(home_away IN ('hjemme','ude')),
+  goals_for INTEGER,
+  goals_against INTEGER,
+  result TEXT CHECK(result IN ('sejr','uafgjort','nederlag')),
+  event_id TEXT REFERENCES events(id),
+  UNIQUE(team_type, season, match_date, opponent)
+);
+
+CREATE INDEX IF NOT EXISTS idx_season_matches_opponent ON season_matches(opponent);
+CREATE INDEX IF NOT EXISTS idx_season_matches_season ON season_matches(season, team_type);
+CREATE INDEX IF NOT EXISTS idx_season_standings_season ON season_standings(season, team_type);
+
+-- ── Fase 11: Opslagstavle ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS board_posts (
+  id TEXT PRIMARY KEY,
+  player_id TEXT NOT NULL REFERENCES players(id),
+  body TEXT NOT NULL,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  pinned_by TEXT REFERENCES players(id),
+  edited_at TEXT,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS board_attachments (
+  id TEXT PRIMARY KEY,
+  post_id TEXT NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK(type IN ('image','document')),
+  filename TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  url TEXT NOT NULL,
+  size_bytes INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS board_comments (
+  id TEXT PRIMARY KEY,
+  post_id TEXT NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id),
+  body TEXT NOT NULL,
+  edited_at TEXT,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS board_reads (
+  player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  last_read_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_posts_created ON board_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_board_posts_pinned ON board_posts(pinned DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_board_comments_post ON board_comments(post_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_board_attachments_post ON board_attachments(post_id);

@@ -15,6 +15,9 @@ import { autoAssignHonors } from './routes/honors';
 import { verifyJWT, corsHeaders } from './lib/auth';
 import { handlePushSubscriptions } from './routes/push';
 import { sendPushToPlayer } from './lib/sendPush';
+import { handleRecords, updateTeamRecords } from './routes/records';
+import { handleStandings, fetchDAIStandings } from './routes/standings';
+import { handleBoard, handleBoardAttachment } from './routes/board';
 
 export interface Env {
   DB: D1Database;
@@ -94,6 +97,38 @@ export default {
         return await handlePushSubscriptions(request, env, payload);
       }
 
+      // /api/records/:id
+      {
+        const m = path.match(/^\/api\/records\/?([^/]*)$/);
+        if (m) return await handleRecords(request, env, payload, m[1] || undefined);
+      }
+
+      // /api/standings/matches eller /api/standings/:id
+      if (path.startsWith('/api/standings')) {
+        const m = path.match(/^\/api\/standings\/?([^/]*)$/);
+        return await handleStandings(request, env, payload, m?.[1] || undefined);
+      }
+
+      // /api/board/attachments/:aid (DELETE)
+      {
+        const m = path.match(/^\/api\/board\/attachments\/([^/]+)$/);
+        if (m) return await handleBoardAttachment(request, env, payload, m[1]);
+      }
+      // /api/board/read
+      if (path === '/api/board/read') {
+        return await handleBoard(request, env, payload);
+      }
+      // /api/board/posts, /api/board/posts/:id, /api/board/posts/:id/comments, /api/board/posts/:id/comments/:cid, /api/board/posts/:id/pin, /api/board/posts/:id/attachments
+      {
+        const m = path.match(/^\/api\/board\/posts\/?([^/]*)?\/?([^/]*)?\/?([^/]*)?$/);
+        if (m || path === '/api/board/posts') {
+          const postId    = m?.[1] || undefined;
+          const sub       = m?.[2] || undefined;
+          const commentId = m?.[3] || undefined;
+          return await handleBoard(request, env, payload, postId, sub, commentId);
+        }
+      }
+
       return json({ error: 'Not found' }, 404);
     } catch (e) {
       console.error('Unhandled error:', e);
@@ -109,6 +144,8 @@ export default {
     await Promise.all([
       syncWebcal(env),
       sendReminders(env),
+      updateTeamRecords(env).catch(e => console.error('updateTeamRecords failed:', e)),
+      fetchDAIStandings(env).catch(e => console.error('fetchDAIStandings failed:', e)),
     ]);
   }
 };

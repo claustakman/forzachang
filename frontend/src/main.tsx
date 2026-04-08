@@ -6,8 +6,8 @@ import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import Layout from './components/Layout';
 import Matches from './pages/Matches';
-import Stats from './pages/Stats';
-import Haeder from './pages/Haeder';
+import Board from './pages/Board';
+import Histoire from './pages/Historie';
 import Fines from './pages/Fines';
 import Admin from './pages/Admin';
 import Profile from './pages/Profile';
@@ -30,8 +30,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route index element={<Navigate to="/kalender" replace />} />
             <Route path="kampe" element={<Navigate to="/kalender" replace />} />
             <Route path="kalender" element={<Matches />} />
-            <Route path="statistik" element={<Stats />} />
-            <Route path="hæder" element={<Haeder />} />
+            <Route path="opslagstavle" element={<Board />} />
+            <Route path="historie" element={<Histoire />} />
+            {/* Redirects fra gamle ruter */}
+            <Route path="statistik" element={<Navigate to="/historie" replace />} />
+            <Route path="hæder" element={<Navigate to="/historie?tab=haeder" replace />} />
             <Route path="bødekasse" element={<Fines />} />
             <Route path="admin" element={<Admin />} />
             <Route path="profil" element={<Profile />} />

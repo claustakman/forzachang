@@ -182,6 +182,52 @@ export const api = {
     req<{ ok: boolean }>('POST', '/honors', data),
   deleteHonor: (id: string) =>
     req<{ ok: boolean }>('DELETE', `/honors/${id}`),
+
+  // Holdrekorder (fase 10)
+  getRecords: () =>
+    req<{ oldboys: TeamRecord[]; senior: TeamRecord[] }>('GET', '/records'),
+  updateRecord: (id: string, data: { value?: string; context?: string; label?: string }) =>
+    req<{ ok: boolean }>('PUT', `/records/${id}`, data),
+
+  // Holdhistorik / Tabeller (fase 10)
+  getStandings: (params?: { team_type?: string; season?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return req<SeasonStanding[]>('GET', `/standings${qs ? '?' + qs : ''}`);
+  },
+  createStanding: (data: Partial<SeasonStanding>) =>
+    req<{ ok: boolean }>('POST', '/standings', data),
+  updateStanding: (id: string, data: Partial<SeasonStanding>) =>
+    req<{ ok: boolean }>('PUT', `/standings/${id}`, data),
+  getStandingMatches: (params?: { team_type?: string; season?: string; opponent?: string }) => {
+    const qs = new URLSearchParams(params as any).toString();
+    return req<SeasonMatch[]>('GET', `/standings/matches${qs ? '?' + qs : ''}`);
+  },
+
+  // Opslagstavle (fase 11)
+  getBoardPosts: (page = 1) =>
+    req<{ pinned: BoardPost[]; posts: BoardPost[]; total: number; page: number; hasMore: boolean }>('GET', `/board/posts?page=${page}&limit=20`),
+  createBoardPost: (body: string) =>
+    req<BoardPost>('POST', '/board/posts', { body }),
+  updateBoardPost: (id: string, body: string) =>
+    req<{ ok: boolean }>('PUT', `/board/posts/${id}`, { body }),
+  deleteBoardPost: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/board/posts/${id}`),
+  pinBoardPost: (id: string) =>
+    req<{ ok: boolean; pinned: number }>('POST', `/board/posts/${id}/pin`, {}),
+  getBoardComments: (postId: string) =>
+    req<BoardComment[]>('GET', `/board/posts/${postId}/comments`),
+  createBoardComment: (postId: string, body: string) =>
+    req<BoardComment>('POST', `/board/posts/${postId}/comments`, { body }),
+  updateBoardComment: (postId: string, commentId: string, body: string) =>
+    req<{ ok: boolean }>('PUT', `/board/posts/${postId}/comments/${commentId}`, { body }),
+  deleteBoardComment: (postId: string, commentId: string) =>
+    req<{ ok: boolean }>('DELETE', `/board/posts/${postId}/comments/${commentId}`),
+  uploadBoardAttachment: (postId: string, file: File) =>
+    uploadFile<BoardAttachment>(`/board/posts/${postId}/attachments`, file),
+  deleteBoardAttachment: (attachmentId: string) =>
+    req<{ ok: boolean }>('DELETE', `/board/attachments/${attachmentId}`),
+  markBoardRead: () =>
+    req<{ ok: boolean }>('POST', '/board/read', {}),
 };
 
 // Types
@@ -437,7 +483,7 @@ export interface HonorsSummary {
 // Udvidet StatRow med mom, active, avatar og fuldt navn
 export interface StatsRow {
   id: string;
-  name: string;         // alias ?? fornavn (til visning)
+  name: string;         // alias ?? fuldt navn (til visning)
   full_name: string;    // fuldt navn (til spillerprofil-header)
   alias?: string;
   avatar_url?: string;
@@ -448,4 +494,85 @@ export interface StatsRow {
   yellow_cards: number;
   red_cards: number;
   fines_amount: number;
+}
+
+// Holdrekorder (fase 10)
+export interface TeamRecord {
+  id: string;
+  team_type: 'oldboys' | 'senior';
+  record_key: string;
+  label: string;
+  value: string;
+  context?: string;
+  auto_update: number;
+  sort_order: number;
+  updated_at: string;
+}
+
+// Holdhistorik (fase 10)
+export interface SeasonStanding {
+  id: string;
+  team_type: string;
+  season: number;
+  position?: number;
+  league?: string;
+  played?: number;
+  won?: number;
+  drawn?: number;
+  lost?: number;
+  goals_for?: number;
+  goals_against?: number;
+  points?: number;
+  dai_standings_url?: string;
+  imported_at: string;
+}
+
+export interface SeasonMatch {
+  id: string;
+  team_type: string;
+  season: number;
+  match_date: string;
+  opponent: string;
+  venue?: string;
+  goals_for?: number;
+  goals_against?: number;
+  result?: string;
+  notes?: string;
+}
+
+// Opslagstavle (fase 11)
+export interface BoardAttachment {
+  id: string;
+  type: 'image' | 'document';
+  filename: string;
+  url: string;
+  size_bytes: number;
+}
+
+export interface BoardPost {
+  id: string;
+  player_id: string;
+  body: string;
+  pinned: number;
+  pinned_by?: string;
+  edited_at?: string;
+  deleted: number;
+  created_at: string;
+  author_name: string;
+  author_avatar_url?: string;
+  comment_count: number;
+  attachment_count: number;
+  attachments?: BoardAttachment[];
+}
+
+export interface BoardComment {
+  id: string;
+  post_id: string;
+  player_id: string;
+  body: string;
+  edited_at?: string;
+  deleted: number;
+  created_at: string;
+  author_name: string;
+  author_avatar_url?: string;
 }

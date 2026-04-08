@@ -1,6 +1,7 @@
 import { json, Env } from '../index';
 import type { JWTPayload } from '../lib/auth';
 import { autoAssignHonors } from './honors';
+import { updateTeamRecords } from './records';
 
 function nanoid() { return crypto.randomUUID(); }
 
@@ -236,6 +237,8 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
       } catch (e) {
         console.error('autoAssignHonors failed:', e);
       }
+
+      updateTeamRecords(env).catch(e => console.error('updateTeamRecords failed:', e));
 
       return json({ ok: true });
     }
