@@ -310,7 +310,7 @@ function PostCard({
       padding: '14px 16px',
       position: 'relative',
     }}>
-      {post.pinned && (
+      {post.pinned === 1 && (
         <div style={{
           position: 'absolute', top: 10, right: 12,
           fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
