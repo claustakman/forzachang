@@ -172,7 +172,11 @@ type SpillerView = 'saeson' | 'spiller' | 'top10';
 
 function SpillerhistorikTab() {
   const [view, setView] = useState<SpillerView>('saeson');
-  const [season, setSeason] = useState<string>(String(THIS_YEAR));
+  const [seasonSaeson, setSeasonSaeson] = useState<string>(String(THIS_YEAR));
+  const [seasonTop10, setSeasonTop10] = useState<string>('');
+  const [seasonSpiller, setSeasonSpiller] = useState<string>('');
+  const season = view === 'saeson' ? seasonSaeson : view === 'top10' ? seasonTop10 : seasonSpiller;
+  const setSeason = view === 'saeson' ? setSeasonSaeson : view === 'top10' ? setSeasonTop10 : setSeasonSpiller;
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [stats, setStats] = useState<StatsRow[]>([]);
   const [loading, setLoading] = useState(true);
