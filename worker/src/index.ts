@@ -179,35 +179,44 @@ export async function syncWebcal(env: Env): Promise<void> {
     ).bind(ev.uid).first();
 
     if (existing) {
-      // Opdater title, tid, sted — og sæt altid type=kamp for webcal-events
-      await env.DB.prepare(`
-        UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?
-        WHERE webcal_uid=?
-      `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
-        ev.season || now, ev.uid).run();
+      // Opdater title, tid, sted — og result hvis webcal har score i titlen
+      // result sættes kun hvis webcal leverer det (overskriv ikke manuelt sat result med null)
+      if (ev.result) {
+        await env.DB.prepare(`
+          UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?, result=?
+          WHERE webcal_uid=?
+        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+          ev.season || now, ev.result, ev.uid).run();
+      } else {
+        await env.DB.prepare(`
+          UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?
+          WHERE webcal_uid=?
+        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+          ev.season || now, ev.uid).run();
+      }
+      // Synkronisér til season_matches hvis der er et resultat
+      if (ev.result) {
+        const updated = await env.DB.prepare('SELECT id FROM events WHERE webcal_uid=?').bind(ev.uid).first() as any;
+        if (updated?.id) {
+          await syncEventToSeasonMatches(env, updated.id).catch(e => console.error('syncEventToSeasonMatches failed:', e));
+        }
+      }
     } else {
       const meetingTime = addMinutes(ev.start_time, -40);
       const signupDeadline = addDays(ev.start_time, -7);
+      const newId = crypto.randomUUID();
       await env.DB.prepare(`
-        INSERT INTO events (id, type, title, location, start_time, end_time, meeting_time, signup_deadline, webcal_uid, season)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO events (id, type, title, location, start_time, end_time, meeting_time, signup_deadline, webcal_uid, season, result)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
       `).bind(
-        crypto.randomUUID(), ev.type, ev.title, ev.location || null,
-        ev.start_time, ev.end_time || null, meetingTime, signupDeadline, ev.uid, ev.season || now
+        newId, ev.type, ev.title, ev.location || null,
+        ev.start_time, ev.end_time || null, meetingTime, signupDeadline, ev.uid, ev.season || now,
+        ev.result || null
       ).run();
+      if (ev.result) {
+        await syncEventToSeasonMatches(env, newId).catch(e => console.error('syncEventToSeasonMatches failed:', e));
+      }
     }
-  }
-
-  // Synkronisér kampresultater til season_matches for alle webcal-kampe med resultat
-  try {
-    const kampMedResultat = await env.DB.prepare(
-      "SELECT id FROM events WHERE type='kamp' AND result IS NOT NULL AND webcal_uid IS NOT NULL"
-    ).all();
-    for (const row of kampMedResultat.results as any[]) {
-      await syncEventToSeasonMatches(env, row.id).catch(e => console.error('syncEventToSeasonMatches failed:', e));
-    }
-  } catch (e) {
-    console.error('season_matches sync failed:', e);
   }
 
   // Auto-tildel hædersbevisninger for alle spillere med statistik
@@ -237,12 +246,23 @@ export async function syncWebcal(env: Env): Promise<void> {
 
 interface IcalEvent {
   uid: string;
-  title: string;
+  title: string;       // Kun holdnavne, uden score
+  result?: string;     // Fx "1-2" hvis score er i SUMMARY
   start_time: string;
   end_time?: string;
   location?: string;
   type: 'kamp' | 'event';
   season?: number;
+}
+
+// Parser score fra SUMMARY, fx "Cosa Nostra - CFC 1 - 2" → { title: "Cosa Nostra - CFC", result: "1-2" }
+function parseSummary(summary: string): { title: string; result?: string } {
+  // Score sidst i strengen: "Holdnavn1 - Holdnavn2 X - Y" eller "Holdnavn1 - Holdnavn2 X-Y"
+  const m = summary.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s*$/);
+  if (m) {
+    return { title: m[1].trim(), result: `${m[2]}-${m[3]}` };
+  }
+  return { title: summary };
 }
 
 function parseIcal(text: string): IcalEvent[] {
@@ -260,7 +280,8 @@ function parseIcal(text: string): IcalEvent[] {
     const uid = get('UID');
     if (!uid) continue;
 
-    const summary = get('SUMMARY').replace(/\\,/g, ',').replace(/\\n/g, ' ');
+    const rawSummary = get('SUMMARY').replace(/\\,/g, ',').replace(/\\n/g, ' ');
+    const { title, result } = parseSummary(rawSummary);
     const dtstart = get('DTSTART');
     const dtend = get('DTEND');
     const location = get('LOCATION').replace(/\\,/g, ',').replace(/\\n/g, ', ') || undefined;
@@ -274,7 +295,7 @@ function parseIcal(text: string): IcalEvent[] {
     // Events fra webcal er altid kampe
     const type: 'kamp' | 'event' = 'kamp';
 
-    events.push({ uid, title: summary, start_time, end_time, location, type, season });
+    events.push({ uid, title, result, start_time, end_time, location, type, season });
   }
 
   return events;
@@ -470,13 +491,20 @@ export async function syncEventToSeasonMatches(env: Env, eventId: string): Promi
   const goalsAgainst = Number(m[2]);
   const outcome = goalsFor > goalsAgainst ? 'sejr' : goalsFor < goalsAgainst ? 'nederlag' : 'uafgjort';
 
-  // Hjemme/ude: prøv at aflæse fra location — ellers "hjemme"
-  const loc = (ev.location || '').toLowerCase();
-  const homeAway = loc.includes('ude') || loc.includes('away') ? 'ude' : 'hjemme';
+  // Hjemme/ude: CFC som første hold = hjemme, CFC som andet hold = ude
+  // Titlen er på formen "Modstander - CFC" (ude) eller "CFC - Modstander" (hjemme)
+  const titleLower = (ev.title as string).toLowerCase();
+  const homeAway = titleLower.startsWith('cfc') ? 'hjemme' : 'ude';
 
   const matchDate = (ev.start_time as string).slice(0, 10); // "YYYY-MM-DD"
   const season = ev.season || new Date(ev.start_time as string).getFullYear();
-  const opponent = ev.title as string;
+  // Udtrék modstander fra titel: "CFC - Modstander" eller "Modstander - CFC"
+  const titleStr = ev.title as string;
+  const parts = titleStr.split(' - ');
+  const cfcIdx = parts.findIndex(p => p.trim().toLowerCase() === 'cfc');
+  const opponent = cfcIdx === 0
+    ? parts.slice(1).join(' - ').trim()   // CFC - Modstander
+    : parts.slice(0, cfcIdx).join(' - ').trim() || titleStr; // Modstander - CFC
 
   await env.DB.prepare(`
     INSERT INTO season_matches (id, team_type, season, match_date, opponent, home_away, goals_for, goals_against, result, event_id)
