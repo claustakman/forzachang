@@ -778,12 +778,12 @@ function TidligereSaesoner() {
 type HoldTab = 'rekorder' | 'saesoner';
 
 function HoldhistorikTab() {
-  const [holdTab, setHoldTab] = useState<HoldTab>('rekorder');
+  const [holdTab, setHoldTab] = useState<HoldTab>('saesoner');
 
   return (
     <>
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-        {([['rekorder', 'Holdrekorder'], ['saesoner', 'Tidligere sæsoner']] as [HoldTab, string][]).map(([v, label]) => (
+        {([['saesoner', 'Tidligere sæsoner'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setHoldTab(v)} className="btn btn-sm" style={{
             background: holdTab === v ? 'var(--cfc-bg-hover)' : 'transparent',
             color: holdTab === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
