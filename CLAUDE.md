@@ -871,7 +871,7 @@ wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 
 | Tab | URL | Indhold |
 |-----|-----|---------|
-| Spillerhistorik (default) | `/historie` | Sub-tabs: Sæsonoversigt / Top 10 / Spillerprofil + Hædersbevisninger |
+| Spillerhistorik (default) | `/historie` | Sub-tabs: Sæsonoversigt / Spillerstatistik / Top 10 / Hæder |
 | Holdhistorik | `/historie?tab=hold` | Sub-tabs: Holdrekorder / Tidligere sæsoner (stillinger + kampe) |
 
 `Stats.tsx` og `Haeder.tsx` er bibeholdt som filer men bruges nu kun internt af `Historie.tsx`.
@@ -879,6 +879,17 @@ wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 Bagudkompatibilitet:
 - `/statistik` → `/historie`
 - `/hæder` → `/historie?tab=haeder`
+
+### Spillerhistorik — underfaner
+
+| Fane | Default sæsonfilter | Beskrivelse |
+|------|---------------------|-------------|
+| Sæsonoversigt | Indeværende år | Tabel over alle spillere med kampe, mål, MoM, kort, bøder — klik → spillerprofil-modal |
+| Spillerstatistik | Alle sæsoner | Samme data som kort-liste — klik → spillerprofil-modal |
+| Top 10 | Alle sæsoner | 6 søjlediagrammer: kampe, mål, MoM, gule kort, røde kort, bøder |
+| Hæder | — (ingen sæsonfilter) | Præstationer (automatiske milestones med modtagere som badges) + Kåringer (Årets spiller/fighter/kammerat som årstal-tabeller) |
+
+Hvert sub-tab husker sit eget sæsonvalg inden for sessionen. Hæder-fanen har ingen sæson/spillerfiltre og loader sine egne data uafhængigt.
 
 ### Holdrekorder (`team_records` tabel)
 
