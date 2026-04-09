@@ -687,11 +687,11 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   const afmeldte    = allSignups.filter(s => s.status === 'afmeldt');
   const ikkeMeldte  = allSignups.filter(s => s.status === 'ikke meldt');
   const autoFineTypes   = data?.fine_types.filter(ft =>  ft.auto_assign) || [];
-  // Manuelle bøder: kamprelaterede bøder vises øverst, resten alfabetisk bagefter
+  // Manuelle bøder: kamprelaterede bøder vises øverst i denne rækkefølge, resten bagefter
   const KAMP_BOEDER = ['For sent fremmøde', 'Fremmøde efter kampstart', 'Afbud på kampdag', 'Udeblivelse fra kamp'];
   const allManualFineTypes = data?.fine_types.filter(ft => !ft.auto_assign) || [];
   const manualFineTypes = [
-    ...allManualFineTypes.filter(ft => KAMP_BOEDER.includes(ft.name)),
+    ...KAMP_BOEDER.map(name => allManualFineTypes.find(ft => ft.name === name)).filter(Boolean) as typeof allManualFineTypes,
     ...allManualFineTypes.filter(ft => !KAMP_BOEDER.includes(ft.name)),
   ];
 
