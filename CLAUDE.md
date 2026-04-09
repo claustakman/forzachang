@@ -23,7 +23,11 @@ Live på: https://forzachang.pages.dev
 ```
 forzachang/
 ├── database/
-│   └── schema.sql              # D1 database schema + seed data
+│   ├── schema.sql              # D1 database schema + seed data
+│   ├── seed_standings.sql      # Historiske stillinger + kampresultater (genereret af scrape_standings.py)
+│   ├── seed_records.sql        # Holdrekorder (manuelt indsat)
+│   ├── seed_stats.sql          # Historisk spillerstatistik (genereret af scrape_stats.py)
+│   └── seed_honors.sql         # Historiske hædersbevisninger (genereret af scrape_honors.py)
 ├── worker/                     # Cloudflare Worker (API)
 │   ├── src/
 │   │   ├── index.ts            # Router + scheduled jobs (webcal-sync + reminders)
@@ -41,7 +45,10 @@ forzachang/
 │   │       ├── fines.ts
 │   │       ├── comments.ts     # Kommentarer (fase 7) + @-mention push
 │   │       ├── honors.ts       # Hædersbevisninger (fase 8)
-│   │       └── push.ts         # Push-subscriptions + VAPID public key (fase 9)
+│   │       ├── push.ts         # Push-subscriptions + VAPID public key (fase 9)
+│   │       ├── board.ts        # Opslagstavle: opslag, kommentarer, vedhæftninger (fase 11)
+│   │       ├── records.ts      # Holdrekorder
+│   │       └── standings.ts    # Sæsonstillinger + kamphistorik
 │   └── wrangler.toml
 ├── frontend/                   # React app
 │   ├── public/
@@ -61,9 +68,9 @@ forzachang/
 │   │       ├── Login.tsx
 │   │       ├── Matches.tsx     # Kalender: events + tilmeldinger (rutet som /kalender)
 │   │       ├── Board.tsx       # Opslagstavle: opslag, kommentarer, vedhæftninger (fase 11)
-│   │       ├── Historie.tsx    # Historie: Sæsonoversigt + Holdrekorder + Holdhistorik (fase 10)
-│   │       ├── Stats.tsx       # (bibeholdt, nu kun eksporteret og brugt internt af Historie.tsx)
-│   │       ├── Haeder.tsx      # (bibeholdt, nu kun eksporteret og brugt internt af Historie.tsx)
+│   │       ├── Historie.tsx    # Historie: Spillerhistorik + Holdhistorik (fase 10)
+│   │       ├── Stats.tsx       # (bibeholdt, brugt internt af Historie.tsx)
+│   │       ├── Haeder.tsx      # (bibeholdt, brugt internt af Historie.tsx)
 │   │       ├── Fines.tsx       # Bødekasse + Bødekatalog-fane
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings) + Licensliste
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
@@ -71,7 +78,7 @@ forzachang/
 ├── scripts/
 │   ├── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
 │   ├── scrape_honors.py        # Scraper hædersbevisninger fra forzachang.dk → seed SQL
-│   └── scrape_standings.py     # (valgfri) Scraper historiske tabeltalsdata → seed SQL
+│   └── scrape_standings.py     # Scraper historiske stillinger + kampresultater → seed SQL
 └── .github/workflows/
     ├── deploy.yml              # CI/CD: auto-deploy + DB-migrationer ved push til main
     └── migrate.yml             # Manuel workflow til DB-migrationer
@@ -235,23 +242,25 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 | `sort_order`  | INTEGER | Rækkefølge i UI                                          |
 | `created_at`  | TEXT    | Oprettelsestidspunkt                                     |
 
+Bødekatalog sorteres stigende efter `amount`, derefter `sort_order`, derefter `name`.
+
 Bødekatalog (13 typer — vises under Bødekasse → Bødekatalog, administreres af admin):
 
 | Navn | Beløb | auto_assign |
 |------|-------|-------------|
-| Direkte rødt kort | 240 kr | — |
-| Udeblivelse fra kamp | 240 kr | — |
-| To gule kort i samme kamp | 180 kr | — |
-| Manglende udmelding til kamp | 160 kr | `no_signup` |
-| Gult kort for brok eller opførsel | 120 kr | — |
-| Afbud på kampdag | 120 kr | — |
-| Fremmøde efter kampstart | 120 kr | — |
+| Afbud til kamp (Kennethgebyr) | 30 kr | `absence` |
 | For sen udmelding (efter frist) | 80 kr | `late_signup` |
 | Gult kort | 60 kr | — |
 | For sent fremmøde | 60 kr | — |
 | Disciplinærstraf | 60 kr | — |
 | Elendig aktion (min. 4 stemmer) | 60 kr | — |
-| Afbud til kamp (Kennethgebyr) | 30 kr | `absence` |
+| Gult kort for brok eller opførsel | 120 kr | — |
+| Afbud på kampdag | 120 kr | — |
+| Fremmøde efter kampstart | 120 kr | — |
+| Manglende udmelding til kamp | 160 kr | `no_signup` |
+| To gule kort i samme kamp | 180 kr | — |
+| Direkte rødt kort | 240 kr | — |
+| Udeblivelse fra kamp | 240 kr | — |
 
 ### Tildelte bøder (`fines`)
 
@@ -312,6 +321,12 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Velkomst-email sendes **manuelt** af admin (knap på spillerkortet) — ikke automatisk ved oprettelse
 - Password reset sker via email-link (Resend) → `/reset?token=XYZ`
 
+### Admin-brugeren (id = 'admin')
+- Systembrugeren med id `'admin'` og navn `'Admin'` er udelukkende til administration
+- Filtreres fra overalt i UI: tilmeldingslister, bødeoversigt, statistik, påmindelser
+- Filtrering sker på `p.id != 'admin'` (ikke på rolle) — spillere med rollen `admin` vises normalt
+- Gælder i: `event_signups`-lister, `signup_count`, `fines/summary`, `match_stats`-queries, auto-reminder-cron
+
 ### Profilbilleder (R2)
 - Upload via `POST /api/players/:id/avatar` med raw image body
 - Gemmes i R2-bucket `forzachang-avatars` under nøglen `avatars/{id}.{ext}`
@@ -352,7 +367,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - **Gem**: statistik → `POST /api/stats` (auto-bøder tildeles server-side), manuelle bøder → `POST /api/fines` per tjekket spiller
 - UNIQUE constraint på `(player_id, fine_type_id, event_id)` forhindrer duplikate bøder
 - Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
-- **Statistiksiden** (`/statistik`) kombinerer `match_stats` og `player_stats_legacy`:
+- **Statistiksiden** kombinerer `match_stats` og `player_stats_legacy`:
   - Moderne data (`match_stats`) vinder over legacy for samme sæson/spiller
   - Tre visninger: **Sæsonoversigt** (default, tabel inkl. bøder, filtreret på seneste sæson), **Top 10** (6 søjlediagrammer inkl. røde kort og bøder), **Spillerprofil** (klik → modal med sæson-for-sæson inkl. bøder)
   - Default sæsonfilter: indeværende år (fx 2026) — kan ændres til andre sæsoner eller "Alle sæsoner"
@@ -362,6 +377,8 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 
 ### Bødekasse (fase 6)
 - **Saldi beregnes dynamisk**: skyldig = SUM(fines.amount) − SUM(fine_payments.amount)
+- **Holdoversigt viser "Udestående bøder"** (ikke "Holdets skyldig")
+- **Bødeoversigt viser fulde navn eller alias** (ikke kun fornavn) — `alias?.trim() || name`
 - **Automatisk tildeling** sker server-side ved gem af kampstatistik via `auto_assign`-feltet på bødetypen:
   - `absence` → tildeles spillere med `absence=1` (afmeldte)
   - `late_signup` → tildeles spillere med `late_signup=1` (tilmeldt efter frist)
@@ -385,11 +402,29 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Kør mod prod: `wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql`
 - Kræver: `pip install requests beautifulsoup4`
 
+### Import af historiske stillinger og kampresultater
+- Script: `scripts/scrape_standings.py` — scraper forzachang.dk for stillinger og kampprogram/resultater
+- Kør: `python3 scripts/scrape_standings.py 2>/dev/null > database/seed_standings.sql`
+- Kør mod prod: `wrangler d1 execute forzachang-db --remote --file=database/seed_standings.sql`
+- Kræver: `pip install requests beautifulsoup4`
+- Dækker senior 2007–2018, oldboys 2019–2025
+- CFC kendes under flere navne: `cfc`, `forza chang`, `copenhagen forza chang`, `cph. forza chang`
+- Scorer parses med `\d+\s*[-–]\s*\d+` (tillader mellemrum fra `&nbsp;-&nbsp;`-format)
+- Bruger `INSERT OR REPLACE` for kampe (så resultater overskrives ved gen-kørsel)
+
+### Holdrekorder (manuelt vedligehold)
+- Data i `team_records`-tabellen — se `database/seed_records.sql`
+- Rediger via Admin UI eller direkte med wrangler:
+  ```bash
+  wrangler d1 execute forzachang-db --remote --command "UPDATE team_records SET value='...', context='...' WHERE team_type='oldboys' AND record_key='biggest_win'"
+  ```
+- `auto_update = 0` for alle manuelt vedligeholdte rekorder
+
 ### Påmindelser (fase 4)
 - **Automatiske** (cron, dagligt kl. 09:00 UTC):
   - Med tilmeldingsfrist: sender påmindelse 3 dage før fristen
   - Uden tilmeldingsfrist: sender påmindelse 8 dage før start
-  - Kun aktive spillere med email der ikke har tilmeldt/afmeldt sig
+  - Kun aktive spillere med email der ikke har tilmeldt/afmeldt sig (ekskl. id='admin')
   - Sendes kun én gang per spiller per event (sporres i `reminder_log` med `type='auto'`)
 - **Manuelle** (trainer/admin via "🔔 Påmind"-knap i event-detaljeview):
   - Viser liste over spillere der ikke har meldt ud — med checkboxes
@@ -471,47 +506,71 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 
 ## API-struktur (Worker routes)
 
-| Method | Path                          | Rolle          | Beskrivelse                          |
-|--------|-------------------------------|----------------|--------------------------------------|
-| POST   | /api/auth/login               | Alle           | Login, returnerer JWT                |
-| GET    | /api/players                  | admin          | Liste over spillere                  |
-| POST   | /api/players                  | admin          | Opret spiller                        |
-| PUT    | /api/players/:id              | self/admin     | Opdater spiller                      |
-| POST   | /api/players/:id/avatar       | self/admin     | Upload profilbillede til R2          |
-| GET    | /api/players/:id/logins       | admin          | Seneste 50 logins for spiller        |
-| GET    | /api/events                   | player+        | Liste over events (med filtre)       |
-| GET    | /api/events/:id               | player+        | Detaljer inkl. tilmeldinger          |
-| POST   | /api/events                   | trainer+       | Opret event                          |
-| PUT    | /api/events/:id               | trainer+/arrangør | Rediger event                     |
-| DELETE | /api/events/:id               | trainer+       | Slet event                           |
-| POST   | /api/events/:id/signup        | player+        | Tilmeld/afmeld fra event (body: status, message?, player_id?) |
-| DELETE | /api/events/:id/signup        | player+        | Annullér tilmelding (?player_id= for trainer-proxy) |
-| POST   | /api/events/:id/guests        | trainer+       | Tilføj gæst til event                |
-| DELETE | /api/events/:id/guests/:gid   | trainer+       | Fjern gæst fra event                 |
-| POST   | /api/events/:id/remind        | trainer+       | Send manuelle påmindelser (body: player_ids[]) |
-| GET    | /api/events/:id/stats         | trainer+       | Hent kampstatistik + tilmeldte spillere        |
-| POST   | /api/stats                    | trainer+       | Gem kampstatistik (body: event_id, rows[])     |
-| GET    | /api/settings                 | admin          | Hent app-indstillinger               |
-| PUT    | /api/settings                 | admin          | Gem app-indstillinger                |
-| POST   | /api/settings/sync            | admin          | Manuel webcal-sync                   |
-| GET    | /api/matches                  | player+        | Legacy: liste over kampe             |
-| POST   | /api/matches                  | admin          | Legacy: opret kamp                   |
-| POST   | /api/signups                  | player+        | Legacy: tilmeld/afmeld kamp          |
-| GET    | /api/stats                    | player+        | Hent samlet statistik (legacy + match_stats kombineret) |
-| GET    | /api/fine-types               | player+        | Liste over bødetyper                 |
-| POST   | /api/fine-types               | admin          | Opret bødetype                       |
-| PUT    | /api/fine-types/:id           | admin          | Rediger bødetype                     |
-| DELETE | /api/fine-types/:id           | admin          | Arkivér bødetype (active=0)          |
-| GET    | /api/fines                    | player+        | Alle bøder (?player_id= filter)      |
-| GET    | /api/fines/summary            | player+        | Per-spiller aggregering              |
-| POST   | /api/fines                    | trainer+       | Tildel bøde manuelt                  |
-| DELETE | /api/fines/:id                | trainer+       | Slet bøde                            |
-| GET    | /api/fine-payments            | player+        | Indbetalinger (?player_id= filter)   |
-| POST   | /api/fine-payments            | trainer+       | Registrér indbetaling                |
-| DELETE | /api/fine-payments/:id        | trainer+       | Slet indbetaling                     |
-| GET    | /api/vapid-public-key         | Alle           | VAPID public key (ingen auth)        |
-| POST   | /api/push-subscriptions       | player+        | Gem push-subscription                |
-| DELETE | /api/push-subscriptions       | player+        | Slet push-subscription               |
+| Method | Path                                    | Rolle          | Beskrivelse                                      |
+|--------|-----------------------------------------|----------------|--------------------------------------------------|
+| POST   | /api/auth/login                         | Alle           | Login, returnerer JWT                            |
+| GET    | /api/players                            | admin          | Liste over spillere                              |
+| POST   | /api/players                            | admin          | Opret spiller                                    |
+| PUT    | /api/players/:id                        | self/admin     | Opdater spiller                                  |
+| POST   | /api/players/:id/avatar                 | self/admin     | Upload profilbillede til R2                      |
+| GET    | /api/players/:id/logins                 | admin          | Seneste 50 logins for spiller                    |
+| GET    | /api/events                             | player+        | Liste over events (med filtre)                   |
+| GET    | /api/events/:id                         | player+        | Detaljer inkl. tilmeldinger (ekskl. id='admin')  |
+| POST   | /api/events                             | trainer+       | Opret event                                      |
+| PUT    | /api/events/:id                         | trainer+/arrangør | Rediger event                                 |
+| DELETE | /api/events/:id                         | trainer+       | Slet event                                       |
+| POST   | /api/events/:id/signup                  | player+        | Tilmeld/afmeld fra event (body: status, message?, player_id?) |
+| DELETE | /api/events/:id/signup                  | player+        | Annullér tilmelding (?player_id= for trainer-proxy) |
+| POST   | /api/events/:id/guests                  | trainer+       | Tilføj gæst til event                            |
+| DELETE | /api/events/:id/guests/:gid             | trainer+       | Fjern gæst fra event                             |
+| POST   | /api/events/:id/remind                  | trainer+       | Send manuelle påmindelser (body: player_ids[])   |
+| GET    | /api/events/:id/stats                   | trainer+       | Hent kampstatistik + tilmeldte spillere          |
+| POST   | /api/stats                              | trainer+       | Gem kampstatistik (body: event_id, rows[])       |
+| GET    | /api/settings                           | admin          | Hent app-indstillinger                           |
+| PUT    | /api/settings                           | admin          | Gem app-indstillinger                            |
+| POST   | /api/settings/sync                      | admin          | Manuel webcal-sync                               |
+| GET    | /api/matches                            | player+        | Legacy: liste over kampe                         |
+| POST   | /api/matches                            | admin          | Legacy: opret kamp                               |
+| POST   | /api/signups                            | player+        | Legacy: tilmeld/afmeld kamp                      |
+| GET    | /api/stats                              | player+        | Hent samlet statistik (legacy + match_stats kombineret) |
+| GET    | /api/fine-types                         | player+        | Liste over bødetyper (sorteret stigende efter beløb) |
+| POST   | /api/fine-types                         | admin          | Opret bødetype                                   |
+| PUT    | /api/fine-types/:id                     | admin          | Rediger bødetype                                 |
+| DELETE | /api/fine-types/:id                     | admin          | Arkivér bødetype (active=0)                      |
+| GET    | /api/fines                              | player+        | Alle bøder (?player_id= filter)                  |
+| GET    | /api/fines/summary                      | player+        | Per-spiller aggregering (ekskl. id='admin')      |
+| POST   | /api/fines                              | trainer+       | Tildel bøde manuelt                              |
+| DELETE | /api/fines/:id                          | trainer+       | Slet bøde                                        |
+| GET    | /api/fine-payments                      | player+        | Indbetalinger (?player_id= filter)               |
+| POST   | /api/fine-payments                      | trainer+       | Registrér indbetaling                            |
+| DELETE | /api/fine-payments/:id                  | trainer+       | Slet indbetaling                                 |
+| GET    | /api/vapid-public-key                   | Alle           | VAPID public key (ingen auth)                    |
+| POST   | /api/push-subscriptions                 | player+        | Gem push-subscription                            |
+| DELETE | /api/push-subscriptions                 | player+        | Slet push-subscription                           |
+| GET    | /api/records                            | player+        | Alle holdrekorder `{oldboys: [], senior: []}`    |
+| PUT    | /api/records/:id                        | admin          | Rediger rekordværdi/kontekst/label               |
+| GET    | /api/standings                          | player+        | Sæsonstillinger (?team_type=&season= filter)     |
+| POST   | /api/standings                          | admin          | Opret sæsonstilling                              |
+| PUT    | /api/standings/:id                      | admin          | Opdater sæsonstilling                            |
+| GET    | /api/standings/matches                  | player+        | Kamphistorik (?team_type=&season=&opponent= filter) |
+| POST   | /api/board/read                         | player+        | Opdater last_read_at                             |
+| GET    | /api/board/posts                        | player+        | Hent opslag (?page=&limit=&archived=1)           |
+| POST   | /api/board/posts                        | player+        | Opret opslag                                     |
+| GET    | /api/board/posts/:id                    | player+        | Hent enkelt opslag                               |
+| PUT    | /api/board/posts/:id                    | self           | Rediger eget opslag                              |
+| DELETE | /api/board/posts/:id                    | self           | Slet eget opslag (soft delete)                   |
+| POST   | /api/board/posts/:id/pin                | trainer+       | Toggle fastgørelse                               |
+| POST   | /api/board/posts/:id/archive            | admin          | Toggle arkivering                                |
+| GET    | /api/board/posts/:id/comments           | player+        | Hent kommentarer til opslag                      |
+| POST   | /api/board/posts/:id/comments           | player+        | Opret kommentar                                  |
+| PUT    | /api/board/posts/:id/comments/:cid      | self           | Rediger kommentar                                |
+| DELETE | /api/board/posts/:id/comments/:cid      | self           | Slet kommentar (soft delete)                     |
+| POST   | /api/board/posts/:id/attachments        | self           | Upload vedhæftning til R2 (filnavn via X-Filename header) |
+| DELETE | /api/board/attachments/:aid             | self           | Slet vedhæftning fra R2 + DB                     |
+| GET    | /api/honors                             | player+        | Alle hædersbevisninger (?player_id= filter)      |
+| GET    | /api/honors/summary                     | player+        | Aggregeret per honor_type (til Hæder-siden)      |
+| POST   | /api/honors                             | admin          | Tildel manuel hædersbevisning                    |
+| DELETE | /api/honors/:id                         | admin          | Slet hædersbevisning (kun manuelle)              |
 
 ---
 
@@ -569,6 +628,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - **One-click**: Tilmeld/Afmeld-knapper aktiverer med det samme — kommentar kan tilføjes bagefter via `+ kommentar`
 - **Annullering**: `↩ Annullér` fjerner tilmelding helt (DELETE signup)
 - Trainer/admin ser per-spiller Tilmeld/Afmeld-knapper i event-detaljevisningen
+- Administrer tilmeldinger viser alle aktive spillere ekskl. id='admin' — knapper har `padding: 6px 12px, fontSize: 13` for god mobil-touch-størrelse
 
 ### Opret/rediger event (modal)
 - Sluttid auto-fyldes til starttid når start sættes
@@ -606,13 +666,14 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - JWT gemmes i `localStorage` på frontend
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
-- Navigation (fase 10+11): **Kalender** → **Opslagstavle** → **Historie** → **Bødekasse** → **Admin**
+- Navigation: **Kalender** → **Opslagstavle** → **Historie** → **Bødekasse** → **Admin**
 - `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
 - `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
+- D1 returnerer integers (0/1) ikke booleans — brug altid `=== 1` (ikke `&&`) til conditional rendering i React for integer-kolonner som `pinned`, `archived`, `deleted`
 
 ---
 
@@ -676,7 +737,7 @@ PRIMARY KEY på `(player_id, event_id)`. Ulæste beregnes dynamisk: kommentarer 
 | DELETE | /api/events/:id/comments/:cid     | self     | Slet egen kommentar (soft delete, deleted=1)     |
 | POST   | /api/events/:id/comments/read     | player+  | Markér kommentarer som læst (UPSERT last_read_at)|
 
-`GET /api/events` returnerer nu `unread_comments` count per event. `GET /api/events/:id` returnerer `comment_count`.
+`GET /api/events` returnerer `unread_comments` count per event. `GET /api/events/:id` returnerer `comment_count`.
 
 ---
 
@@ -733,20 +794,11 @@ wrangler d1 execute forzachang-db --remote --file=database/seed_honors.sql
 - Kræver: `pip install requests beautifulsoup4`
 
 ### Frontend
-- **Hæder-siden** (`/hæder`, `Haeder.tsx`): selvstændig overordnet fane i navigationen med to underfaner:
+- **Hæder-siden** (`/hæder`, `Haeder.tsx`): selvstændig overordnet fane med to underfaner:
   - **Præstationer**: automatiske milestones (alle modtagere alfabetisk, badges)
   - **Kåringer**: manuelle årspriser (årstal → spiller, faldende) — Årets spiller vises før Årets fighter
 - **Spillerprofil-modal**: kollapsbar sektion "🏅 Hædersbevisninger (N)" over statistiktabellen — kollapset som default; milestones som blå badges, manuelle priser som `Årets spiller 2013, 2021`
 - **Admin → Spillere → fold ud**: sektion "Hædersbevisninger" med liste over tildelte + "+ Tildel hædersbevisning"-knap → dropdown (kun manuelle typer) + årstal-input
-
-### API-routes
-
-| Method | Path                  | Rolle    | Beskrivelse                                          |
-|--------|-----------------------|----------|------------------------------------------------------|
-| GET    | /api/honors           | player+  | Alle hædersbevisninger (?player_id= filter)          |
-| GET    | /api/honors/summary   | player+  | Aggregeret per honor_type (til Hæder-siden)          |
-| POST   | /api/honors           | admin    | Tildel manuel hædersbevisning                        |
-| DELETE | /api/honors/:id       | admin    | Slet hædersbevisning (kun manuelle)                  |
 
 ### Auto-tildeling — duplikat-håndtering
 SQLite UNIQUE constraint ignorerer `NULL = NULL`, så `season=NULL` rækker kan duplikeres. `autoAssignHonors()` bruger derfor `INSERT ... WHERE NOT EXISTS` i stedet for `INSERT OR IGNORE` for automatiske hædersbevisninger.
@@ -792,14 +844,6 @@ Implementeret manuelt med `crypto.subtle` (Cloudflare Workers understøtter ikke
 - Toggle for email-påmindelser (`notify_email`) og push-notifikationer (`notify_push`)
 - Gem-knap kalder `PUT /api/players/:id` + håndterer `Notification.requestPermission()` + subscribe/unsubscribe
 
-### API-routes
-
-| Method | Path                      | Rolle   | Beskrivelse                                     |
-|--------|---------------------------|---------|-------------------------------------------------|
-| GET    | /api/vapid-public-key     | Alle    | Returnerer VAPID public key (ingen auth)        |
-| POST   | /api/push-subscriptions   | player+ | Gem push-subscription for aktuel bruger         |
-| DELETE | /api/push-subscriptions   | player+ | Slet push-subscription (ved afmelding)          |
-
 ### VAPID-nøgler (generering)
 ```bash
 node -e "
@@ -820,18 +864,21 @@ wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 
 ---
 
-## Fase 10 — Historie (Statistik + Hæder + Holdrekorder + Holdhistorik)
+## Fase 10 — Historie (Spillerhistorik + Holdhistorik)
 
 ### Oversigt
-`Historie.tsx` erstatter de separate `/statistik`- og `/hæder`-sider og samler dem i én side (`/historie`) med tre hoved-tabs navigeret via URL-params (`?tab=`):
+`Historie.tsx` samler al historik i én side (`/historie`) med to hoved-tabs:
 
 | Tab | URL | Indhold |
 |-----|-----|---------|
-| Sæsonoversigt (default) | `/historie` | Existing Stats.tsx + Haeder.tsx indhold (sub-tabs: saeson/top10/spiller/haeder) |
-| Holdrekorder | `/historie?tab=rekorder` | Hold-rekorder fra `team_records`-tabellen, admin kan redigere manuelt |
-| Holdhistorik | `/historie?tab=historik` | Sæsontabel + kampprogram + modstandersøgning fra `season_standings`/`season_matches` |
+| Spillerhistorik (default) | `/historie` | Sub-tabs: Sæsonoversigt / Top 10 / Spillerprofil + Hædersbevisninger |
+| Holdhistorik | `/historie?tab=hold` | Sub-tabs: Holdrekorder / Tidligere sæsoner (stillinger + kampe) |
 
-`Stats.tsx` og `Haeder.tsx` er bibeholdt som filer men bruges nu kun internt.
+`Stats.tsx` og `Haeder.tsx` er bibeholdt som filer men bruges nu kun internt af `Historie.tsx`.
+
+Bagudkompatibilitet:
+- `/statistik` → `/historie`
+- `/hæder` → `/historie?tab=haeder`
 
 ### Holdrekorder (`team_records` tabel)
 
@@ -839,21 +886,15 @@ wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 |--------------|---------|----------------------------------------------------------|
 | `id`         | TEXT    | UUID                                                     |
 | `team_type`  | TEXT    | `oldboys` eller `senior`                                 |
-| `record_key` | TEXT    | Unik nøgle per team_type, fx `most_goals_season`         |
-| `label`      | TEXT    | Visningsnavn, fx "Flest mål i en sæson"                  |
-| `value`      | TEXT    | Rekordværdi, fx "12 mål"                                 |
-| `context`    | TEXT    | Kontekst, fx "Casper Takman, 2019"                       |
-| `auto_update`| INTEGER | 1 = opdateres automatisk af `updateTeamRecords()`        |
+| `record_key` | TEXT    | Unik nøgle per team_type, fx `biggest_win`               |
+| `label`      | TEXT    | Visningsnavn, fx "Største sejr"                          |
+| `value`      | TEXT    | Rekordværdi, fx "14-0"                                   |
+| `context`    | TEXT    | Kontekst, fx "mod Lokomotiv KBH, 1/10-2019"             |
+| `auto_update`| INTEGER | 1 = opdateres automatisk, 0 = manuelt vedligeholdt       |
 | `sort_order` | INTEGER | Rækkefølge i UI                                          |
 | `updated_at` | TEXT    | Tidsstempel                                              |
 
-UNIQUE på `(team_type, record_key)`.
-
-**Auto-opdatering**: `updateTeamRecords(env)` i `worker/src/routes/records.ts` kaldes:
-- Fire-and-forget efter `POST /api/stats` (gem kampstatistik)
-- I scheduled cron (dagligt kl. 09:00 UTC)
-
-Beregner: mest mål en sæson, flest kampe en sæson, længste vinde/ubesejret-stræk, flest mål i én kamp m.m.
+UNIQUE på `(team_type, record_key)`. Seed-data i `database/seed_records.sql` (10 oldboys + 10 senior rekorder, alle `auto_update=0`).
 
 ### Sæsonstillinger (`season_standings` tabel)
 
@@ -867,44 +908,24 @@ Beregner: mest mål en sæson, flest kampe en sæson, længste vinde/ubesejret-s
 | `played/won/...`   | INTEGER | Kampstatistik                                |
 | `goals_for/against`| INTEGER | Målscore                                     |
 | `points`           | INTEGER | Point                                        |
-| `dai_standings_url`| TEXT    | URL til DAI-sport stilling (til scraping)    |
 
 UNIQUE på `(team_type, season)`.
 
-**Live-opdatering fra DAI-sport**: `fetchDAIStandings(env)` i `worker/src/routes/standings.ts`:
-- Kører dagligt (cron) — læser `dai_standings_url` fra `app_settings`
-- Henter HTML fra DAI-sport, parser CFC-rækken i tabellen
-- Upserts `season_standings` for indeværende år
-
-Sæt URL: `PUT /api/settings` med `{ dai_standings_url: "https://..." }` via Admin → Indstillinger.
-
 ### Kamphistorik (`season_matches` tabel)
 
-| Felt           | Type    | Beskrivelse                       |
-|----------------|---------|-----------------------------------|
-| `id`           | TEXT    | UUID                              |
-| `team_type`    | TEXT    | `oldboys` eller `senior`          |
-| `season`       | INTEGER | Årstal                            |
-| `match_date`   | TEXT    | Kampdate (ISO 8601)               |
-| `opponent`     | TEXT    | Modstander                        |
-| `venue`        | TEXT    | `H` = hjemme, `U` = ude          |
-| `goals_for`    | INTEGER | Mål for                           |
-| `goals_against`| INTEGER | Mål imod                          |
-| `result`       | TEXT    | `V`, `U` eller `T`               |
-| `notes`        | TEXT    | Valgfri noter                     |
+| Felt           | Type    | Beskrivelse                              |
+|----------------|---------|------------------------------------------|
+| `id`           | TEXT    | UUID                                     |
+| `team_type`    | TEXT    | `oldboys` eller `senior`                 |
+| `season`       | INTEGER | Årstal                                   |
+| `match_date`   | TEXT    | Kampdate (ISO 8601)                      |
+| `opponent`     | TEXT    | Modstander                               |
+| `home_away`    | TEXT    | `hjemme` eller `ude`                     |
+| `goals_for`    | INTEGER | Mål for                                  |
+| `goals_against`| INTEGER | Mål imod                                 |
+| `result`       | TEXT    | `sejr`, `uafgjort` eller `nederlag`      |
 
 UNIQUE på `(team_type, season, match_date, opponent)`.
-
-### Worker-routes
-
-| Method | Path                      | Rolle   | Beskrivelse                                         |
-|--------|---------------------------|---------|-----------------------------------------------------|
-| GET    | /api/records              | player+ | Alle holdrekorder `{oldboys: [], senior: []}`       |
-| PUT    | /api/records/:id          | admin   | Rediger rekordværdi/kontekst/label                  |
-| GET    | /api/standings            | player+ | Sæsonstillinger (?team_type=&season= filter)        |
-| POST   | /api/standings            | admin   | Opret sæsonstilling                                 |
-| PUT    | /api/standings/:id        | admin   | Opdater sæsonstilling                               |
-| GET    | /api/standings/matches    | player+ | Kamphistorik (?team_type=&season=&opponent= filter) |
 
 ---
 
@@ -916,9 +937,11 @@ UNIQUE på `(team_type, season, match_date, opponent)`.
 |--------------|---------|--------------------------------------------|
 | `id`         | TEXT    | UUID                                       |
 | `player_id`  | TEXT    | FK → players.id                            |
+| `title`      | TEXT    | Valgfri titel                              |
 | `body`       | TEXT    | Oplagstekst (inkl. @-mentions)             |
 | `pinned`     | INTEGER | 1 = fastgjort                              |
 | `pinned_by`  | TEXT    | FK → players.id (NULL hvis ikke fastgjort) |
+| `archived`   | INTEGER | 1 = arkiveret (skjult fra normal liste)    |
 | `edited_at`  | TEXT    | Tidsstempel for redigering (NULL = aldrig) |
 | `deleted`    | INTEGER | 1 = soft-slettet                           |
 | `deleted_at` | TEXT    | Tidsstempel for sletning                   |
@@ -926,19 +949,21 @@ UNIQUE på `(team_type, season, match_date, opponent)`.
 
 ### Vedhæftninger (`board_attachments` tabel)
 
-| Felt         | Type    | Beskrivelse                                  |
-|--------------|---------|----------------------------------------------|
-| `id`         | TEXT    | UUID                                         |
-| `post_id`    | TEXT    | FK → board_posts.id                          |
-| `type`       | TEXT    | `image` eller `document`                     |
-| `filename`   | TEXT    | Filnavn                                      |
-| `r2_key`     | TEXT    | R2-nøgle (format: `board/{postId}/{uuid}.ext`) |
-| `url`        | TEXT    | Public R2 URL                                |
-| `size_bytes` | INTEGER | Filstørrelse i bytes                         |
-| `created_at` | TEXT    | Oprettelsestidspunkt                         |
+| Felt         | Type    | Beskrivelse                                          |
+|--------------|---------|------------------------------------------------------|
+| `id`         | TEXT    | UUID                                                 |
+| `post_id`    | TEXT    | FK → board_posts.id                                  |
+| `type`       | TEXT    | `image` eller `document`                             |
+| `filename`   | TEXT    | Originalt filnavn (bevaret fra klientens fil)        |
+| `r2_key`     | TEXT    | R2-nøgle (format: `board/{postId}/{uuid}.ext`)       |
+| `url`        | TEXT    | Public R2 URL                                        |
+| `size_bytes` | INTEGER | Filstørrelse i bytes                                 |
+| `created_at` | TEXT    | Oprettelsestidspunkt                                 |
 
-Maks filstørrelse: billeder 10 MB, PDF 20 MB. Accepts: `image/*` og `application/pdf`.
+Maks filstørrelse: billeder 10 MB, dokumenter 20 MB.
+Accepts: `image/*`, `application/pdf`, Word (`.doc`/`.docx`), Excel (`.xls`/`.xlsx`), PowerPoint (`.ppt`/`.pptx`).
 Lagres i samme R2-bucket som avatarer (`forzachang-avatars`) under `board/`-præfiks.
+Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i databasen.
 
 ### Kommentarer (`board_comments` tabel)
 
@@ -964,16 +989,22 @@ Lagres i samme R2-bucket som avatarer (`forzachang-avatars`) under `board/`-præ
 - Alle spillere kan oprette opslag og kommentarer
 - Spillere kan kun redigere/slette egne opslag og kommentarer (soft delete)
 - Trainer/admin kan fastgøre (pin) opslag — fastgjorte vises øverst
+- Admin kan arkivere opslag — arkiverede skjules fra normal liste
 - `@Navn` og `@alle` udløser push-notifikationer (samme mønster som event-kommentarer)
 - Ulæst-badge i navigation: blå prik (`#5b8dd9`) hvis nye opslag siden sidst besøg
 
 ### Frontend — Board.tsx
 - Opslag-liste: fastgjorte øverst, derefter faldende created_at
-- "Nyt opslag"-modal med `@`-autocomplete og filvedhæftning (billeder vises inline, PDF som link)
-- Oplagskort med avatar, navn, tidsstempel, tekst (highlights @-mentions), vedhæftningslinje
+- Quickfilter for admin: **Aktive** / **Arkiverede** (`?archived=1`)
+- Arkivér-knap i oplagsfooter — kun synlig for admin, viser "↩ De-arkivér" for arkiverede
+- "Nyt opslag"-modal med `@`-autocomplete og filvedhæftning
+  - Billeder vises inline, dokumenter som downloadlink med originalt filnavn
+- Oplagskort med avatar, navn, tidsstempel, titel (hvis sat), tekst (highlights @-mentions), vedhæftningslinje
+- Pin/unpin-knap (📌) for trainer/admin
 - Foldbar kommentarsektion per opslag med inline editor og @-autocomplete
-- Pin/unpin-knap for trainer/admin
 - `localStorage` nøgle `cfc_board_last_read` til unread-tracking
+- `pinned === 1` (ikke `pinned &&`) bruges til conditional rendering (D1 returnerer integers)
+- Vedhæftninger hentes via `JSON_GROUP_ARRAY(JSON_OBJECT(...))` i alle GET-queries og udpakkes med `parseAttachments()`-helper
 
 ### Notifikationstyper (opslagstavle)
 
@@ -983,21 +1014,3 @@ Lagres i samme R2-bucket som avatarer (`forzachang-avatars`) under `board/`-præ
 | @alle i opslag | "📌 [Navn] nævnte alle" | "...i et opslag på opslagstavlen" | `/opslagstavle` |
 | @-mention i kommentar | "📌 [Navn] nævnte dig" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
 | @alle i kommentar | "📌 [Navn] nævnte alle" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
-
-### Worker-routes
-
-| Method | Path                                    | Rolle    | Beskrivelse                                      |
-|--------|-----------------------------------------|----------|--------------------------------------------------|
-| POST   | /api/board/read                         | player+  | Opdater last_read_at                             |
-| GET    | /api/board/posts                        | player+  | Hent opslag (pinned + pagineret, ?page=&limit=)  |
-| POST   | /api/board/posts                        | player+  | Opret opslag                                     |
-| GET    | /api/board/posts/:id                    | player+  | Hent enkelt opslag                               |
-| PUT    | /api/board/posts/:id                    | self     | Rediger eget opslag                              |
-| DELETE | /api/board/posts/:id                    | self     | Slet eget opslag (soft delete)                   |
-| POST   | /api/board/posts/:id/pin                | trainer+ | Toggle fastgørelse                               |
-| GET    | /api/board/posts/:id/comments           | player+  | Hent kommentarer til opslag                      |
-| POST   | /api/board/posts/:id/comments           | player+  | Opret kommentar                                  |
-| PUT    | /api/board/posts/:id/comments/:cid      | self     | Rediger kommentar                                |
-| DELETE | /api/board/posts/:id/comments/:cid      | self     | Slet kommentar (soft delete)                     |
-| POST   | /api/board/posts/:id/attachments        | self     | Upload vedhæftning til R2                        |
-| DELETE | /api/board/attachments/:aid             | self     | Slet vedhæftning fra R2 + DB                     |
