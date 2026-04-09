@@ -626,7 +626,6 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
 
 function AdminSettings() {
   const [webcalUrl, setWebcalUrl] = useState('');
-  const [daiUrl, setDaiUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState('');
@@ -636,7 +635,6 @@ function AdminSettings() {
   useEffect(() => {
     api.getSettings().then(s => {
       setWebcalUrl(s.webcal_url || '');
-      setDaiUrl(s.dai_standings_url || '');
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -644,7 +642,7 @@ function AdminSettings() {
   async function save() {
     setSaving(true); setMsg('');
     try {
-      await api.updateSettings({ webcal_url: webcalUrl, dai_standings_url: daiUrl });
+      await api.updateSettings({ webcal_url: webcalUrl });
       setMsg('Gemt');
     } catch (e: any) { setMsg(e.message); }
     setSaving(false);
@@ -689,24 +687,6 @@ function AdminSettings() {
         {syncMsg && <p style={{ fontSize: 13, color: syncMsg === 'Sync gennemført' ? 'var(--green)' : '#e57373', marginTop: 8 }}>{syncMsg}</p>}
       </div>
 
-      <div className="card">
-        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>DAI-sport stilling</h2>
-        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
-          URL til CFC's aktuelle stilling på DAI-sport. Bruges til at opdatere Holdhistorik automatisk dagligt.
-        </p>
-        <div className="form-row">
-          <label className="form-label">DAI-sport URL</label>
-          <input
-            className="input"
-            value={daiUrl}
-            onChange={e => setDaiUrl(e.target.value)}
-            placeholder="https://www.dai-sport.dk/..."
-          />
-        </div>
-        <button className="btn btn-primary" onClick={save} disabled={saving} style={{ justifyContent: 'center' }}>
-          {saving ? '...' : 'Gem'}
-        </button>
-      </div>
     </div>
   );
 }

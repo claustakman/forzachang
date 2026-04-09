@@ -515,7 +515,7 @@ interface SeasonStanding {
   id: string; team_type: string; season: number; position?: number; league?: string;
   played?: number; won?: number; drawn?: number; lost?: number;
   goals_for?: number; goals_against?: number; points?: number;
-  dai_standings_url?: string; imported_at: string;
+  imported_at: string;
 }
 interface SeasonMatch {
   id: string; team_type: string; season: number; match_date?: string; opponent: string;
@@ -550,11 +550,6 @@ function StandingCard({ standing }: { standing: SeasonStanding }) {
           </div>
         ))}
       </div>
-      {standing.dai_standings_url && (
-        <a href={standing.dai_standings_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#5b8dd9', display: 'block', marginTop: 8 }}>
-          → Live stilling på DAI-sport
-        </a>
-      )}
     </div>
   );
 }

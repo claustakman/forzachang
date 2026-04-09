@@ -354,6 +354,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
+- **Automatisk kamphistorik**: Når et kamp-event har et `result`-felt (`"3-1"`), upsettes det automatisk i `season_matches` (team_type=`oldboys`). Hjemme/ude aflæses fra `location`-feltet (indeholder "ude"/"away" → `ude`, ellers `hjemme`). Sker ved webcal-sync og ved `PUT /api/events/:id` hvis result opdateres. Implementeret i `syncEventToSeasonMatches()` i `index.ts`.
 
 ### Kampstatistik & Bøder (fase 5+6)
 - Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (synlig fra kampdagen og frem)
@@ -363,8 +364,10 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - **Tre lister** (read-only): Afbud (afmeldte) + Ikke meldt ud (gul overskrift, alle aktive spillere uden signup)
 - **Bøde-sektion** under statistikken: foldbare sektioner per bødetype med checkboxes per spiller
   - Auto-bødetyper (`absence`, `late_signup`, `no_signup`) folder automatisk ud og pre-selecterer relevante spillere
-  - Manuelle bødetyper starter lukkede
-- **Gem**: statistik → `POST /api/stats` (auto-bøder tildeles server-side), manuelle bøder → `POST /api/fines` per tjekket spiller
+  - Manuelle bødetyper: kamprelaterede bøder vises øverst (`For sent fremmøde`, `Fremmøde efter kampstart`, `Afbud på kampdag`, `Udeblivelse fra kamp`), derefter resten
+  - Alle manuelle bødetyper starter lukkede
+- **Fravalg af auto-bøder**: Trainer kan fjerne flueben for en spiller i en auto-bødetype — frontend sender `skipped_auto_fines: { [fine_type_id]: player_id[] }` med i stats-kaldet, og server springer de fravalgte over
+- **Gem**: statistik → `POST /api/stats` (auto-bøder tildeles server-side minus fravalgte), manuelle bøder → `POST /api/fines` per tjekket spiller
 - UNIQUE constraint på `(player_id, fine_type_id, event_id)` forhindrer duplikate bøder
 - Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
 - **Statistiksiden** kombinerer `match_stats` og `player_stats_legacy`:
@@ -383,6 +386,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
   - `absence` → tildeles spillere med `absence=1` (afmeldte)
   - `late_signup` → tildeles spillere med `late_signup=1` (tilmeldt efter frist)
   - `no_signup` → tildeles spillere der slet ikke har reageret (hverken tilmeldt eller afmeldt)
+  - Trainer kan fraville auto-bøder per spiller i UI'et — fravalgte springes over server-side
 - **Manuelle bøder** tildeles af trainer/admin — enten fra Statistik & Bøder-modalen eller direkte fra Bødekassen
 - **Bødeside** (`/bøder`): holdoversigt (total skyldig + total bøder), spillertabel (klik → detaljemodal), detaljemodal med bøder/indbetalinger-tabs
 - **Bødeside → Bødekatalog-fane**: liste over bødetyper synlig for alle; opret/rediger/arkivér kun for admin; auto_assign-typer markeret med badge
@@ -872,7 +876,7 @@ wrangler secret put VAPID_SUBJECT   # fx "mailto:admin@forzachang.eu"
 | Tab | URL | Indhold |
 |-----|-----|---------|
 | Spillerhistorik (default) | `/historie` | Sub-tabs: Sæsonoversigt / Spillerstatistik / Top 10 / Hæder |
-| Holdhistorik | `/historie?tab=hold` | Sub-tabs: Holdrekorder / Tidligere sæsoner (stillinger + kampe) |
+| Holdhistorik | `/historie?tab=hold` | Sub-tabs: Tidligere sæsoner (default) / Holdrekorder |
 
 `Stats.tsx` og `Haeder.tsx` er bibeholdt som filer men bruges nu kun internt af `Historie.tsx`.
 

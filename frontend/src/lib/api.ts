@@ -135,8 +135,8 @@ export const api = {
   // Kampstatistik
   getEventStats: (eventId: string) =>
     req<EventStatsResponse>('GET', `/events/${eventId}/stats`),
-  saveEventStats: (eventId: string, rows: MatchStatRow[]) =>
-    req<{ ok: boolean }>('POST', '/stats', { event_id: eventId, rows }),
+  saveEventStats: (eventId: string, rows: MatchStatRow[], skippedAutoFines?: Record<string, string[]>) =>
+    req<{ ok: boolean }>('POST', '/stats', { event_id: eventId, rows, skipped_auto_fines: skippedAutoFines ?? {} }),
 
   // Legacy stats import
   saveLegacyStats: (rows: { player_id: string; season: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number; fines_amount: number }[]) =>
@@ -525,7 +525,6 @@ export interface SeasonStanding {
   goals_for?: number;
   goals_against?: number;
   points?: number;
-  dai_standings_url?: string;
   imported_at: string;
 }
 

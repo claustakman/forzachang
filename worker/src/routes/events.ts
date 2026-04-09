@@ -1,4 +1,4 @@
-import { json, Env, sendManualReminders } from '../index';
+import { json, Env, sendManualReminders, syncEventToSeasonMatches } from '../index';
 import type { JWTPayload } from '../lib/auth';
 
 function nanoid() {
@@ -227,6 +227,11 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
           'INSERT OR IGNORE INTO event_organizers (event_id, player_id) VALUES (?,?)'
         ).bind(id, pid).run();
       }
+    }
+
+    // Synkronisér kampresultat til season_matches hvis result er opdateret
+    if (body.result !== undefined) {
+      syncEventToSeasonMatches(env, id).catch(e => console.error('syncEventToSeasonMatches failed:', e));
     }
 
     return json({ ok: true });

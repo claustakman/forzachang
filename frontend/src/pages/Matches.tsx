@@ -641,8 +641,26 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
     if (!data) return;
     setSaving(true);
     try {
-      // 1. Gem statistik (auto-bøder tildeles også server-side)
-      await api.saveEventStats(event.id, Object.values(rows));
+      // Beregn hvilke auto-bøder der er fravalgt i UI'et (skal IKKE tildeles server-side)
+      // skippedAutoFines: { [fine_type_id]: [player_id, ...] } — spillere der ER kandidater men er blevet fravalgt
+      const skippedAutoFines: Record<string, string[]> = {};
+      for (const ft of data.fine_types.filter(f => f.auto_assign)) {
+        const selected = fineSelections[ft.id] || new Set<string>();
+        // Find alle spillere der ville blive auto-assigned for denne bødetype
+        const candidates = data.signups.filter(s => {
+          const r = rows[s.id];
+          if (ft.auto_assign === 'absence')     return r?.absence === 1;
+          if (ft.auto_assign === 'late_signup') return r?.late_signup === 1;
+          if (ft.auto_assign === 'no_signup')   return r?.no_signup === 1;
+          return false;
+        });
+        // Kandidater der IKKE er valgt → skippet
+        const skipped = candidates.filter(s => !selected.has(s.id)).map(s => s.id);
+        if (skipped.length) skippedAutoFines[ft.id] = skipped;
+      }
+
+      // 1. Gem statistik (auto-bøder tildeles server-side — minus skippede)
+      await api.saveEventStats(event.id, Object.values(rows), skippedAutoFines);
 
       // 2. Tildel manuelle bøder fra UI (kun ikke-auto typer — auto håndteres af saveEventStats)
       for (const [fineTypeId, playerIds] of Object.entries(fineSelections)) {
@@ -668,8 +686,14 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   const tilmeldte   = allSignups.filter(s => s.status === 'tilmeldt');
   const afmeldte    = allSignups.filter(s => s.status === 'afmeldt');
   const ikkeMeldte  = allSignups.filter(s => s.status === 'ikke meldt');
-  const manualFineTypes = data?.fine_types.filter(ft => !ft.auto_assign) || [];
   const autoFineTypes   = data?.fine_types.filter(ft =>  ft.auto_assign) || [];
+  // Manuelle bøder: kamprelaterede bøder vises øverst, resten alfabetisk bagefter
+  const KAMP_BOEDER = ['For sent fremmøde', 'Fremmøde efter kampstart', 'Afbud på kampdag', 'Udeblivelse fra kamp'];
+  const allManualFineTypes = data?.fine_types.filter(ft => !ft.auto_assign) || [];
+  const manualFineTypes = [
+    ...allManualFineTypes.filter(ft => KAMP_BOEDER.includes(ft.name)),
+    ...allManualFineTypes.filter(ft => !KAMP_BOEDER.includes(ft.name)),
+  ];
 
   return (
     <div className="modal-bg" onClick={onClose}>

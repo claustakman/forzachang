@@ -16,7 +16,7 @@ import { verifyJWT, corsHeaders } from './lib/auth';
 import { handlePushSubscriptions } from './routes/push';
 import { sendPushToPlayer } from './lib/sendPush';
 import { handleRecords, updateTeamRecords } from './routes/records';
-import { handleStandings, fetchDAIStandings } from './routes/standings';
+import { handleStandings } from './routes/standings';
 import { handleBoard, handleBoardAttachment } from './routes/board';
 
 export interface Env {
@@ -145,7 +145,6 @@ export default {
       syncWebcal(env),
       sendReminders(env),
       updateTeamRecords(env).catch(e => console.error('updateTeamRecords failed:', e)),
-      fetchDAIStandings(env).catch(e => console.error('fetchDAIStandings failed:', e)),
     ]);
   }
 };
@@ -197,6 +196,18 @@ export async function syncWebcal(env: Env): Promise<void> {
         ev.start_time, ev.end_time || null, meetingTime, signupDeadline, ev.uid, ev.season || now
       ).run();
     }
+  }
+
+  // Synkronisér kampresultater til season_matches for alle webcal-kampe med resultat
+  try {
+    const kampMedResultat = await env.DB.prepare(
+      "SELECT id FROM events WHERE type='kamp' AND result IS NOT NULL AND webcal_uid IS NOT NULL"
+    ).all();
+    for (const row of kampMedResultat.results as any[]) {
+      await syncEventToSeasonMatches(env, row.id).catch(e => console.error('syncEventToSeasonMatches failed:', e));
+    }
+  } catch (e) {
+    console.error('season_matches sync failed:', e);
   }
 
   // Auto-tildel hædersbevisninger for alle spillere med statistik
@@ -438,4 +449,39 @@ export function json(data: unknown, status = 200, _origin?: string): Response {
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders() }
   });
+}
+
+// ── Synkronisér kampresultat til season_matches ───────────────────────────────
+// Kaldes når et kamp-event har et resultat (fx "3-1").
+// Opretter eller opdaterer en række i season_matches idempotent.
+
+export async function syncEventToSeasonMatches(env: Env, eventId: string): Promise<void> {
+  const ev = await env.DB.prepare(
+    'SELECT type, title, start_time, location, season, result FROM events WHERE id=?'
+  ).bind(eventId).first() as any;
+
+  if (!ev || ev.type !== 'kamp' || !ev.result) return;
+
+  // Parse resultat, fx "3-1" eller "3 - 1"
+  const m = (ev.result as string).match(/(\d+)\s*[-–]\s*(\d+)/);
+  if (!m) return;
+
+  const goalsFor    = Number(m[1]);
+  const goalsAgainst = Number(m[2]);
+  const outcome = goalsFor > goalsAgainst ? 'sejr' : goalsFor < goalsAgainst ? 'nederlag' : 'uafgjort';
+
+  // Hjemme/ude: prøv at aflæse fra location — ellers "hjemme"
+  const loc = (ev.location || '').toLowerCase();
+  const homeAway = loc.includes('ude') || loc.includes('away') ? 'ude' : 'hjemme';
+
+  const matchDate = (ev.start_time as string).slice(0, 10); // "YYYY-MM-DD"
+  const season = ev.season || new Date(ev.start_time as string).getFullYear();
+  const opponent = ev.title as string;
+
+  await env.DB.prepare(`
+    INSERT INTO season_matches (id, team_type, season, match_date, opponent, home_away, goals_for, goals_against, result, event_id)
+    VALUES (?, 'oldboys', ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(team_type, season, match_date, opponent)
+    DO UPDATE SET home_away=excluded.home_away, goals_for=excluded.goals_for, goals_against=excluded.goals_against, result=excluded.result, event_id=excluded.event_id
+  `).bind(crypto.randomUUID(), season, matchDate, opponent, homeAway, goalsFor, goalsAgainst, outcome, eventId).run();
 }

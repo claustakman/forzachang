@@ -182,8 +182,11 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
 
     const body = await request.json() as any;
 
-    // Bulk-gem: { event_id, rows: [{player_id, goals, yellow_cards, red_cards, mom, played}] }
+    // Bulk-gem: { event_id, rows: [...], skipped_auto_fines?: { [fine_type_id]: player_id[] } }
     if (body.event_id && Array.isArray(body.rows)) {
+      // skipped_auto_fines: spillere der eksplicit er fravalgt i UI'et for en given auto-bødetype
+      const skippedAutoFines: Record<string, string[]> = body.skipped_auto_fines || {};
+
       // Hent auto-assign bødetyper én gang
       const absenceFineType = await env.DB.prepare(
         "SELECT id, amount FROM fine_types WHERE auto_assign='absence' AND active=1 LIMIT 1"
@@ -195,6 +198,12 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
         "SELECT id, amount FROM fine_types WHERE auto_assign='no_signup' AND active=1 LIMIT 1"
       ).first() as { id: string; amount: number } | null;
 
+      // Hjælpefunktion: er spilleren fravalgt for denne bødetype?
+      const isSkipped = (fineTypeId: string | undefined, playerId: string): boolean => {
+        if (!fineTypeId) return false;
+        return (skippedAutoFines[fineTypeId] || []).includes(playerId);
+      };
+
       for (const row of body.rows) {
         const { player_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0, played = 1, late_signup = 0, absence = 0, no_signup = 0 } = row;
         const existing = await env.DB.prepare(
@@ -202,26 +211,26 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
         ).bind(body.event_id, player_id).first();
         if (existing) {
           await env.DB.prepare(
-            'UPDATE match_stats SET goals=?,yellow_cards=?,red_cards=?,mom=?,played=?,late_signup=?,absence=? WHERE event_id=? AND player_id=?'
-          ).bind(goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0, body.event_id, player_id).run();
+            'UPDATE match_stats SET goals=?,yellow_cards=?,red_cards=?,mom=?,played=?,late_signup=?,absence=?,no_signup=? WHERE event_id=? AND player_id=?'
+          ).bind(goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0, no_signup ? 1 : 0, body.event_id, player_id).run();
         } else {
           await env.DB.prepare(
-            'INSERT INTO match_stats (id,event_id,player_id,goals,yellow_cards,red_cards,mom,played,late_signup,absence) VALUES(?,?,?,?,?,?,?,?,?,?)'
-          ).bind(nanoid(), body.event_id, player_id, goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0).run();
+            'INSERT INTO match_stats (id,event_id,player_id,goals,yellow_cards,red_cards,mom,played,late_signup,absence,no_signup) VALUES(?,?,?,?,?,?,?,?,?,?,?)'
+          ).bind(nanoid(), body.event_id, player_id, goals, yellow_cards, red_cards, mom ? 1 : 0, played, late_signup ? 1 : 0, absence ? 1 : 0, no_signup ? 1 : 0).run();
         }
 
-        // Auto-tildel bøder
-        if (absence && absenceFineType) {
+        // Auto-tildel bøder — spring over hvis spilleren er fravalgt i UI'et
+        if (absence && absenceFineType && !isSkipped(absenceFineType.id, player_id)) {
           await env.DB.prepare(
             'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
           ).bind(nanoid(), player_id, absenceFineType.id, body.event_id, absenceFineType.amount, user.sub).run();
         }
-        if (late_signup && lateSignupFineType) {
+        if (late_signup && lateSignupFineType && !isSkipped(lateSignupFineType.id, player_id)) {
           await env.DB.prepare(
             'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
           ).bind(nanoid(), player_id, lateSignupFineType.id, body.event_id, lateSignupFineType.amount, user.sub).run();
         }
-        if (no_signup && noSignupFineType) {
+        if (no_signup && noSignupFineType && !isSkipped(noSignupFineType.id, player_id)) {
           await env.DB.prepare(
             'INSERT OR IGNORE INTO fines (id, player_id, fine_type_id, event_id, amount, assigned_by) VALUES (?,?,?,?,?,?)'
           ).bind(nanoid(), player_id, noSignupFineType.id, body.event_id, noSignupFineType.amount, user.sub).run();
