@@ -282,13 +282,13 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     SELECT p.id, COALESCE(p.alias, p.name) as name, p.avatar_url, es.status, es.created_at as signed_at
     FROM event_signups es
     JOIN players p ON p.id = es.player_id
-    WHERE es.event_id = ? AND p.role != 'admin'
+    WHERE es.event_id = ? AND p.id != 'admin'
     ORDER BY es.status, name
   `).bind(eventId).all();
 
   // Alle aktive spillere — for at finde spillere der slet ikke har reageret
   const allActivePlayers = await env.DB.prepare(
-    "SELECT id, COALESCE(alias, name) as name, avatar_url FROM players WHERE active=1 AND role != 'admin'"
+    "SELECT id, COALESCE(alias, name) as name, avatar_url FROM players WHERE active=1 AND id != 'admin'"
   ).all();
 
   // Spillere uden nogen signup (ingen tilmelding eller afmelding)

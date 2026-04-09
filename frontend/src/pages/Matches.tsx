@@ -374,7 +374,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}><div className="spinner" /></div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {allPlayers.filter(p => p.active && p.role !== 'admin').map(p => {
+                      {allPlayers.filter(p => p.active && p.id !== 'admin').map(p => {
                         const signup = detail.signups.find(s => s.player_id === p.id);
                         return (
                           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

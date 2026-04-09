@@ -326,7 +326,7 @@ async function sendReminders(env: Env): Promise<void> {
       SELECT p.id, COALESCE(p.alias, p.name) as name, p.email
       FROM players p
       WHERE p.active = 1
-      AND p.role != 'admin'
+      AND p.id != 'admin'
       AND p.email IS NOT NULL
       AND p.id NOT IN (
         SELECT player_id FROM event_signups

@@ -90,7 +90,7 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
       SELECT es.player_id, es.status, es.message, es.created_at, COALESCE(p.alias, p.name) as name, p.avatar_url
       FROM event_signups es
       JOIN players p ON p.id = es.player_id
-      WHERE es.event_id = ? AND p.role != 'admin'
+      WHERE es.event_id = ? AND p.id != 'admin'
       ORDER BY es.created_at
     `).bind(id).all();
 
@@ -148,7 +148,7 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
 
     const events = await env.DB.prepare(`
       SELECT e.*,
-        (SELECT COUNT(*) FROM event_signups es JOIN players p ON p.id = es.player_id WHERE es.event_id = e.id AND es.status = 'tilmeldt' AND p.role != 'admin')
+        (SELECT COUNT(*) FROM event_signups es JOIN players p ON p.id = es.player_id WHERE es.event_id = e.id AND es.status = 'tilmeldt' AND p.id != 'admin')
         + (SELECT COUNT(*) FROM event_guests eg WHERE eg.event_id = e.id) AS signup_count,
         (SELECT es2.status FROM event_signups es2 WHERE es2.event_id = e.id AND es2.player_id = ?) AS my_status,
         (SELECT COUNT(*) FROM event_comments ec
