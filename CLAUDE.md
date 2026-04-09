@@ -354,7 +354,21 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
-- **Automatisk kamphistorik**: Når et kamp-event har et `result`-felt (`"3-1"`), upsettes det automatisk i `season_matches` (team_type=`oldboys`). Hjemme/ude aflæses fra `location`-feltet (indeholder "ude"/"away" → `ude`, ellers `hjemme`). Sker ved webcal-sync og ved `PUT /api/events/:id` hvis result opdateres. Implementeret i `syncEventToSeasonMatches()` i `index.ts`.
+
+#### Score-parsing fra iCal SUMMARY
+- DAI-sport skriver score ind i SUMMARY når kampen er spillet, fx `Cosa Nostra - CFC 1 - 2`
+- `parseSummary()` i `index.ts` udtrækker score med regex `^(.+?)\s+(\d+)\s*-\s*(\d+)\s*$`
+- Resulterer i: `title = "Cosa Nostra - CFC"`, `result = "1-2"`
+- Titlen på eventet gemmes **uden** score (kun holdnavne)
+- Manuelt sat `result` overskrives ikke af webcal-sync hvis webcal ikke har score
+
+#### Automatisk kamphistorik → season_matches
+- Når webcal leverer et resultat, gemmes det på eventet og `syncEventToSeasonMatches()` kaldes
+- Sker også ved `PUT /api/events/:id` hvis `result` opdateres manuelt
+- Hjemme/ude: `CFC - Modstander` → `hjemme`, `Modstander - CFC` → `ude`
+- Modstander udtrækkes fra titel ved at fjerne "CFC"-delen
+- Upsert på `(team_type, season, match_date, opponent)` — idempotent
+- team_type sættes altid til `oldboys` (CFC har kun ét hold)
 
 ### Kampstatistik & Bøder (fase 5+6)
 - Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (synlig fra kampdagen og frem)
