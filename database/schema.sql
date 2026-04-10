@@ -390,20 +390,23 @@ CREATE INDEX IF NOT EXISTS idx_board_attachments_post ON board_attachments(post_
 -- ── Fase 12: Kampens Spiller afstemning ──────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS vote_sessions (
-  id TEXT PRIMARY KEY,
-  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  created_by TEXT NOT NULL REFERENCES players(id),
-  closed_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(event_id)
+  id         TEXT PRIMARY KEY,
+  event_id   TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  started_by TEXT NOT NULL REFERENCES players(id),
+  started_at TEXT NOT NULL,
+  ends_at    TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'closed'
+  candidates TEXT NOT NULL,                    -- JSON array af player IDs
+  voters     TEXT NOT NULL,                    -- JSON array af player IDs
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS votes (
-  id TEXT PRIMARY KEY,
-  session_id TEXT NOT NULL REFERENCES vote_sessions(id) ON DELETE CASCADE,
-  voter_id TEXT NOT NULL REFERENCES players(id),
+  id           TEXT PRIMARY KEY,
+  session_id   TEXT NOT NULL REFERENCES vote_sessions(id) ON DELETE CASCADE,
+  voter_id     TEXT NOT NULL REFERENCES players(id),
   candidate_id TEXT NOT NULL REFERENCES players(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(session_id, voter_id)
 );
 

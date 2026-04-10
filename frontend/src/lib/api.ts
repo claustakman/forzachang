@@ -232,16 +232,14 @@ export const api = {
     req<{ ok: boolean }>('POST', '/board/read', {}),
 
   // Kampens Spiller afstemning (fase 12)
-  getVoteSession: (eventId: string) =>
-    req<{ session: VoteSession | null }>('GET', `/votes?event_id=${eventId}`),
-  createVoteSession: (eventId: string) =>
-    req<{ session_id: string; candidates: VoteCandidate[] }>('POST', '/votes/sessions', { event_id: eventId }),
+  getActiveVoteSession: () =>
+    req<{ session: VoteSession | null }>('GET', '/votes'),
+  createVoteSession: (eventId: string, candidateIds: string[], voterIds: string[]) =>
+    req<{ session_id: string }>('POST', '/votes/sessions', { event_id: eventId, candidate_ids: candidateIds, voter_ids: voterIds }),
   castVote: (sessionId: string, candidateId: string) =>
     req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/vote`, { candidate_id: candidateId }),
   getVoteResults: (sessionId: string) =>
     req<VoteResults>('GET', `/votes/sessions/${sessionId}/results`),
-  closeVoteSession: (sessionId: string) =>
-    req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/close`, {}),
 };
 
 // Types
@@ -546,11 +544,10 @@ export interface SeasonMatch {
   season: number;
   match_date: string;
   opponent: string;
-  venue?: string;
+  home_away?: string;
   goals_for?: number;
   goals_against?: number;
   result?: string;
-  notes?: string;
 }
 
 // Opslagstavle (fase 11)
@@ -593,23 +590,30 @@ export interface BoardComment {
 }
 
 // Kampens Spiller afstemning (fase 12)
-export interface VoteCandidate {
+export interface VotePlayer {
   id: string;
   name: string;
   avatar_url?: string;
+  shirt_number?: number;
 }
 
 export interface VoteSession {
   id: string;
   event_id: string;
   event_title?: string;
-  closed_at?: string | null;
-  created_at: string;
+  start_time?: string;
+  started_by: string;
+  started_by_name?: string;
+  started_at: string;
+  ends_at: string;
+  status: 'active' | 'closed';
+  candidates: VotePlayer[];
+  voters: VotePlayer[];
   vote_count?: number;
   my_vote?: string | null;
 }
 
-export interface VoteResult extends VoteCandidate {
+export interface VoteResult extends VotePlayer {
   votes: number;
 }
 
