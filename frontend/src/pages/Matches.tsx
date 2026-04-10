@@ -1170,7 +1170,6 @@ export default function Matches() {
   const [tab, setTab] = useState<'kommende' | 'historik'>('kommende');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [seasonFilter, setSeasonFilter] = useState('');
   const [q, setQ] = useState('');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1182,12 +1181,11 @@ export default function Matches() {
     try {
       const params: Record<string, string> = { tab };
       if (typeFilter) params.type = typeFilter;
-      if (seasonFilter) params.season = seasonFilter;
       if (q) params.q = q;
       setEvents(await api.getEvents(params));
     } catch {}
     setLoading(false);
-  }, [tab, typeFilter, seasonFilter, q]);
+  }, [tab, typeFilter, q]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1280,12 +1278,6 @@ export default function Matches() {
           <option value="">Alle typer</option>
           <option value="kamp">Kampe</option>
           <option value="event">Events</option>
-        </select>
-        <select className="input" style={{ width: 90, fontSize: 13 }} value={seasonFilter} onChange={e => setSeasonFilter(e.target.value)}>
-          <option value="">Alle sæsoner</option>
-          {[currentYear(), currentYear() - 1, currentYear() - 2].map(y => (
-            <option key={y} value={y}>{y}</option>
-          ))}
         </select>
       </div>
 

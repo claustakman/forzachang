@@ -523,9 +523,9 @@ interface SeasonMatch {
 }
 
 function fmtResult(r: string) {
-  if (r === 'sejr') return { label: 'S', bg: '#162416', color: '#5a9e5a' };
-  if (r === 'uafgjort') return { label: 'U', bg: '#1a1500', color: '#c4a000' };
-  return { label: 'N', bg: '#2a1010', color: '#e57373' };
+  if (r === 'sejr') return { label: 'S', bg: '#E1F5EE', color: '#0F6E56' };
+  if (r === 'uafgjort') return { label: 'U', bg: '#FFF8E1', color: '#7A5800' };
+  return { label: 'N', bg: '#FDECEA', color: '#B71C1C' };
 }
 
 function StandingCard({ standing }: { standing: SeasonStanding }) {
@@ -537,11 +537,11 @@ function StandingCard({ standing }: { standing: SeasonStanding }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6 }}>
         {[
           { label: 'Placering', value: standing.position != null ? `${standing.position}.` : '–', color: '#5b8dd9' },
-          { label: 'Point', value: standing.points ?? '–', color: '#c4a000' },
+          { label: 'Point', value: standing.points ?? '–', color: '#7A5800' },
           { label: 'Kampe', value: standing.played ?? '–', color: 'var(--cfc-text-primary)' },
-          { label: 'Sejre', value: standing.won ?? '–', color: '#5a9e5a' },
-          { label: 'Uafg.', value: standing.drawn ?? '–', color: '#c4a000' },
-          { label: 'Neder.', value: standing.lost ?? '–', color: '#e57373' },
+          { label: 'Sejre', value: standing.won ?? '–', color: '#0F6E56' },
+          { label: 'Uafg.', value: standing.drawn ?? '–', color: '#7A5800' },
+          { label: 'Neder.', value: standing.lost ?? '–', color: '#B71C1C' },
           { label: 'Mål', value: (standing.goals_for != null && standing.goals_against != null) ? `${standing.goals_for}:${standing.goals_against}` : '–', color: 'var(--cfc-text-muted)' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: 'var(--cfc-bg-card)', borderRadius: 6, padding: '6px 4px', textAlign: 'center' }}>
@@ -560,25 +560,33 @@ function MatchList({ matches }: { matches: SeasonMatch[] }) {
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
       <thead>
         <tr style={{ borderBottom: '0.5px solid var(--cfc-border)', background: 'var(--cfc-bg-hover)' }}>
-          <th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Dato</th>
-          <th style={{ padding: '6px 6px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>H/U</th>
-          <th style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Modstander</th>
-          <th style={{ padding: '6px 10px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Resultat</th>
+          <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>Dato</th>
+          <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Kamp</th>
+          <th style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>Score</th>
+          <th style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}></th>
         </tr>
       </thead>
       <tbody>
         {matches.map((m, i) => {
           const res = m.result ? fmtResult(m.result) : null;
+          const isHome = m.home_away === 'hjemme';
+          const matchLabel = isHome ? `CFC – ${m.opponent}` : `${m.opponent} – CFC`;
+          // Score fra hjemmeholdets perspektiv
+          let scoreLabel = '–';
+          if (m.goals_for != null && m.goals_against != null) {
+            scoreLabel = isHome
+              ? `${m.goals_for}–${m.goals_against}`
+              : `${m.goals_against}–${m.goals_for}`;
+          }
           return (
             <tr key={m.id} style={{ borderBottom: i < matches.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
-              <td style={{ padding: '7px 10px', color: 'var(--cfc-text-subtle)', fontSize: 12 }}>{m.match_date || '–'}</td>
-              <td style={{ padding: '7px 6px', color: 'var(--cfc-text-subtle)', fontSize: 12 }}>{m.home_away === 'hjemme' ? 'H' : m.home_away === 'ude' ? 'U' : '–'}</td>
-              <td style={{ padding: '7px 10px', color: 'var(--cfc-text-primary)' }}>{m.opponent}</td>
-              <td style={{ padding: '7px 10px', textAlign: 'right' }}>
-                {m.goals_for != null && m.goals_against != null && (
-                  <span style={{ marginRight: 6, fontSize: 13, fontWeight: 600 }}>{m.goals_for}–{m.goals_against}</span>
-                )}
-                {res && <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 100, background: res.bg, color: res.color }}>{res.label}</span>}
+              <td style={{ padding: '7px 8px', color: 'var(--cfc-text-subtle)', fontSize: 11, whiteSpace: 'nowrap' }}>{m.match_date || '–'}</td>
+              <td style={{ padding: '7px 8px', color: 'var(--cfc-text-primary)', fontSize: 13 }}>{matchLabel}</td>
+              <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap' }}>
+                {scoreLabel !== '–' ? scoreLabel : ''}
+              </td>
+              <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+                {res && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: res.bg, color: res.color, fontWeight: 700 }}>{res.label}</span>}
               </td>
             </tr>
           );
