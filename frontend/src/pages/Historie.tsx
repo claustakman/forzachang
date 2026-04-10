@@ -643,10 +643,70 @@ function SeasonSection({ standing, teamType }: { standing: SeasonStanding; teamT
   );
 }
 
+// Sæson der har kampe men endnu ingen slutstilling i season_standings
+function MatchOnlySeasonSection({ season, teamType }: { season: number; teamType: 'oldboys' | 'senior' }) {
+  const [open, setOpen] = useState(true); // åben som default — det er den aktuelle sæson
+  const [matches, setMatches] = useState<SeasonMatch[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    if (!open && !loaded) {
+      setLoading(true);
+      try {
+        const data = await api.getStandingMatches({ team_type: teamType, season });
+        setMatches(data);
+        setLoaded(true);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    setOpen(o => !o);
+  }
+
+  // Load automatisk ved mount (åben som default)
+  useEffect(() => {
+    api.getStandingMatches({ team_type: teamType, season }).then(data => {
+      setMatches(data);
+      setLoaded(true);
+    }).catch(() => {});
+  }, [season, teamType]);
+
+  return (
+    <div style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, overflow: 'hidden', marginBottom: 8 }}>
+      <button onClick={toggle} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer',
+        color: 'var(--cfc-text-primary)',
+      }}>
+        <span style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 16 }}>{season}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', fontStyle: 'italic' }}>Igangværende sæson</span>
+          {loading
+            ? <span style={{ fontSize: 13, color: 'var(--cfc-text-subtle)' }}>...</span>
+            : <span style={{ fontSize: 13, color: 'var(--cfc-text-subtle)' }}>{open ? '▲' : '▼'}</span>
+          }
+        </div>
+      </button>
+      {open && (
+        <div style={{ borderTop: '0.5px solid var(--cfc-border)', padding: '14px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cfc-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+            Sæsonprogram
+          </div>
+          <div style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, overflow: 'hidden' }}>
+            <MatchList matches={matches} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TidligereSaesoner() {
   const [subView, setSubView] = useState<'soeg' | 'oldboys' | 'senior'>('oldboys');
   const [obStandings, setObStandings] = useState<SeasonStanding[]>([]);
   const [senStandings, setSenStandings] = useState<SeasonStanding[]>([]);
+  const [obMatchSeasons, setObMatchSeasons] = useState<number[]>([]);
+  const [senMatchSeasons, setSenMatchSeasons] = useState<number[]>([]);
   const [loadedOb, setLoadedOb] = useState(false);
   const [loadedSen, setLoadedSen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
@@ -656,14 +716,27 @@ function TidligereSaesoner() {
 
   useEffect(() => {
     if (subView === 'oldboys' && !loadedOb) {
-      api.getStandings({ team_type: 'oldboys' }).then(data => {
-        setObStandings(data);
+      Promise.all([
+        api.getStandings({ team_type: 'oldboys' }),
+        api.getStandingMatches({ team_type: 'oldboys' }),
+      ]).then(([standings, matches]) => {
+        setObStandings(standings);
+        // Find sæsoner der har kampe men ingen stilling
+        const standingSeasons = new Set(standings.map(s => s.season));
+        const extraSeasons = [...new Set(matches.map(m => m.season))].filter(s => !standingSeasons.has(s));
+        setObMatchSeasons(extraSeasons.sort((a, b) => b - a));
         setLoadedOb(true);
       }).catch(() => setLoadedOb(true));
     }
     if (subView === 'senior' && !loadedSen) {
-      api.getStandings({ team_type: 'senior' }).then(data => {
-        setSenStandings(data);
+      Promise.all([
+        api.getStandings({ team_type: 'senior' }),
+        api.getStandingMatches({ team_type: 'senior' }),
+      ]).then(([standings, matches]) => {
+        setSenStandings(standings);
+        const standingSeasons = new Set(standings.map(s => s.season));
+        const extraSeasons = [...new Set(matches.map(m => m.season))].filter(s => !standingSeasons.has(s));
+        setSenMatchSeasons(extraSeasons.sort((a, b) => b - a));
         setLoadedSen(true);
       }).catch(() => setLoadedSen(true));
     }
@@ -682,6 +755,7 @@ function TidligereSaesoner() {
   }
 
   const standings = subView === 'oldboys' ? obStandings : subView === 'senior' ? senStandings : [];
+  const matchOnlySeasons = subView === 'oldboys' ? obMatchSeasons : subView === 'senior' ? senMatchSeasons : [];
   const loaded = subView === 'oldboys' ? loadedOb : subView === 'senior' ? loadedSen : true;
 
   return (
@@ -754,10 +828,14 @@ function TidligereSaesoner() {
       {(subView === 'oldboys' || subView === 'senior') && (
         !loaded ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
-        ) : standings.length === 0 ? (
+        ) : standings.length === 0 && matchOnlySeasons.length === 0 ? (
           <div className="empty">Ingen historik tilgængelig endnu.</div>
         ) : (
           <div>
+            {/* Sæsoner der kun har kampe (endnu ingen slutstilling) — vises øverst */}
+            {matchOnlySeasons.map(season => (
+              <MatchOnlySeasonSection key={season} season={season} teamType={subView as 'oldboys' | 'senior'} />
+            ))}
             {standings.map(s => (
               <SeasonSection key={s.id} standing={s} teamType={subView as 'oldboys' | 'senior'} />
             ))}
