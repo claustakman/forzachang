@@ -950,11 +950,18 @@ UNIQUE på `(team_type, season)`.
 | `match_date`   | TEXT    | Kampdate (ISO 8601)                      |
 | `opponent`     | TEXT    | Modstander                               |
 | `home_away`    | TEXT    | `hjemme` eller `ude`                     |
-| `goals_for`    | INTEGER | Mål for                                  |
-| `goals_against`| INTEGER | Mål imod                                 |
+| `goals_for`    | INTEGER | Mål for (altid fra CFCs perspektiv)      |
+| `goals_against`| INTEGER | Mål imod (altid fra CFCs perspektiv)     |
 | `result`       | TEXT    | `sejr`, `uafgjort` eller `nederlag`      |
+| `event_id`     | TEXT    | FK → events.id (NULL for historiske)     |
 
 UNIQUE på `(team_type, season, match_date, opponent)`.
+
+### Holdhistorik — visning i frontend
+- Sæsoner hentes fra `season_standings` (slutstillinger) + `season_matches` (kampdata)
+- **Igangværende sæson**: sæsoner der har kampe i `season_matches` men ingen slutstilling i `season_standings` vises øverst med label "Igangværende sæson" og er åbne som default (`MatchOnlySeasonSection`-komponent)
+- **Afsluttede sæsoner**: vises som foldbare kort med slutstilling + kampprogram (`SeasonSection`-komponent)
+- Når sæsonen slutter: opret en række i `season_standings` manuelt — kortet skifter automatisk til normal visning
 
 ---
 
