@@ -483,18 +483,20 @@ export async function syncEventToSeasonMatches(env: Env, eventId: string): Promi
 
   if (!ev || ev.type !== 'kamp' || !ev.result) return;
 
-  // Parse resultat, fx "3-1" eller "3 - 1"
-  const m = (ev.result as string).match(/(\d+)\s*[-–]\s*(\d+)/);
-  if (!m) return;
-
-  const goalsFor    = Number(m[1]);
-  const goalsAgainst = Number(m[2]);
-  const outcome = goalsFor > goalsAgainst ? 'sejr' : goalsFor < goalsAgainst ? 'nederlag' : 'uafgjort';
-
   // Hjemme/ude: CFC som første hold = hjemme, CFC som andet hold = ude
   // Titlen er på formen "Modstander - CFC" (ude) eller "CFC - Modstander" (hjemme)
   const titleLower = (ev.title as string).toLowerCase();
-  const homeAway = titleLower.startsWith('cfc') ? 'hjemme' : 'ude';
+  const isHome = titleLower.startsWith('cfc');
+  const homeAway = isHome ? 'hjemme' : 'ude';
+
+  // Parse resultat, fx "1-2" — første tal er hjemmeholdet, andet er udeholdet
+  const m = (ev.result as string).match(/(\d+)\s*[-–]\s*(\d+)/);
+  if (!m) return;
+
+  // goalsFor/goalsAgainst er altid fra CFCs perspektiv
+  const goalsFor    = isHome ? Number(m[1]) : Number(m[2]);
+  const goalsAgainst = isHome ? Number(m[2]) : Number(m[1]);
+  const outcome = goalsFor > goalsAgainst ? 'sejr' : goalsFor < goalsAgainst ? 'nederlag' : 'uafgjort';
 
   const matchDate = (ev.start_time as string).slice(0, 10); // "YYYY-MM-DD"
   const season = ev.season || new Date(ev.start_time as string).getFullYear();
