@@ -54,24 +54,23 @@ function currentYear() { return new Date().getFullYear(); }
 
 function SignupBadge({ status }: { status?: 'tilmeldt' | 'afmeldt' | null }) {
   if (status === 'tilmeldt') return (
-    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: '#162416', color: '#5a9e5a', fontWeight: 600 }}>Tilmeldt</span>
+    <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#E1F5EE', color: '#0F6E56', fontWeight: 500 }}>Tilmeldt</span>
   );
   if (status === 'afmeldt') return (
-    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: '#2a1010', color: '#e57373', fontWeight: 600 }}>Afmeldt</span>
+    <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#FDECEA', color: '#B71C1C', fontWeight: 500 }}>Afmeldt</span>
   );
   return (
-    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-subtle)' }}>Ikke meldt ud</span>
+    <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#F5F5F3', color: '#999999', fontWeight: 500 }}>Ikke meldt ud</span>
   );
 }
 
 function TypeBadge({ type }: { type: 'kamp' | 'event' }) {
   return (
     <span style={{
-      fontSize: 10, padding: '2px 7px', borderRadius: 100, fontWeight: 600,
-      letterSpacing: '0.06em', textTransform: 'uppercase',
-      background: type === 'kamp' ? '#0f1a2e' : '#1a1200',
-      color: type === 'kamp' ? '#5b8dd9' : '#c4a000',
-    }}>{type}</span>
+      fontSize: 12, padding: '3px 10px', borderRadius: 99, fontWeight: 500,
+      background: type === 'kamp' ? '#E6F1FB' : '#FFF8E1',
+      color: type === 'kamp' ? '#0C447C' : '#7A5800',
+    }}>{type === 'kamp' ? 'Kamp' : 'Event'}</span>
   );
 }
 
@@ -193,7 +192,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
             <TypeBadge type={event.type} />
             {event.status === 'aflyst' && (
-              <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: '#2a1010', color: '#e57373', fontWeight: 600 }}>AFLYST</span>
+              <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#FDECEA', color: '#B71C1C', fontWeight: 500 }}>Aflyst</span>
             )}
           </div>
           <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
@@ -222,7 +221,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
             <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginTop: 8, whiteSpace: 'pre-wrap' }}>{event.description}</p>
           )}
           {event.signup_deadline && (
-            <div style={{ fontSize: 12, color: isAfterDeadline ? '#e57373' : 'var(--cfc-text-subtle)', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: isAfterDeadline ? '#B71C1C' : 'var(--cfc-text-subtle)', marginTop: 4 }}>
               Tilmeldingsfrist: {fmtDateShort(event.signup_deadline)}{isAfterDeadline ? ' (udløbet)' : ''}
             </div>
           )}
@@ -266,9 +265,9 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
               {mySignup?.message && (
                 <span style={{
                   fontSize: 12,
-                  color: '#c4a000',
-                  background: '#1a1200',
-                  border: '0.5px solid #3d2e00',
+                  color: '#7A5800',
+                  background: '#FFF8E1',
+                  border: '0.5px solid #FFE082',
                   borderRadius: 6,
                   padding: '2px 8px',
                 }}>"{mySignup.message}"</span>
@@ -313,7 +312,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
             {/* Afmeldte */}
             {afmeldte.length > 0 && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#e57373', marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#B71C1C', marginBottom: 6 }}>
                   Afmeldte ({afmeldte.length})
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -460,11 +459,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         {/* Påmind-panel */}
         {isTrainer && showRemind && detail && (
           <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#c4a000', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7A5800', marginBottom: 8 }}>
               Send påmindelse
             </div>
             {remindDone !== null ? (
-              <div style={{ color: '#5a9e5a', fontSize: 13, marginBottom: 8 }}>
+              <div style={{ color: '#0F6E56', fontSize: 13, marginBottom: 8 }}>
                 ✓ Påmindelse sendt til {remindDone} {remindDone === 1 ? 'spiller' : 'spillere'}
               </div>
             ) : remindPlayers.length === 0 ? (
@@ -547,15 +546,15 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
 
 function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: string; message?: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
-      <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '4px 10px 4px 4px' }}>
+      <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#E1F5EE', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56' }}>
         {avatarUrl
           ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : name.charAt(0)}
       </div>
-      <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{name}</span>
+      <span style={{ fontSize: 14, color: 'var(--cfc-text-primary)' }}>{name}</span>
       {message && (
-        <span style={{ fontSize: 11, color: '#c4a000', background: '#1a1200', border: '0.5px solid #3d2e00', borderRadius: 4, padding: '1px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+        <span style={{ fontSize: 12, color: '#7A5800', background: '#FFF8E1', border: '0.5px solid #FFE082', borderRadius: 4, padding: '1px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
           {message}
         </span>
       )}
@@ -757,7 +756,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
             {/* Ikke meldt */}
             {ikkeMeldte.length > 0 && (
               <div style={{ marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--cfc-border)' }}>
-                <div style={{ fontSize: 11, color: '#c4a000', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: '#7A5800', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
                   Ikke meldt ud ({ikkeMeldte.length})
                 </div>
                 {ikkeMeldte.map(s => (
@@ -800,7 +799,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
         )}
 
         <div className="modal-footer" style={{ marginTop: 16 }}>
-          {saved && <span style={{ fontSize: 13, color: '#5a9e5a' }}>✓ Gemt!</span>}
+          {saved && <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Gemt!</span>}
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={save} disabled={saving || !data}>
             {saving ? '...' : 'Gem'}
@@ -823,7 +822,7 @@ function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
   const [open, setOpen] = useState(() => isAuto && selected.size > 0);
 
   return (
-    <div style={{ marginBottom: 8, background: 'var(--cfc-bg-hover)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ marginBottom: 8, background: 'var(--cfc-bg-hover)', borderRadius: 8, overflow: 'hidden', border: '0.5px solid var(--cfc-border)' }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
@@ -835,11 +834,11 @@ function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500 }}>{fineType.name}</span>
           {isAuto && (
-            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 100, background: '#1a1200', color: '#c4a000' }}>auto</span>
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 100, background: '#FFF8E1', color: '#7A5800' }}>auto</span>
           )}
           <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fineType.amount} kr.</span>
           {selected.size > 0 && (
-            <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 100, background: '#2a1010', color: '#e57373', fontWeight: 600 }}>
+            <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 100, background: '#FDECEA', color: '#B71C1C', fontWeight: 600 }}>
               {selected.size}
             </span>
           )}
@@ -859,7 +858,7 @@ function FineTypeSection({ fineType, signups, selected, onToggle, isAuto }: {
               />
               <span style={{ color: s.status === 'afmeldt' ? 'var(--cfc-text-subtle)' : 'var(--cfc-text-primary)' }}>
                 {s.name}
-                {s.status === 'afmeldt' && <span style={{ fontSize: 11, marginLeft: 6, color: '#e57373' }}>afbud</span>}
+                {s.status === 'afmeldt' && <span style={{ fontSize: 11, marginLeft: 6, color: '#B71C1C' }}>afbud</span>}
               </span>
             </label>
           ))}
@@ -894,7 +893,7 @@ function TilmeldteSection({ tilmeldte, guests, isTrainer, isAdmin }: {
         onClick={toggle}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, marginBottom: collapsed ? 0 : 6 }}
       >
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5a9e5a' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0F6E56' }}>
           Tilmeldte ({count})
         </span>
         <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{collapsed ? '▼' : '▲'}</span>
@@ -906,7 +905,7 @@ function TilmeldteSection({ tilmeldte, guests, isTrainer, isAdmin }: {
           ))}
           {guests.map(g => (
             <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '3px 10px 3px 4px' }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1a1200', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c4a000' }}>G</div>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#FFF8E1', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#7A5800', fontWeight: 700 }}>G</div>
               <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
               <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>gæst</span>
             </div>
@@ -998,7 +997,7 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
     const parts = body.split(/(@\S+)/g);
     return parts.map((part, i) =>
       part.startsWith('@')
-        ? <span key={i} style={{ background: '#1a2a4a', color: '#5b8dd9', borderRadius: 3, padding: '0 3px' }}>{part}</span>
+        ? <span key={i} style={{ background: '#E6F1FB', color: '#0C447C', borderRadius: 3, padding: '0 3px' }}>{part}</span>
         : <span key={i}>{part}</span>
     );
   }
@@ -1032,7 +1031,7 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
         }}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}
       >
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cfc-text-primary)' }}>
           💬 Kommentarer{visibleCount > 0 ? ` (${visibleCount})` : ''}
         </span>
         <span style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', marginLeft: 'auto' }}>{open ? '▲' : '▼'}</span>
@@ -1067,14 +1066,14 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
               return (
                 <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {/* Avatar */}
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#E1F5EE', border: '0.5px solid var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#0F6E56' }}>
                     {c.author_avatar_url
                       ? <img src={c.author_avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : c.author_name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{c.author_name}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cfc-text-primary)' }}>{c.author_name}</span>
                       <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fmtTime(c.created_at)}</span>
                       {c.edited_at && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>· redigeret</span>}
                     </div>
@@ -1095,13 +1094,13 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize: 14, color: '#ffffff', wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 14, color: 'var(--cfc-text-primary)', wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                           {renderBody(c.body)}
                         </div>
                         {isOwn && (
                           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                             <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--cfc-text-muted)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
-                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#e57373', padding: 0, textDecoration: 'underline' }}>Slet</button>
+                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#B71C1C', padding: 0, textDecoration: 'underline' }}>Slet</button>
                           </div>
                         )}
                       </>
@@ -1117,7 +1116,7 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
             <textarea
               ref={inputRef}
               className="input"
-              style={{ width: '100%', fontSize: 14, resize: 'none', minHeight: 60, color: '#ffffff' }}
+              style={{ width: '100%', fontSize: 14, resize: 'none', minHeight: 60 }}
               placeholder="Skriv en kommentar… (@ for at nævne nogen)"
               value={newBody}
               onChange={handleInput}
@@ -1134,7 +1133,7 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
                   <button
                     key={s.id}
                     onMouseDown={e => { e.preventDefault(); insertMention(s.name); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#ffffff' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--cfc-text-primary)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
@@ -1225,8 +1224,8 @@ export default function Matches() {
       {/* Reminder-banner */}
       {tab === 'kommende' && urgentUnanswered.length > 0 && (
         <div style={{
-          background: '#1a1200', border: '0.5px solid #c4a000', borderRadius: 8,
-          padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#c4a000',
+          background: '#FFF8E1', border: '0.5px solid #FFE082', borderRadius: 8,
+          padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#7A5800',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <span>⚠️</span>
@@ -1340,8 +1339,8 @@ function EventRow({ event: ev, onClick }: {
       onClick={onClick}
       style={{
         width: '100%', textAlign: 'left',
-        background: isUrgent ? '#1a1200' : 'var(--cfc-bg-card)',
-        border: `0.5px solid ${isUrgent ? '#c4a000' : 'var(--cfc-border)'}`,
+        background: isUrgent ? '#FFFBF0' : 'var(--cfc-bg-card)',
+        border: `0.5px solid ${isUrgent ? '#F0C040' : 'var(--cfc-border)'}`,
         borderRadius: 10, cursor: 'pointer', padding: '12px 14px',
         display: 'flex', alignItems: 'stretch', gap: 14,
         opacity: ev.status === 'aflyst' ? 0.5 : 1,
@@ -1372,9 +1371,9 @@ function EventRow({ event: ev, onClick }: {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <TypeBadge type={ev.type} />
-          {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#e57373', fontWeight: 700 }}>AFLYST</span>}
+          {ev.status === 'aflyst' && <span style={{ fontSize: 10, color: '#B71C1C', fontWeight: 700 }}>AFLYST</span>}
         </div>
-        <div style={{ fontWeight: isUrgent ? 800 : 700, fontSize: 15, color: isUrgent ? '#c4a000' : 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Georgia, serif' }}>
+        <div style={{ fontWeight: isUrgent ? 800 : 700, fontSize: 15, color: isUrgent ? '#7A5800' : 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Georgia, serif' }}>
           {ev.title}
         </div>
         <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0 6px' }}>
@@ -1392,21 +1391,21 @@ function EventRow({ event: ev, onClick }: {
         {ev.signup_count != null && ev.signup_count > 0 && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
-            background: '#162416', border: '0.5px solid #2a4a2a',
+            background: '#E1F5EE', border: '0.5px solid #A8DCC8',
             borderRadius: 20, padding: '3px 10px',
           }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: '#5a9e5a', lineHeight: 1 }}>{ev.signup_count}</span>
-            <span style={{ fontSize: 10, color: '#5a9e5a', fontWeight: 600 }}>med</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F6E56', lineHeight: 1 }}>{ev.signup_count}</span>
+            <span style={{ fontSize: 10, color: '#0F6E56', fontWeight: 600 }}>med</span>
           </div>
         )}
         {ev.unread_comments != null && ev.unread_comments > 0 && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 3,
-            background: '#1a3a5c', border: '0.5px solid #2a4a6a',
+            background: '#E6F1FB', border: '0.5px solid #A8C8EC',
             borderRadius: 20, padding: '3px 8px',
           }}>
-            <span style={{ fontSize: 11, color: '#5b8dd9' }}>💬</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#5b8dd9', lineHeight: 1 }}>{ev.unread_comments}</span>
+            <span style={{ fontSize: 11, color: '#0C447C' }}>💬</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#0C447C', lineHeight: 1 }}>{ev.unread_comments}</span>
           </div>
         )}
       </div>
@@ -1552,9 +1551,9 @@ function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () 
               {players.map(p => (
                 <button key={p.id} type="button" onClick={() => toggleOrganizer(p.id)} style={{
                   fontSize: 12, padding: '3px 10px', borderRadius: 100, cursor: 'pointer',
-                  background: organizerIds.includes(p.id) ? '#162416' : 'var(--cfc-bg-hover)',
-                  color: organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-text-muted)',
-                  border: `0.5px solid ${organizerIds.includes(p.id) ? '#5a9e5a' : 'var(--cfc-border)'}`,
+                  background: organizerIds.includes(p.id) ? '#E1F5EE' : 'var(--cfc-bg-hover)',
+                  color: organizerIds.includes(p.id) ? '#0F6E56' : 'var(--cfc-text-muted)',
+                  border: `0.5px solid ${organizerIds.includes(p.id) ? '#A8DCC8' : 'var(--cfc-border)'}`,
                 }}>
                   {displayName(p)}
                 </button>
@@ -1563,12 +1562,12 @@ function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () 
           </div>
         )}
 
-        {error && <p style={{ color: '#e57373', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+        {error && <p style={{ color: '#B71C1C', fontSize: 13, marginBottom: 10 }}>{error}</p>}
         <div className="modal-footer">
           {event && (
             <button
               className="btn btn-secondary"
-              style={{ marginRight: 'auto', color: '#e57373', borderColor: '#e57373' }}
+              style={{ marginRight: 'auto', color: '#B71C1C', borderColor: '#FFCDD2' }}
               onClick={async () => {
                 if (!confirm(`Slet "${event.title}"? Dette kan ikke fortrydes.`)) return;
                 try {
