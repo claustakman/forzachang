@@ -802,26 +802,32 @@ function TidligereSaesoner() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '0.5px solid var(--cfc-border)', background: 'var(--cfc-bg-hover)' }}>
-                    {['Sæson', 'Hold', 'Dato', 'H/U', 'Modstander', 'Resultat'].map(h => (
-                      <th key={h} style={{ padding: '6px 10px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>{h}</th>
-                    ))}
+                    <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Sæson</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Dato</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Kamp</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>Score</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {searchResults.map((m, i) => {
                     const res = m.result ? fmtResult(m.result) : null;
+                    const isHome = m.home_away === 'hjemme';
+                    const matchLabel = isHome ? `CFC – ${m.opponent}` : `${m.opponent} – CFC`;
+                    let scoreLabel = '';
+                    if (m.goals_for != null && m.goals_against != null) {
+                      scoreLabel = isHome
+                        ? `${m.goals_for}–${m.goals_against}`
+                        : `${m.goals_against}–${m.goals_for}`;
+                    }
                     return (
                       <tr key={m.id} style={{ borderBottom: i < searchResults.length - 1 ? '0.5px solid var(--cfc-border)' : 'none' }}>
-                        <td style={{ padding: '6px 10px', color: 'var(--cfc-text-muted)' }}>{m.season}</td>
-                        <td style={{ padding: '6px 10px', color: 'var(--cfc-text-subtle)', fontSize: 11 }}>{m.team_type}</td>
-                        <td style={{ padding: '6px 10px', color: 'var(--cfc-text-subtle)', fontSize: 12 }}>{m.match_date || '–'}</td>
-                        <td style={{ padding: '6px 10px', color: 'var(--cfc-text-subtle)', fontSize: 12 }}>{m.home_away === 'hjemme' ? 'H' : 'U'}</td>
-                        <td style={{ padding: '6px 10px', color: 'var(--cfc-text-primary)' }}>{m.opponent}</td>
-                        <td style={{ padding: '6px 10px' }}>
-                          {m.goals_for != null && m.goals_against != null && (
-                            <span style={{ marginRight: 4, fontWeight: 600 }}>{m.goals_for}–{m.goals_against}</span>
-                          )}
-                          {res && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 100, background: res.bg, color: res.color }}>{res.label}</span>}
+                        <td style={{ padding: '6px 8px', color: 'var(--cfc-text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>{m.season}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--cfc-text-subtle)', fontSize: 11, whiteSpace: 'nowrap' }}>{m.match_date || '–'}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--cfc-text-primary)' }}>{matchLabel}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap' }}>{scoreLabel}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          {res && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: res.bg, color: res.color, fontWeight: 700 }}>{res.label}</span>}
                         </td>
                       </tr>
                     );
