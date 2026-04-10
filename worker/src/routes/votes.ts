@@ -73,7 +73,7 @@ export async function handleVotes(
   // Body: { event_id, candidate_ids, voter_ids }
   if (!sessionId && method === 'POST') {
     const body = await request.json() as any;
-    const { event_id, candidate_ids, voter_ids } = body;
+    const { event_id, candidate_ids, voter_ids, duration_seconds } = body;
 
     if (!event_id) return json({ error: 'event_id required' }, 400);
     if (!Array.isArray(candidate_ids) || candidate_ids.length === 0)
@@ -81,19 +81,16 @@ export async function handleVotes(
     if (!Array.isArray(voter_ids) || voter_ids.length === 0)
       return json({ error: 'voter_ids required' }, 400);
 
+    const durationSecs = Math.min(Math.max(Number(duration_seconds) || 60, 15), 180);
+
     // Auto-luk overskredet session
     await env.DB.prepare(
       `UPDATE vote_sessions SET status='closed' WHERE status='active' AND ends_at <= datetime('now')`
     ).run().catch(() => {});
 
-    const existing = await env.DB.prepare(
-      `SELECT id FROM vote_sessions WHERE status='active' LIMIT 1`
-    ).first() as any;
-    if (existing) return json({ error: 'Der er allerede en aktiv afstemning' }, 409);
-
     const id = crypto.randomUUID();
     const now = new Date();
-    const endsAt = new Date(now.getTime() + 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+    const endsAt = new Date(now.getTime() + durationSecs * 1000).toISOString().replace('T', ' ').slice(0, 19);
     const startedAt = now.toISOString().replace('T', ' ').slice(0, 19);
 
     await env.DB.prepare(

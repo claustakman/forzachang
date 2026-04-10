@@ -234,8 +234,8 @@ export const api = {
   // Kampens Spiller afstemning (fase 12)
   getActiveVoteSession: () =>
     req<{ session: VoteSession | null }>('GET', '/votes'),
-  createVoteSession: (eventId: string, candidateIds: string[], voterIds: string[]) =>
-    req<{ session_id: string }>('POST', '/votes/sessions', { event_id: eventId, candidate_ids: candidateIds, voter_ids: voterIds }),
+  createVoteSession: (eventId: string, candidateIds: string[], voterIds: string[], duration: number) =>
+    req<{ session_id: string }>('POST', '/votes/sessions', { event_id: eventId, candidate_ids: candidateIds, voter_ids: voterIds, duration_seconds: duration }),
   castVote: (sessionId: string, candidateId: string) =>
     req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/vote`, { candidate_id: candidateId }),
   getVoteResults: (sessionId: string) =>

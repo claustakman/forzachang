@@ -73,24 +73,22 @@ function Countdown({ endsAt }: { endsAt: string }) {
 }
 
 // ── PlayerToggleList ──────────────────────────────────────────────────────────
+// Viser alle spillere (tilmeldte + ekstra) som toggle-liste.
+// Ekstra spillere (ikke tilmeldte) tilføjes via en simpel liste uden søgefelt.
 
 function PlayerToggleList({
   label, players, enabled, onToggle, allPlayers, onAdd,
 }: {
   label: string;
-  players: VotePlayer[];
+  players: VotePlayer[];           // Alle der vises i listen (tilmeldte + tilføjede)
   enabled: Set<string>;
   onToggle: (id: string) => void;
-  allPlayers: VotePlayer[];
+  allPlayers: VotePlayer[];        // Alle aktive spillere (til "tilføj"-listen)
   onAdd: (p: VotePlayer) => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [search, setSearch] = useState('');
   const count = players.filter(p => enabled.has(p.id)).length;
-  const addable = allPlayers.filter(p =>
-    !players.some(ep => ep.id === p.id) &&
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const addable = allPlayers.filter(p => !players.some(ep => ep.id === p.id));
 
   return (
     <div style={{ background: '#ffffff', borderRadius: 12, border: '0.5px solid #e0e0e0', overflow: 'hidden', marginBottom: 16 }}>
@@ -125,43 +123,40 @@ function PlayerToggleList({
         })}
       </div>
 
-      <div style={{ padding: '8px 16px' }}>
-        {!showAdd ? (
-          <button onClick={() => setShowAdd(true)}
-            style={{ background: 'none', border: 'none', color: '#1D9E75', fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '6px 0', minHeight: 44 }}>
-            + Tilføj spiller
-          </button>
-        ) : (
-          <div>
-            <input
-              className="input"
-              style={{ width: '100%', marginBottom: 8, fontSize: 15 }}
-              placeholder="Søg spiller..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              autoFocus
-            />
-            <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-              {addable.length === 0 && (
-                <div style={{ fontSize: 13, color: 'var(--cfc-text-subtle)', padding: '8px 0' }}>
-                  {search ? 'Ingen spillere fundet' : 'Alle spillere er allerede tilføjet'}
-                </div>
-              )}
-              {addable.map(p => (
-                <button key={p.id} onClick={() => { onAdd(p); setShowAdd(false); setSearch(''); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer', minHeight: 44 }}>
-                  <Avatar name={p.name} url={p.avatar_url} size={30} />
-                  <span style={{ fontSize: 14, color: 'var(--cfc-text-primary)' }}>{p.name}</span>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => { setShowAdd(false); setSearch(''); }}
-              style={{ fontSize: 13, color: 'var(--cfc-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
-              Annuller
+      {/* Tilføj ekstra spillere — vis som simpel liste uden søgefelt */}
+      {addable.length > 0 && (
+        <div style={{ borderTop: '0.5px solid #f0f0ee', padding: '8px 16px' }}>
+          {!showAdd ? (
+            <button onClick={() => setShowAdd(true)}
+              style={{ background: 'none', border: 'none', color: '#1D9E75', fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '6px 0', minHeight: 44 }}>
+              + Tilføj spiller
             </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginBottom: 8, fontWeight: 600 }}>
+                Vælg spiller at tilføje:
+              </div>
+              <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {addable.map(p => (
+                  <button key={p.id} onClick={() => { onAdd(p); setShowAdd(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                      padding: '8px 12px', background: '#f5f5f3', border: '0.5px solid #e0e0e0',
+                      borderRadius: 8, cursor: 'pointer', textAlign: 'left', minHeight: 48,
+                    }}>
+                    <Avatar name={p.name} url={p.avatar_url} size={32} />
+                    <span style={{ fontSize: 14, color: 'var(--cfc-text-primary)', fontWeight: 500 }}>{p.name}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowAdd(false)}
+                style={{ fontSize: 13, color: 'var(--cfc-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0', marginTop: 4 }}>
+                Annuller
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -187,6 +182,7 @@ export default function Afstemning() {
   const [candidatesList, setCandidatesList] = useState<VotePlayer[]>([]);
   const [votersEnabled, setVotersEnabled] = useState<Set<string>>(new Set());
   const [candidatesEnabled, setCandidatesEnabled] = useState<Set<string>>(new Set());
+  const [duration, setDuration] = useState(60); // sekunder
 
   // Voting state
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
@@ -246,11 +242,12 @@ export default function Afstemning() {
         }
         const events = await api.getEvents();
         const now = new Date();
-        const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const endOfToday = new Date(now);
+        endOfToday.setHours(23, 59, 59, 999);
         const matches = events
           .filter(e => e.type === 'kamp' && e.status === 'aktiv')
-          .filter(e => { const d = new Date(e.start_time); return d >= cutoff && d <= future; })
+          .filter(e => { const d = new Date(e.start_time); return d >= cutoff && d <= endOfToday; })
           .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
         setRecentMatches(matches);
         setState({ kind: 'idle' });
@@ -301,7 +298,7 @@ export default function Afstemning() {
     setSubmitting(true);
     setError(null);
     try {
-      await api.createVoteSession(state.event.id, candidateIds, voterIds);
+      await api.createVoteSession(state.event.id, candidateIds, voterIds, duration);
       const data = await api.getActiveVoteSession();
       if (data.session) setState({ kind: 'voting', session: data.session });
     } catch (e: any) {
@@ -401,6 +398,25 @@ export default function Afstemning() {
 
           <div style={{ background: '#E1F5EE', border: '0.5px solid #A8DCC8', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#0F6E56' }}>
             Pre-udfyldt fra tilmeldingslisten · Tilføj eller fjern spillere efter behov
+          </div>
+
+          {/* Varighed */}
+          <div style={{ background: '#ffffff', borderRadius: 12, border: '0.5px solid #e0e0e0', padding: '12px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--cfc-text-primary)' }}>Varighed</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#1D9E75' }}>{duration} sek</span>
+            </div>
+            <input
+              type="range"
+              min={15} max={180} step={15}
+              value={duration}
+              onChange={e => setDuration(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#1D9E75', height: 4 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--cfc-text-subtle)', marginTop: 4 }}>
+              <span>15 sek</span>
+              <span>3 min</span>
+            </div>
           </div>
 
           <PlayerToggleList
