@@ -47,6 +47,7 @@ forzachang/
 │   │       ├── honors.ts       # Hædersbevisninger (fase 8)
 │   │       ├── push.ts         # Push-subscriptions + VAPID public key (fase 9)
 │   │       ├── board.ts        # Opslagstavle: opslag, kommentarer, vedhæftninger (fase 11)
+│   │       ├── votes.ts        # Kampens Spiller afstemning (fase 12)
 │   │       ├── records.ts      # Holdrekorder
 │   │       └── standings.ts    # Sæsonstillinger + kamphistorik
 │   └── wrangler.toml
@@ -73,6 +74,7 @@ forzachang/
 │   │       ├── Haeder.tsx      # (bibeholdt, brugt internt af Historie.tsx)
 │   │       ├── Fines.tsx       # Bødekasse + Bødekatalog-fane
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings) + Licensliste
+│   │       ├── Afstemning.tsx  # Kampens Spiller afstemning (fase 12)
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
 │   └── vite.config.ts
 ├── scripts/
@@ -603,15 +605,16 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Email-logo: `frontend/public/logo-email.jpg` (JPG — bruges i email-skabeloner)
 - Brug aldrig logoet på hvid baggrund uden at teste kontrasten
 
-### Farveskema (sort/hvid — dark theme)
+### Farveskema (lyst tema)
 ```css
---cfc-bg-primary:    #0a0a0a;   /* Sidebaggrund */
---cfc-bg-card:       #1a1a1a;   /* Kort og paneler */
---cfc-bg-hover:      #222222;   /* Hover-states */
---cfc-border:        #2a2a2a;   /* Kanter */
---cfc-text-primary:  #ffffff;   /* Primær tekst */
---cfc-text-muted:    #888888;   /* Dæmpet tekst (labels, meta) */
---cfc-text-subtle:   #555555;   /* Meget dæmpet (placeholders) */
+--cfc-bg-primary:    #f5f5f3;   /* Sidebaggrund */
+--cfc-bg-card:       #ffffff;   /* Kort og paneler */
+--cfc-bg-hover:      #f0f0ee;   /* Hover-states */
+--cfc-border:        #e0e0e0;   /* Kanter */
+--cfc-text-primary:  #1a1a1a;   /* Primær tekst */
+--cfc-text-muted:    #666666;   /* Dæmpet tekst (labels, meta) */
+--cfc-text-subtle:   #999999;   /* Meget dæmpet (placeholders) */
+--green:             #1D9E75;   /* Accent (uændret) */
 ```
 
 ### Typebadges (events)
@@ -684,7 +687,8 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - JWT gemmes i `localStorage` på frontend
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
-- Navigation: **Kalender** → **Opslagstavle** → **Historie** → **Bødekasse** → **Admin**
+- Navigation (desktop): **Kalender** → **Opslagstavle** → **Afstemning** → **Historie** → **Bødekasse** → **Admin**
+- Navigation (mobil bundnav): **Kalender** · **Tavle** · **Afstemning** · **Mere** (slide-up panel med Historie, Bøder, Admin, Profil, Log ud)
 - `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
 - `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
@@ -1050,3 +1054,67 @@ Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i d
 | @alle i opslag | "📌 [Navn] nævnte alle" | "...i et opslag på opslagstavlen" | `/opslagstavle` |
 | @-mention i kommentar | "📌 [Navn] nævnte dig" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
 | @alle i kommentar | "📌 [Navn] nævnte alle" | "...i en kommentar på opslagstavlen" | `/opslagstavle` |
+
+---
+
+## Fase 12 — Kampens Spiller afstemning
+
+### Tabeller
+
+#### `vote_sessions`
+| Felt         | Type | Beskrivelse                                        |
+|--------------|------|----------------------------------------------------|
+| `id`         | TEXT | UUID                                               |
+| `event_id`   | TEXT | FK → events.id (UNIQUE — én session per kamp)      |
+| `created_by` | TEXT | FK → players.id (trainer/admin der startede)       |
+| `closed_at`  | TEXT | Tidsstempel for lukning (NULL = åben)              |
+| `created_at` | TEXT | Oprettelsestidspunkt                               |
+
+#### `votes`
+| Felt           | Type | Beskrivelse                                      |
+|----------------|------|--------------------------------------------------|
+| `id`           | TEXT | UUID                                             |
+| `session_id`   | TEXT | FK → vote_sessions.id                            |
+| `voter_id`     | TEXT | FK → players.id (den der stemmer)                |
+| `candidate_id` | TEXT | FK → players.id (den der stemmes på)             |
+| `created_at`   | TEXT | Tidsstempel (opdateres ved omstemmning)          |
+
+UNIQUE på `(session_id, voter_id)` — én stemme per spiller per session (kan ændres).
+
+### Regler
+- Kun trainer/admin kan starte og lukke en afstemning
+- Én aktiv afstemning per kamp (`UNIQUE(event_id)`) — kan genstartes ved at slette og oprette ny
+- Kun tilmeldte spillere kan stemme
+- Spillere kan stemme på sig selv
+- Én stemme per spiller — upsert, kan omgøres (stemme på ny kandidat erstatter gammel)
+- Åbne resultater: kun trainer/admin kan se mens sessionen er åben; alle ser efter lukning
+- Kandidatlisten: tilmeldte spillere til kampen (ekskl. `id='admin'`)
+
+### API-routes
+
+| Method | Path                                    | Rolle     | Beskrivelse                                    |
+|--------|-----------------------------------------|-----------|------------------------------------------------|
+| GET    | /api/votes?event_id=X                   | player+   | Hent aktiv session for en kamp                 |
+| POST   | /api/votes/sessions                     | trainer+  | Opret ny afstemning (body: event_id)           |
+| POST   | /api/votes/sessions/:id/vote            | player+   | Afgiv/opdater stemme (body: candidate_id)      |
+| GET    | /api/votes/sessions/:id/results         | player+   | Hent resultater (åbne: kun trainer; lukkede: alle) |
+| POST   | /api/votes/sessions/:id/close           | trainer+  | Luk afstemning                                 |
+
+### Frontend — Afstemning.tsx (`/afstemning`)
+Fire tilstande:
+1. **Idle**: Liste over kampe fra de seneste 30 dage + næste 7 dage — klik for at vælge
+2. **Confirming** (trainer/admin): Bekræft start af ny afstemning for valgt kamp
+3. **Voting**: Kandidatliste — klik på spiller for at stemme (én klik, ingen bekræftelse)
+4. **Results**: Rangeret liste med stemmebar og 🏆 til vinderen; trainer/admin ser "Afslut afstemning"-knap
+
+Navigation: 🏆 **Afstemning** — fast ikon i bundnav (mobil) og desktop-nav.
+
+### Mobiloptimering (lyst tema)
+- CSS-variabler ændret til lyst tema: `--cfc-bg-primary: #f5f5f3`, `--cfc-bg-card: #ffffff`
+- Accent: `--green: #1D9E75` (uændret)
+- `input/select/textarea`: `font-size: 16px` (iOS auto-zoom undgås)
+- `.btn`: `min-height: 44px`, `.input`: `min-height: 44px` (touch targets)
+- Bundnav: 3 faste ikoner (Kalender, Tavle, Afstemning) + Mere-knap (☰)
+- Mere-panel: slide-up med rundet top, linker til Historie, Bøder, Admin (trainer/admin), Profil, Log ud
+- `paddingBottom: env(safe-area-inset-bottom)` på bundnav (iPhone safe area)
+- Opslagstavle-kort: hvid baggrund, `border-radius: 12px`, subtil `box-shadow`

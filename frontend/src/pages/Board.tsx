@@ -22,13 +22,22 @@ function Avatar({ name, url, size = 32 }: { name?: string; url?: string; size?: 
       style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
     />
   );
+  // Farvelogik baseret på første bogstav
+  const palettes = [
+    { bg: '#e8f8f2', color: '#1D9E75' },
+    { bg: '#e8f0fb', color: '#3a7fd4' },
+    { bg: '#fef3e2', color: '#e07b00' },
+    { bg: '#fce8e8', color: '#d32f2f' },
+    { bg: '#f3e5f5', color: '#7b1fa2' },
+  ];
+  const idx = ((name || '?').charCodeAt(0) % palettes.length);
+  const { bg, color } = palettes[idx];
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'var(--cfc-bg-hover)',
-      border: '0.5px solid var(--cfc-border)',
+      background: bg,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.4, fontWeight: 700, color: 'var(--cfc-text-muted)',
+      fontSize: size * 0.4, fontWeight: 700, color,
       flexShrink: 0,
     }}>
       {(name || '?').charAt(0).toUpperCase()}
@@ -130,9 +139,9 @@ function MentionTextarea({
         style={{
           width: '100%', boxSizing: 'border-box',
           minHeight,
-          background: 'var(--cfc-bg-primary)',
-          border: '0.5px solid var(--cfc-border)',
-          borderRadius: 6, padding: '8px 10px',
+          background: 'var(--cfc-bg-hover)',
+          border: '1px solid var(--cfc-border)',
+          borderRadius: 8, padding: '8px 10px',
           color: 'var(--cfc-text-primary)', fontSize: 14,
           resize: 'vertical', fontFamily: 'inherit',
         }}
@@ -142,20 +151,20 @@ function MentionTextarea({
           position: 'absolute', bottom: '100%', left: 0,
           background: 'var(--cfc-bg-card)',
           border: '0.5px solid var(--cfc-border)',
-          borderRadius: 6, overflow: 'hidden',
+          borderRadius: 8, overflow: 'hidden',
           zIndex: 100, minWidth: 140,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
         }}>
           {suggestions.map((s, i) => (
             <div
               key={s.id}
               onMouseDown={e => { e.preventDefault(); applySuggestion(s.label); }}
               style={{
-                padding: '7px 12px',
+                padding: '9px 14px',
                 cursor: 'pointer',
                 background: i === selectedSug ? 'var(--cfc-bg-hover)' : 'transparent',
                 color: 'var(--cfc-text-primary)',
-                fontSize: 13,
+                fontSize: 14,
               }}
             >
               {s.label}
@@ -308,45 +317,50 @@ function PostCard({
 
   return (
     <div style={{
-      background: 'var(--cfc-bg-card)',
-      border: `0.5px solid ${post.pinned ? '#2a3a1a' : 'var(--cfc-border)'}`,
-      borderRadius: 10,
+      background: '#ffffff',
+      border: '0.5px solid #e0e0e0',
+      borderRadius: 12,
       padding: '14px 16px',
       position: 'relative',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
     }}>
+      {/* Fastgjort-badge øverst i kortets indhold */}
       {post.pinned === 1 && (
         <div style={{
-          position: 'absolute', top: 10, right: 12,
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
-          color: '#5a9e5a', background: '#162416',
-          padding: '2px 7px', borderRadius: 4,
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.05em',
+          color: '#1D9E75', background: '#e8f8f2',
+          padding: '2px 8px', borderRadius: 20, marginBottom: 10,
         }}>📌 Fastgjort</div>
       )}
 
-      {/* Header */}
+      {/* Header: avatar + navn til venstre, tidsstempel til højre */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
         <Avatar name={post.author_name} url={post.author_avatar_url} size={36} />
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--cfc-text-primary)' }}>{post.author_name}</span>
-            <span style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>{fmtDate(post.created_at)}{post.edited_at ? ' · redigeret' : ''}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{post.author_name}</span>
+            <span style={{ fontSize: 12, color: '#999999', flexShrink: 0 }}>
+              {fmtDate(post.created_at)}{post.edited_at ? ' · redigeret' : ''}
+            </span>
           </div>
         </div>
+        {/* Handlingsknapper */}
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           {isTrainer && (
             <button
               onClick={() => onPin(post.id)}
               className="btn btn-sm"
-              title={post.pinned ? 'Frigør' : 'Fastgør'}
-              style={{ padding: '3px 8px', fontSize: 12, color: post.pinned ? '#5a9e5a' : 'var(--cfc-text-muted)' }}
+              title={post.pinned === 1 ? 'Frigør' : 'Fastgør'}
+              style={{ padding: '3px 8px', fontSize: 12, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 0 }}
             >
               📌
             </button>
           )}
           {post.player_id === currentPlayerId && (
             <>
-              <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12 }}>Rediger</button>
-              <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12, color: '#e57373' }}>Slet</button>
+              <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12, minHeight: 0 }}>Rediger</button>
+              <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12, color: '#d32f2f', minHeight: 0 }}>Slet</button>
             </>
           )}
         </div>
@@ -354,13 +368,13 @@ function PostCard({
 
       {/* Titel */}
       {post.title && (
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
           {post.title}
         </div>
       )}
 
       {/* Body */}
-      <div style={{ fontSize: 14, color: 'var(--cfc-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.55, marginBottom: 10 }}>
+      <div style={{ fontSize: 14, color: '#444444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, marginBottom: 10 }}>
         {highlightMentions(post.body)}
       </div>
 
@@ -373,7 +387,7 @@ function PostCard({
                 <img
                   src={att.url}
                   alt={att.filename}
-                  style={{ maxWidth: 200, maxHeight: 150, borderRadius: 6, objectFit: 'cover', border: '0.5px solid var(--cfc-border)' }}
+                  style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: 'cover', border: '0.5px solid #e0e0e0' }}
                 />
               </a>
             ) : (
@@ -385,15 +399,15 @@ function PostCard({
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '6px 10px',
-                  background: 'var(--cfc-bg-hover)',
-                  border: '0.5px solid var(--cfc-border)',
-                  borderRadius: 6,
-                  color: 'var(--cfc-text-primary)',
+                  background: '#f5f5f3',
+                  border: '0.5px solid #e0e0e0',
+                  borderRadius: 8,
+                  color: '#1a1a1a',
                   fontSize: 13, textDecoration: 'none',
                 }}
               >
                 📄 {att.filename}
-                <span style={{ color: 'var(--cfc-text-subtle)', fontSize: 11 }}>
+                <span style={{ color: '#999999', fontSize: 11 }}>
                   ({Math.round(att.size_bytes / 1024)} KB)
                 </span>
               </a>
@@ -402,12 +416,12 @@ function PostCard({
         </div>
       )}
 
-      {/* Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 8, marginTop: 4 }}>
+      {/* Footer — separeret med border-top */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #e0e0e0', paddingTop: 8, marginTop: 4 }}>
         <button
           onClick={() => setCommentsOpen(o => !o)}
           className="btn btn-sm"
-          style={{ padding: '4px 10px', fontSize: 12, color: 'var(--cfc-text-muted)', background: 'transparent' }}
+          style={{ padding: '4px 10px', fontSize: 13, color: '#666666', background: 'transparent', border: 'none', minHeight: 0, fontWeight: 500 }}
         >
           💬 {post.comment_count > 0 ? `${post.comment_count} kommentar${post.comment_count !== 1 ? 'er' : ''}` : 'Kommenter'}
         </button>
@@ -415,7 +429,7 @@ function PostCard({
           <button
             onClick={() => onArchive(post.id)}
             className="btn btn-sm"
-            style={{ padding: '4px 10px', fontSize: 12, color: post.archived === 1 ? '#5a9e5a' : 'var(--cfc-text-subtle)', background: 'transparent', marginLeft: 'auto' }}
+            style={{ padding: '4px 10px', fontSize: 12, color: post.archived === 1 ? '#1D9E75' : '#999999', background: 'transparent', border: 'none', marginLeft: 'auto', minHeight: 0 }}
             title={post.archived === 1 ? 'De-arkivér opslag' : 'Arkivér opslag'}
           >
             {post.archived === 1 ? '↩ De-arkivér' : '🗄 Arkivér'}
@@ -424,7 +438,7 @@ function PostCard({
       </div>
 
       {commentsOpen && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--cfc-border)' }}>
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid #e0e0e0' }}>
           <CommentsSection
             postId={post.id}
             players={players}
@@ -484,16 +498,17 @@ function PostModal({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 200, padding: 16,
     }} onClick={onClose}>
       <div style={{
-        background: 'var(--cfc-bg-card)',
-        border: '0.5px solid var(--cfc-border)',
-        borderRadius: 10, padding: 20,
+        background: '#ffffff',
+        border: '0.5px solid #e0e0e0',
+        borderRadius: 12, padding: 20,
         width: '100%', maxWidth: 560,
         maxHeight: '90dvh', overflowY: 'auto',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
       }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 14px', fontSize: 16 }}>{isEdit ? 'Rediger opslag' : 'Nyt opslag'}</h3>
         <input
@@ -533,8 +548,8 @@ function PostModal({
                 {files.map((f, i) => (
                   <div key={i} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: 'var(--cfc-bg-hover)',
-                    border: '0.5px solid var(--cfc-border)',
+                    background: '#f5f5f3',
+                    border: '0.5px solid #e0e0e0',
                     borderRadius: 4, padding: '2px 6px', fontSize: 12,
                   }}>
                     {f.name}
@@ -684,14 +699,14 @@ export default function Board() {
       {isAdmin && (
         <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
           <button onClick={() => !showArchived || toggleArchived()} className="btn btn-sm" style={{
-            background: !showArchived ? 'var(--cfc-bg-hover)' : 'transparent',
-            color: !showArchived ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-            border: `0.5px solid ${!showArchived ? 'var(--cfc-border)' : 'transparent'}`,
+            background: !showArchived ? '#1D9E75' : 'transparent',
+            color: !showArchived ? '#fff' : 'var(--cfc-text-muted)',
+            border: `0.5px solid ${!showArchived ? '#1D9E75' : 'var(--cfc-border)'}`,
           }}>Aktive</button>
           <button onClick={() => showArchived || toggleArchived()} className="btn btn-sm" style={{
-            background: showArchived ? 'var(--cfc-bg-hover)' : 'transparent',
-            color: showArchived ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-            border: `0.5px solid ${showArchived ? 'var(--cfc-border)' : 'transparent'}`,
+            background: showArchived ? '#1D9E75' : 'transparent',
+            color: showArchived ? '#fff' : 'var(--cfc-text-muted)',
+            border: `0.5px solid ${showArchived ? '#1D9E75' : 'var(--cfc-border)'}`,
           }}>Arkiverede</button>
         </div>
       )}
@@ -725,7 +740,7 @@ export default function Board() {
           Ingen opslag endnu. Vær den første til at dele noget!
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {allPosts.map(post => (
             <PostCard
               key={post.id}

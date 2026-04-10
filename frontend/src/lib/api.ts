@@ -230,6 +230,18 @@ export const api = {
     req<{ ok: boolean }>('DELETE', `/board/attachments/${attachmentId}`),
   markBoardRead: () =>
     req<{ ok: boolean }>('POST', '/board/read', {}),
+
+  // Kampens Spiller afstemning (fase 12)
+  getVoteSession: (eventId: string) =>
+    req<{ session: VoteSession | null }>('GET', `/votes?event_id=${eventId}`),
+  createVoteSession: (eventId: string) =>
+    req<{ session_id: string; candidates: VoteCandidate[] }>('POST', '/votes/sessions', { event_id: eventId }),
+  castVote: (sessionId: string, candidateId: string) =>
+    req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/vote`, { candidate_id: candidateId }),
+  getVoteResults: (sessionId: string) =>
+    req<VoteResults>('GET', `/votes/sessions/${sessionId}/results`),
+  closeVoteSession: (sessionId: string) =>
+    req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/close`, {}),
 };
 
 // Types
@@ -578,4 +590,32 @@ export interface BoardComment {
   created_at: string;
   author_name: string;
   author_avatar_url?: string;
+}
+
+// Kampens Spiller afstemning (fase 12)
+export interface VoteCandidate {
+  id: string;
+  name: string;
+  avatar_url?: string;
+}
+
+export interface VoteSession {
+  id: string;
+  event_id: string;
+  event_title?: string;
+  closed_at?: string | null;
+  created_at: string;
+  vote_count?: number;
+  my_vote?: string | null;
+}
+
+export interface VoteResult extends VoteCandidate {
+  votes: number;
+}
+
+export interface VoteResults {
+  session: VoteSession;
+  results: VoteResult[];
+  total_votes: number;
+  my_vote: string | null;
 }

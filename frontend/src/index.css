@@ -1,13 +1,14 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --cfc-bg-primary:   #0a0a0a;
-  --cfc-bg-card:      #1a1a1a;
-  --cfc-bg-hover:     #222222;
-  --cfc-border:       #2a2a2a;
-  --cfc-text-primary: #ffffff;
-  --cfc-text-muted:   #888888;
-  --cfc-text-subtle:  #555555;
+  /* ── Lyst tema ─────────────────────────────────────────────────── */
+  --cfc-bg-primary:   #f5f5f3;   /* Sidebaggrund */
+  --cfc-bg-card:      #ffffff;   /* Kort og paneler */
+  --cfc-bg-hover:     #f0f0ee;   /* Hover-states */
+  --cfc-border:       #e0e0e0;   /* Kanter */
+  --cfc-text-primary: #1a1a1a;   /* Primær tekst */
+  --cfc-text-muted:   #666666;   /* Dæmpet tekst */
+  --cfc-text-subtle:  #999999;   /* Meget dæmpet */
 
   /* Compat aliases */
   --bg:         var(--cfc-bg-primary);
@@ -19,10 +20,10 @@
   --radius:     10px;
   --radius-sm:  6px;
 
-  /* Accent — bruges til badges/status */
-  --green:       #5a9e5a;
-  --green-dark:  #3d7a3d;
-  --green-light: #162416;
+  /* Accent */
+  --green:       #1D9E75;
+  --green-dark:  #178060;
+  --green-light: #e8f8f2;
 }
 
 body {
@@ -35,7 +36,10 @@ body {
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
-input, select, textarea { font-family: inherit; }
+input, select, textarea {
+  font-family: inherit;
+  font-size: 16px; /* Forhindrer iOS auto-zoom ved fokus */
+}
 
 .card {
   background: var(--cfc-bg-card);
@@ -54,44 +58,46 @@ input, select, textarea { font-family: inherit; }
   font-weight: 500;
   border: 1px solid transparent;
   transition: all 0.15s;
+  min-height: 44px;
 }
 .btn-primary { background: var(--green); color: #fff; border-color: var(--green); }
 .btn-primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
 .btn-secondary { background: var(--cfc-bg-card); color: var(--cfc-text-primary); border-color: var(--cfc-border); }
 .btn-secondary:hover { background: var(--cfc-bg-hover); }
-.btn-danger { background: #2a0a0a; color: #e57373; border-color: #5a1a1a; }
-.btn-danger:hover { background: #3a1010; }
-.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-danger { background: #fff0f0; color: #d32f2f; border-color: #ffcdd2; }
+.btn-danger:hover { background: #ffebee; }
+.btn-sm { padding: 6px 12px; font-size: 13px; min-height: 36px; }
 
 .badge {
   display: inline-block;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 100px;
 }
-.badge-home   { background: #162416; color: #5a9e5a; }
-.badge-away   { background: #0d1a2a; color: #5a8abe; }
-.badge-yes    { background: #162416; color: #5a9e5a; }
-.badge-paid   { background: #162416; color: #5a9e5a; }
-.badge-unpaid { background: #2a0a0a; color: #e57373; }
+.badge-home   { background: #e8f8f2; color: #1D9E75; }
+.badge-away   { background: #e8f0fb; color: #3a7fd4; }
+.badge-yes    { background: #e8f8f2; color: #1D9E75; }
+.badge-paid   { background: #e8f8f2; color: #1D9E75; }
+.badge-unpaid { background: #fff0f0; color: #d32f2f; }
 
 .input {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--cfc-border);
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: 16px;
   background: var(--cfc-bg-card);
   color: var(--cfc-text-primary);
   transition: border-color 0.15s;
+  min-height: 44px;
 }
 .input::placeholder { color: var(--cfc-text-subtle); }
-.input:focus { outline: none; border-color: var(--cfc-text-muted); }
+.input:focus { outline: none; border-color: var(--green); }
 
 select.input {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 30px;
@@ -135,7 +141,7 @@ select.input option { background: var(--cfc-bg-card); color: var(--cfc-text-prim
 /* Modal overlay */
 .modal-bg {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0,0,0,0.4);
   display: flex; align-items: center; justify-content: center;
   z-index: 100; padding: 1rem;
 }
@@ -146,6 +152,7 @@ select.input option { background: var(--cfc-bg-card); color: var(--cfc-text-prim
   padding: 1.5rem;
   width: 100%; max-width: 420px;
   max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 .modal h2 { font-size: 17px; font-weight: 600; margin-bottom: 1.25rem; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }

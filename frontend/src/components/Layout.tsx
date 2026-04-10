@@ -1,23 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import logo from '../assets/logo.svg';
 import PwaBanner from './PwaBanner';
 
-const NAV_ITEMS = [
-  { to: '/kalender',      label: 'Kalender',      icon: '📅', comingSoon: false },
-  { to: '/opslagstavle',  label: 'Opslagstavle',  icon: '📋', comingSoon: false },
-  { to: '/historie',      label: 'Historie',      icon: '📖', comingSoon: false },
-  { to: '/bødekasse',     label: 'Bødekasse',     icon: '💰', comingSoon: false },
+// Faste ikoner i bundnavigationen (altid synlige)
+const BOTTOM_NAV = [
+  { to: '/kalender',     label: 'Kalender',  icon: '📅' },
+  { to: '/opslagstavle', label: 'Tavle',      icon: '📋' },
+  { to: '/afstemning',   label: 'Afstemning', icon: '🏆' },
+] as const;
+
+// Mere-panel indhold
+const MORE_ITEMS = [
+  { to: '/historie', label: 'Historie', icon: '📊' },
+  { to: '/bødekasse', label: 'Bøder',   icon: '💰' },
+] as const;
+
+const MORE_ADMIN_ITEMS = [
+  { to: '/admin',  label: 'Admin',  icon: '⚙️' },
+  { to: '/profil', label: 'Profil', icon: '👤' },
+] as const;
+
+const MORE_USER_ITEMS = [
+  { to: '/profil', label: 'Profil', icon: '👤' },
+] as const;
+
+// Desktop nav — alle sider
+const DESKTOP_NAV = [
+  { to: '/kalender',     label: 'Kalender',     icon: '📅' },
+  { to: '/opslagstavle', label: 'Opslagstavle',  icon: '📋' },
+  { to: '/afstemning',   label: 'Afstemning',    icon: '🏆' },
+  { to: '/historie',     label: 'Historie',      icon: '📊' },
+  { to: '/bødekasse',    label: 'Bødekasse',     icon: '💰' },
 ];
 
 export default function Layout() {
-  const { player, logout, isAdmin } = useAuth();
+  const { player, logout, isAdmin, isTrainer } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [mereOpen, setMereOpen] = useState(false);
   const [boardUnread, setBoardUnread] = useState(false);
+  const mereRef = useRef<HTMLDivElement>(null);
 
   // Check for new board posts since last read
   useEffect(() => {
@@ -38,26 +63,52 @@ export default function Layout() {
     }
   }, [location.pathname]);
 
-  const allItems: { to: string; label: string; icon: string; comingSoon: boolean }[] = [
-    ...NAV_ITEMS,
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️', comingSoon: false }] : []),
+  // Luk Mere-panel ved navigation
+  useEffect(() => {
+    setMereOpen(false);
+  }, [location.pathname]);
+
+  // Luk Mere-panel ved klik uden for
+  useEffect(() => {
+    if (!mereOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (mereRef.current && !mereRef.current.contains(e.target as Node)) {
+        setMereOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [mereOpen]);
+
+  const desktopItems = [
+    ...DESKTOP_NAV,
+    ...(isAdmin || isTrainer ? [{ to: '/admin', label: 'Admin', icon: '⚙️' }] : []),
   ];
+
+  const moreItems = [
+    ...MORE_ITEMS,
+    ...(isAdmin || isTrainer ? [...MORE_ADMIN_ITEMS] : [...MORE_USER_ITEMS]),
+  ];
+
+  // Er vi på en "Mere"-side? (bruges til at highlighte Mere-knappen)
+  const moreRoutes = moreItems.map(i => i.to);
+  const isOnMorePage = moreRoutes.some(r => location.pathname.startsWith(r));
 
   function doLogout() {
     logout();
     navigate('/login');
-    setMenuOpen(false);
   }
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--cfc-bg-primary)' }}>
-      {/* ── Header ── */}
-      <header style={{
+      {/* ── Header (desktop) ── */}
+      <header className="cfc-header" style={{
         background: 'var(--cfc-bg-card)',
         borderBottom: '0.5px solid var(--cfc-border)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
+        boxShadow: '0 1px 0 var(--cfc-border)',
       }}>
         <div style={{
           maxWidth: 1100,
@@ -72,7 +123,7 @@ export default function Layout() {
           <img
             src={logo}
             alt="CFC logo"
-            style={{ height: 36, width: 36, objectFit: 'contain', flexShrink: 0 }}
+            style={{ height: 34, width: 34, objectFit: 'contain', flexShrink: 0 }}
           />
 
           {/* Klubnavn */}
@@ -89,65 +140,30 @@ export default function Layout() {
           </span>
 
           {/* Desktop navigation */}
-          <nav className="cfc-nav-desktop" style={{ display: 'flex', gap: 4, marginLeft: 24 }}>
-            {allItems.map(({ to, label, comingSoon = false }) => (
-              comingSoon ? (
-                <span
-                  key={to}
-                  title="Coming soon"
-                  style={{
-                    position: 'relative',
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: 'var(--cfc-text-subtle)',
-                    cursor: 'default',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  {label}
-                  <span style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--cfc-text-subtle)',
-                    border: '0.5px solid var(--cfc-border)',
-                    borderRadius: 4,
-                    padding: '1px 4px',
-                    lineHeight: 1.4,
-                  }}>snart</span>
-                </span>
-              ) : (
-                <NavLink
-                  key={to}
-                  to={to}
-                  style={({ isActive }) => ({
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-                    background: isActive ? 'var(--cfc-bg-hover)' : 'transparent',
-                    transition: 'all 0.15s',
-                    position: 'relative',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  })}
-                >
-                  {label}
-                  {to === '/opslagstavle' && boardUnread && (
-                    <span style={{
-                      width: 7, height: 7, borderRadius: '50%',
-                      background: '#5b8dd9', flexShrink: 0,
-                    }} />
-                  )}
-                </NavLink>
-              )
+          <nav className="cfc-nav-desktop" style={{ display: 'flex', gap: 2, marginLeft: 20 }}>
+            {desktopItems.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                style={({ isActive }) => ({
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+                  background: isActive ? 'var(--cfc-bg-hover)' : 'transparent',
+                  transition: 'all 0.15s',
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                })}
+              >
+                {label}
+                {to === '/opslagstavle' && boardUnread && (
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1D9E75', flexShrink: 0 }} />
+                )}
+              </NavLink>
             ))}
           </nav>
 
@@ -166,10 +182,10 @@ export default function Layout() {
           }}>
             <div style={{
               width: 26, height: 26,
-              background: 'var(--cfc-border)',
+              background: '#e8f8f2',
               borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, color: 'var(--cfc-text-muted)',
+              fontSize: 11, fontWeight: 700, color: '#1D9E75',
               flexShrink: 0,
             }}>
               {player?.name?.charAt(0).toUpperCase()}
@@ -180,160 +196,42 @@ export default function Layout() {
             <button
               onClick={doLogout}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--cfc-text-muted)',
-                fontSize: 12,
-                padding: '2px 0 2px 6px',
+                background: 'none', border: 'none',
+                color: 'var(--cfc-text-muted)', fontSize: 12,
+                padding: '2px 0 2px 8px',
                 borderLeft: '0.5px solid var(--cfc-border)',
                 cursor: 'pointer',
+                minHeight: 0,
               }}
             >
               Log ud
             </button>
           </div>
-
-          {/* Hamburger (mobil) */}
-          <button
-            className="cfc-hamburger"
-            onClick={() => setMenuOpen(o => !o)}
-            aria-label="Åbn menu"
-            style={{
-              background: 'none',
-              border: '0.5px solid var(--cfc-border)',
-              borderRadius: 6,
-              color: 'var(--cfc-text-primary)',
-              width: 36, height: 36,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 5,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ width: 18, height: 1.5, background: 'currentColor', borderRadius: 1, transition: 'transform 0.2s', transform: menuOpen ? 'rotate(45deg) translate(4px, 4px)' : 'none', display: 'block' }} />
-            <span style={{ width: 18, height: 1.5, background: 'currentColor', borderRadius: 1, transition: 'opacity 0.2s', opacity: menuOpen ? 0 : 1, display: 'block' }} />
-            <span style={{ width: 18, height: 1.5, background: 'currentColor', borderRadius: 1, transition: 'transform 0.2s', transform: menuOpen ? 'rotate(-45deg) translate(4px, -4px)' : 'none', display: 'block' }} />
-          </button>
         </div>
-
-        {/* Mobil dropdown-menu */}
-        {menuOpen && (
-          <div className="cfc-mobile-menu" style={{
-            borderTop: '0.5px solid var(--cfc-border)',
-            background: 'var(--cfc-bg-card)',
-            padding: '8px 16px 16px',
-          }}>
-            {allItems.map(({ to, label, icon, comingSoon = false }) => (
-              comingSoon ? (
-                <div
-                  key={to}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 8px',
-                    borderBottom: '0.5px solid var(--cfc-border)',
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: 'var(--cfc-text-subtle)',
-                  }}
-                >
-                  <span style={{ fontSize: 20, opacity: 0.4 }}>{icon}</span>
-                  {label}
-                  <span style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--cfc-text-subtle)',
-                    border: '0.5px solid var(--cfc-border)',
-                    borderRadius: 4,
-                    padding: '1px 5px',
-                    lineHeight: 1.4,
-                    marginLeft: 'auto',
-                  }}>snart</span>
-                </div>
-              ) : (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={() => setMenuOpen(false)}
-                  style={({ isActive }) => ({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 8px',
-                    borderBottom: '0.5px solid var(--cfc-border)',
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-                  })}
-                >
-                  <span style={{ fontSize: 20 }}>{icon}</span>
-                  {label}
-                  {to === '/opslagstavle' && boardUnread && (
-                    <span style={{
-                      marginLeft: 'auto',
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: '#5b8dd9', flexShrink: 0,
-                    }} />
-                  )}
-                </NavLink>
-              )
-            ))}
-            <div style={{ padding: '12px 8px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <NavLink to="/profil" onClick={() => setMenuOpen(false)} style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>
-                {player?.name} · Min profil
-              </NavLink>
-              <button
-                onClick={doLogout}
-                style={{ background: 'none', border: '0.5px solid var(--cfc-border)', borderRadius: 6, color: 'var(--cfc-text-muted)', fontSize: 13, padding: '6px 12px', cursor: 'pointer' }}
-              >
-                Log ud
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Sideindhold */}
-      <main style={{ flex: 1, paddingBottom: 80 }}>
+      <main style={{ flex: 1, paddingBottom: 72 }}>
         <Outlet />
       </main>
 
-      {/* Bundnavigation (mobil) */}
-      <nav className="cfc-bottom-nav" style={{
-        position: 'fixed',
-        bottom: 0, left: 0, right: 0,
-        background: 'var(--cfc-bg-card)',
-        borderTop: '0.5px solid var(--cfc-border)',
-        display: 'flex',
-        zIndex: 50,
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}>
-        {allItems.map(({ to, label, icon, comingSoon }) => (
-          comingSoon ? (
-            <div
-              key={to}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '8px 4px',
-                fontSize: 11,
-                fontWeight: 500,
-                color: 'var(--cfc-text-subtle)',
-                gap: 2,
-                borderTop: '2px solid transparent',
-              }}
-            >
-              <span style={{ fontSize: 20, opacity: 0.3 }}>{icon}</span>
-              <span>{label}</span>
-              <span style={{ fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>snart</span>
-            </div>
-          ) : (
+      {/* ── Bundnavigation (mobil) ── */}
+      <nav
+        ref={mereRef}
+        className="cfc-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0, left: 0, right: 0,
+          background: 'var(--cfc-bg-card)',
+          borderTop: '0.5px solid var(--cfc-border)',
+          display: 'flex',
+          zIndex: 50,
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: '0 -1px 0 var(--cfc-border)',
+        }}
+      >
+        {/* Faste 3 ikoner */}
+        {BOTTOM_NAV.map(({ to, label, icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -343,30 +241,111 @@ export default function Layout() {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '8px 4px',
-              fontSize: 11,
+              minHeight: 56,
+              padding: '6px 4px',
+              fontSize: 10,
               fontWeight: 500,
-              color: isActive ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-              gap: 2,
-              borderTop: isActive ? '2px solid var(--cfc-text-primary)' : '2px solid transparent',
-              transition: 'color 0.1s',
+              color: isActive ? 'var(--green)' : 'var(--cfc-text-muted)',
+              gap: 3,
+              textDecoration: 'none',
               position: 'relative',
             })}
           >
-            <span style={{ fontSize: 20, position: 'relative' }}>
+            <span style={{ fontSize: 22, lineHeight: 1, position: 'relative' }}>
               {icon}
               {to === '/opslagstavle' && boardUnread && (
                 <span style={{
-                  position: 'absolute', top: 0, right: -2,
+                  position: 'absolute', top: 0, right: -3,
                   width: 7, height: 7, borderRadius: '50%',
-                  background: '#5b8dd9',
+                  background: '#1D9E75',
                 }} />
               )}
             </span>
-            {label}
+            <span>{label}</span>
           </NavLink>
-          )
         ))}
+
+        {/* Mere-knap */}
+        <button
+          onClick={() => setMereOpen(o => !o)}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 56,
+            padding: '6px 4px',
+            fontSize: 10,
+            fontWeight: 500,
+            color: (mereOpen || isOnMorePage) ? 'var(--green)' : 'var(--cfc-text-muted)',
+            gap: 3,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 22, lineHeight: 1 }}>☰</span>
+          <span>Mere</span>
+        </button>
+
+        {/* Mere-panel (slide-up) */}
+        {mereOpen && (
+          <div style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 0, right: 0,
+            background: 'var(--cfc-bg-card)',
+            borderTop: '0.5px solid var(--cfc-border)',
+            borderRadius: '16px 16px 0 0',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
+            padding: '8px 0 4px',
+            zIndex: 60,
+          }}>
+            {/* Håndtag */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 8 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--cfc-border)' }} />
+            </div>
+            {moreItems.map(({ to, label, icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setMereOpen(false)}
+                style={({ isActive }) => ({
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '13px 20px',
+                  fontSize: 15,
+                  fontWeight: 500,
+                  color: isActive ? 'var(--green)' : 'var(--cfc-text-primary)',
+                  background: isActive ? 'var(--green-light)' : 'transparent',
+                  textDecoration: 'none',
+                })}
+              >
+                <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{icon}</span>
+                {label}
+              </NavLink>
+            ))}
+            {/* Log ud */}
+            <div style={{ borderTop: '0.5px solid var(--cfc-border)', margin: '4px 0 0' }}>
+              <button
+                onClick={doLogout}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '13px 20px', width: '100%',
+                  fontSize: 15, fontWeight: 500,
+                  color: 'var(--cfc-text-muted)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>🚪</span>
+                Log ud
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
 
       <PwaBanner />
@@ -377,8 +356,7 @@ export default function Layout() {
         .cfc-name-full   { display: inline; }
         .cfc-nav-desktop { display: flex !important; }
         .cfc-user-pill   { display: flex !important; }
-        .cfc-hamburger   { display: none !important; }
-        .cfc-mobile-menu { display: none !important; }
+        .cfc-header      { display: block !important; }
         .cfc-bottom-nav  { display: none !important; }
 
         @media (max-width: 767px) {
@@ -386,8 +364,6 @@ export default function Layout() {
           .cfc-name-full   { display: none; }
           .cfc-nav-desktop { display: none !important; }
           .cfc-user-pill   { display: none !important; }
-          .cfc-hamburger   { display: flex !important; }
-          .cfc-mobile-menu { display: block !important; }
           .cfc-bottom-nav  { display: flex !important; }
         }
       `}</style>

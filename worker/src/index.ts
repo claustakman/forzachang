@@ -18,6 +18,7 @@ import { sendPushToPlayer } from './lib/sendPush';
 import { handleRecords, updateTeamRecords } from './routes/records';
 import { handleStandings } from './routes/standings';
 import { handleBoard, handleBoardAttachment } from './routes/board';
+import { handleVotes } from './routes/votes';
 
 export interface Env {
   DB: D1Database;
@@ -127,6 +128,16 @@ export default {
           const commentId = m?.[3] || undefined;
           return await handleBoard(request, env, payload, postId, sub, commentId);
         }
+      }
+
+      // /api/votes/sessions/:id/vote, /api/votes/sessions/:id/results, /api/votes/sessions/:id/close
+      {
+        const m = path.match(/^\/api\/votes\/sessions\/([^/]+)\/([^/]+)$/);
+        if (m) return await handleVotes(request, env, payload, m[1], m[2]);
+      }
+      // /api/votes/sessions (POST = opret) + /api/votes (GET = hent aktiv session)
+      if (path.startsWith('/api/votes')) {
+        return await handleVotes(request, env, payload, undefined, undefined);
       }
 
       return json({ error: 'Not found' }, 404);
