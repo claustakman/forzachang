@@ -165,7 +165,7 @@ function PlayerToggleList({
 
 type PageState =
   | { kind: 'idle' }
-  | { kind: 'setup'; event: Event; allPlayers: VotePlayer[] }
+  | { kind: 'setup'; event: Event | null; allPlayers: VotePlayer[] }   // event=null → ad-hoc
   | { kind: 'voting'; session: VoteSession }
   | { kind: 'results'; session: VoteSession; results: VoteResult[]; total: number; myVote: string | null };
 
@@ -185,6 +185,7 @@ export default function Afstemning() {
   const [votersEnabled, setVotersEnabled] = useState<Set<string>>(new Set());
   const [candidatesEnabled, setCandidatesEnabled] = useState<Set<string>>(new Set());
   const [duration, setDuration] = useState(60); // sekunder
+  const [adHocTitle, setAdHocTitle] = useState(''); // titel til ad-hoc afstemning
 
   // Voting state
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
@@ -242,14 +243,21 @@ export default function Afstemning() {
           setLoading(false);
           return;
         }
-        const events = await api.getEvents();
+        // Hent kampe fra begge tabs: historik (seneste 7 dage) + kommende (i dag)
+        const [hist, komm] = await Promise.all([
+          api.getEvents({ tab: 'historik', type: 'kamp' }),
+          api.getEvents({ tab: 'kommende', type: 'kamp' }),
+        ]);
         const now = new Date();
         const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const endOfToday = new Date(now);
         endOfToday.setHours(23, 59, 59, 999);
-        const matches = events
-          .filter(e => e.type === 'kamp' && e.status === 'aktiv')
+        const allKampe = [...hist, ...komm];
+        const seen = new Set<string>();
+        const matches = allKampe
+          .filter(e => e.status === 'aktiv')
           .filter(e => { const d = new Date(e.start_time); return d >= cutoff && d <= endOfToday; })
+          .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
           .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
         setRecentMatches(matches);
         setState({ kind: 'idle' });
@@ -262,27 +270,36 @@ export default function Afstemning() {
   }, []);
 
   // ── Vælg kamp → setup ─────────────────────────────────────────────────────
-  async function handleSelectMatch(event: Event) {
+  async function handleSelectMatch(event: Event | null) {
     setError(null);
     setLoading(true);
     try {
       const [detail, playersData] = await Promise.all([
-        api.getEvent(event.id),
+        event ? api.getEvent(event.id) : Promise.resolve(null),
         api.getPlayers(),
       ]);
-      const signups: VotePlayer[] = detail.signups
-        .filter(s => s.status === 'tilmeldt' && s.player_id !== 'admin')
-        .map(s => ({ id: s.player_id, name: s.name, avatar_url: s.avatar_url }));
 
       const allPlayers: VotePlayer[] = playersData
         .filter(p => p.active && p.id !== 'admin')
         .map(p => ({ id: p.id, name: p.alias?.trim() || p.name, avatar_url: p.avatar_url }));
 
-      const ids = new Set(signups.map(p => p.id));
-      setVotersList([...signups]);
-      setCandidatesList([...signups]);
-      setVotersEnabled(new Set(ids));
-      setCandidatesEnabled(new Set(ids));
+      if (event && detail) {
+        const signups: VotePlayer[] = detail.signups
+          .filter(s => s.status === 'tilmeldt' && s.player_id !== 'admin')
+          .map(s => ({ id: s.player_id, name: s.name, avatar_url: s.avatar_url }));
+        const ids = new Set(signups.map(p => p.id));
+        setVotersList([...signups]);
+        setCandidatesList([...signups]);
+        setVotersEnabled(new Set(ids));
+        setCandidatesEnabled(new Set(ids));
+      } else {
+        // Ad-hoc: start med tom liste
+        setVotersList([]);
+        setCandidatesList([]);
+        setVotersEnabled(new Set());
+        setCandidatesEnabled(new Set());
+        setAdHocTitle('');
+      }
       setState({ kind: 'setup', event, allPlayers });
     } catch (e: any) {
       setError(e.message || 'Fejl');
@@ -300,7 +317,11 @@ export default function Afstemning() {
     setSubmitting(true);
     setError(null);
     try {
-      await api.createVoteSession(state.event.id, candidateIds, voterIds, duration);
+      await api.createVoteSession(
+        state.event?.id ?? null,
+        candidateIds, voterIds, duration,
+        state.event ? undefined : (adHocTitle.trim() || 'Ad-hoc afstemning')
+      );
       const data = await api.getActiveVoteSession();
       if (data.session) setState({ kind: 'voting', session: data.session });
     } catch (e: any) {
@@ -337,14 +358,18 @@ export default function Afstemning() {
       await api.deleteVoteSession(sessionId);
       setState({ kind: 'idle' });
       // Genindlæs kamplisten
-      const events = await api.getEvents();
+      const [hist2, komm2] = await Promise.all([
+        api.getEvents({ tab: 'historik', type: 'kamp' }),
+        api.getEvents({ tab: 'kommende', type: 'kamp' }),
+      ]);
       const now2 = new Date();
       const cutoff2 = new Date(now2.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const endOfToday2 = new Date(now2);
-      endOfToday2.setHours(23, 59, 59, 999);
-      setRecentMatches(events
-        .filter(e => e.type === 'kamp' && e.status === 'aktiv')
+      const endOfToday2 = new Date(now2); endOfToday2.setHours(23, 59, 59, 999);
+      const seen2 = new Set<string>();
+      setRecentMatches([...hist2, ...komm2]
+        .filter(e => e.status === 'aktiv')
         .filter(e => { const d = new Date(e.start_time); return d >= cutoff2 && d <= endOfToday2; })
+        .filter(e => { if (seen2.has(e.id)) return false; seen2.add(e.id); return true; })
         .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
       );
     } catch (e: any) {
@@ -374,11 +399,24 @@ export default function Afstemning() {
           <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, margin: '0 0 4px', color: 'var(--cfc-text-primary)' }}>
             🏆 Kampens Spiller
           </h2>
-          <p style={{ color: 'var(--cfc-text-muted)', margin: '0 0 20px', fontSize: 14 }}>
-            Vælg en kamp for at starte en afstemning
+          <p style={{ color: 'var(--cfc-text-muted)', margin: '0 0 16px', fontSize: 14 }}>
+            Vælg en kamp, eller start en ad-hoc afstemning.
           </p>
+
+          {isTrainerRole(player?.role) && (
+            <button onClick={() => handleSelectMatch(null)}
+              style={{
+                width: '100%', background: '#E1F5EE', border: '1px solid #A8DCC8', borderRadius: 12,
+                padding: '14px 16px', cursor: 'pointer', textAlign: 'left', marginBottom: 16,
+                display: 'flex', alignItems: 'center', gap: 14, minHeight: 56,
+              }}>
+              <span style={{ fontSize: 20 }}>✨</span>
+              <span style={{ fontWeight: 600, fontSize: 15, color: '#0F6E56' }}>Start ad-hoc afstemning</span>
+            </button>
+          )}
+
           {recentMatches.length === 0 ? (
-            <div className="empty">Ingen kampe de seneste 30 dage.</div>
+            <div className="empty">Ingen kampe fra i dag eller de seneste 7 dage.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recentMatches.map(ev => (
@@ -416,12 +454,26 @@ export default function Afstemning() {
             Opsæt afstemning
           </h2>
           <div style={{ fontSize: 14, color: 'var(--cfc-text-muted)', marginBottom: 16 }}>
-            {state.event.title} · {fmtDate(state.event.start_time)}
+            {state.event ? `${state.event.title} · ${fmtDate(state.event.start_time)}` : 'Ad-hoc afstemning'}
           </div>
 
-          <div style={{ background: '#E1F5EE', border: '0.5px solid #A8DCC8', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#0F6E56' }}>
-            Pre-udfyldt fra tilmeldingslisten · Tilføj eller fjern spillere efter behov
-          </div>
+          {state.event ? (
+            <div style={{ background: '#E1F5EE', border: '0.5px solid #A8DCC8', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#0F6E56' }}>
+              Pre-udfyldt fra tilmeldingslisten · Tilføj eller fjern spillere efter behov
+            </div>
+          ) : (
+            <div style={{ background: '#ffffff', borderRadius: 12, border: '0.5px solid #e0e0e0', padding: '12px 16px', marginBottom: 16 }}>
+              <label style={{ fontWeight: 700, fontSize: 14, color: 'var(--cfc-text-primary)', display: 'block', marginBottom: 8 }}>
+                Titel (valgfri)
+              </label>
+              <input
+                className="input"
+                placeholder="fx 'Kampens spiller — træning'"
+                value={adHocTitle}
+                onChange={e => setAdHocTitle(e.target.value)}
+              />
+            </div>
+          )}
 
           {/* Varighed */}
           <div style={{ background: '#ffffff', borderRadius: 12, border: '0.5px solid #e0e0e0', padding: '12px 16px', marginBottom: 16 }}>

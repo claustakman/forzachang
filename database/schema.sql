@@ -391,7 +391,8 @@ CREATE INDEX IF NOT EXISTS idx_board_attachments_post ON board_attachments(post_
 
 CREATE TABLE IF NOT EXISTS vote_sessions (
   id         TEXT PRIMARY KEY,
-  event_id   TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  event_id   TEXT REFERENCES events(id) ON DELETE CASCADE,   -- NULL = ad-hoc afstemning
+  title      TEXT,                                           -- Titel til ad-hoc (NULL = brug kampnavn)
   started_by TEXT NOT NULL REFERENCES players(id),
   started_at TEXT NOT NULL,
   ends_at    TEXT NOT NULL,

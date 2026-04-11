@@ -32,12 +32,12 @@ export async function handleVotes(
     ).run().catch(() => {});
 
     const session = await env.DB.prepare(
-      `SELECT vs.id, vs.event_id, vs.started_by, vs.started_at, vs.ends_at, vs.status,
+      `SELECT vs.id, vs.event_id, vs.title, vs.started_by, vs.started_at, vs.ends_at, vs.status,
               vs.candidates, vs.voters, vs.created_at,
-              e.title as event_title, e.start_time,
+              COALESCE(vs.title, e.title, 'Ad-hoc afstemning') as event_title, e.start_time,
               COALESCE(p.alias, p.name) as started_by_name
        FROM vote_sessions vs
-       JOIN events e ON e.id = vs.event_id
+       LEFT JOIN events e ON e.id = vs.event_id
        JOIN players p ON p.id = vs.started_by
        WHERE vs.status IN ('active', 'closed')
        ORDER BY vs.created_at DESC LIMIT 1`
@@ -73,9 +73,9 @@ export async function handleVotes(
   // Body: { event_id, candidate_ids, voter_ids }
   if (!sessionId && method === 'POST') {
     const body = await request.json() as any;
-    const { event_id, candidate_ids, voter_ids, duration_seconds } = body;
+    const { event_id, title, candidate_ids, voter_ids, duration_seconds } = body;
 
-    if (!event_id) return json({ error: 'event_id required' }, 400);
+    // event_id er valgfrit (NULL = ad-hoc afstemning)
     if (!Array.isArray(candidate_ids) || candidate_ids.length === 0)
       return json({ error: 'candidate_ids required' }, 400);
     if (!Array.isArray(voter_ids) || voter_ids.length === 0)
@@ -94,10 +94,10 @@ export async function handleVotes(
     const startedAt = now.toISOString().replace('T', ' ').slice(0, 19);
 
     await env.DB.prepare(
-      `INSERT INTO vote_sessions (id, event_id, started_by, started_at, ends_at, status, candidates, voters)
-       VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`
+      `INSERT INTO vote_sessions (id, event_id, title, started_by, started_at, ends_at, status, candidates, voters)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`
     ).bind(
-      id, event_id, payload.sub, startedAt, endsAt,
+      id, event_id || null, title || null, payload.sub, startedAt, endsAt,
       JSON.stringify(candidate_ids),
       JSON.stringify(voter_ids)
     ).run();
@@ -161,12 +161,12 @@ export async function handleVotes(
   // ── GET /api/votes/sessions/:id/results ────────────────────────────────────
   if (sessionId && sub === 'results' && method === 'GET') {
     const session = await env.DB.prepare(
-      `SELECT vs.id, vs.event_id, vs.started_by, vs.started_at, vs.ends_at, vs.status,
+      `SELECT vs.id, vs.event_id, vs.title, vs.started_by, vs.started_at, vs.ends_at, vs.status,
               vs.candidates, vs.voters, vs.created_at,
-              e.title as event_title, e.start_time,
+              COALESCE(vs.title, e.title, 'Ad-hoc afstemning') as event_title, e.start_time,
               COALESCE(p.alias, p.name) as started_by_name
        FROM vote_sessions vs
-       JOIN events e ON e.id = vs.event_id
+       LEFT JOIN events e ON e.id = vs.event_id
        JOIN players p ON p.id = vs.started_by
        WHERE vs.id=?`
     ).bind(sessionId).first() as any;
