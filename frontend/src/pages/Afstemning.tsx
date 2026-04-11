@@ -169,6 +169,8 @@ type PageState =
   | { kind: 'voting'; session: VoteSession }
   | { kind: 'results'; session: VoteSession; results: VoteResult[]; total: number; myVote: string | null };
 
+const isTrainerRole = (role?: string) => role === 'trainer' || role === 'admin';
+
 export default function Afstemning() {
   const { player } = useAuth();
 
@@ -329,6 +331,27 @@ export default function Afstemning() {
     setState({ kind: 'idle' });
   }
 
+  async function handleDeleteSession(sessionId: string) {
+    if (!confirm('Slet afstemning? Dette kan ikke fortrydes.')) return;
+    try {
+      await api.deleteVoteSession(sessionId);
+      setState({ kind: 'idle' });
+      // Genindlæs kamplisten
+      const events = await api.getEvents();
+      const now2 = new Date();
+      const cutoff2 = new Date(now2.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const endOfToday2 = new Date(now2);
+      endOfToday2.setHours(23, 59, 59, 999);
+      setRecentMatches(events
+        .filter(e => e.type === 'kamp' && e.status === 'aktiv')
+        .filter(e => { const d = new Date(e.start_time); return d >= cutoff2 && d <= endOfToday2; })
+        .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+      );
+    } catch (e: any) {
+      setError(e.message || 'Fejl ved sletning');
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -337,7 +360,7 @@ export default function Afstemning() {
   );
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '16px' }}>
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '16px 16px 24px' }}>
 
       {error && (
         <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14, border: '0.5px solid #FFCDD2' }}>
@@ -444,7 +467,7 @@ export default function Afstemning() {
               className="btn btn-primary"
               style={{ flex: 1, justifyContent: 'center', fontSize: 15, minHeight: 52 }}
             >
-              {submitting ? '...' : '🏆 Start afstemning (60 sek)'}
+              {submitting ? '...' : `🏆 Start afstemning (${duration} sek)`}
             </button>
             <button onClick={handleBack} className="btn btn-secondary" style={{ minHeight: 52 }}>
               Annuller
@@ -531,6 +554,8 @@ export default function Afstemning() {
           total={state.total}
           myVote={state.myVote}
           onBack={handleBack}
+          canDelete={isTrainerRole(player?.role)}
+          onDelete={() => handleDeleteSession(state.session.id)}
         />
       )}
     </div>
@@ -539,12 +564,14 @@ export default function Afstemning() {
 
 // ── ResultsView ───────────────────────────────────────────────────────────────
 
-function ResultsView({ session, results, total, myVote, onBack }: {
+function ResultsView({ session, results, total, myVote, onBack, canDelete, onDelete }: {
   session: VoteSession;
   results: VoteResult[];
   total: number;
   myVote: string | null;
   onBack: () => void;
+  canDelete?: boolean;
+  onDelete?: () => void;
 }) {
   const isClosed = session.status === 'closed';
   const topVotes = results[0]?.votes ?? 0;
@@ -554,10 +581,18 @@ function ResultsView({ session, results, total, myVote, onBack }: {
 
   return (
     <div>
-      <button onClick={onBack}
-        style={{ background: 'none', border: 'none', color: 'var(--cfc-text-muted)', fontSize: 14, cursor: 'pointer', padding: '0 0 8px' }}>
-        ← Tilbage
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        <button onClick={onBack}
+          style={{ background: 'none', border: 'none', color: 'var(--cfc-text-muted)', fontSize: 14, cursor: 'pointer', padding: '0 0 8px' }}>
+          ← Tilbage
+        </button>
+        {canDelete && onDelete && (
+          <button onClick={onDelete}
+            style={{ background: 'none', border: 'none', color: '#B71C1C', fontSize: 13, cursor: 'pointer', padding: '0 0 8px', fontWeight: 600 }}>
+            🗑 Slet afstemning
+          </button>
+        )}
+      </div>
 
       <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 20, margin: '0 0 2px', color: 'var(--cfc-text-primary)' }}>
         🏆 Resultat

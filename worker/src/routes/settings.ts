@@ -32,6 +32,25 @@ export async function handleSettings(request: Request, env: Env, user: JWTPayloa
       await syncWebcal(env);
       return json({ ok: true });
     }
+
+    // POST /api/settings/bulk-deadlines — opdater tilmeldingsfrist på alle kommende kampe
+    if (url.pathname.endsWith('/bulk-deadlines')) {
+      const body = await request.json() as any;
+      const days = Math.min(Math.max(Number(body.days) || 5, 1), 30);
+      const now = new Date().toISOString();
+
+      // Opdater alle kommende kampe der har en signup_deadline sat via webcal/auto (dvs. dem der ikke er manuelt sat)
+      // Vi opdaterer alle kommende kampe der har start_time i fremtiden
+      const res = await env.DB.prepare(`
+        UPDATE events
+        SET signup_deadline = datetime(start_time, '-' || ? || ' days')
+        WHERE type = 'kamp'
+          AND status = 'aktiv'
+          AND start_time > ?
+      `).bind(days, now).run();
+
+      return json({ ok: true, updated: res.meta?.changes ?? 0 });
+    }
   }
 
   return json({ error: 'Method not allowed' }, 405);

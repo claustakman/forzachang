@@ -625,16 +625,23 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
 // ── AdminSettings ─────────────────────────────────────────────────────────────
 
 function AdminSettings() {
-  const [webcalUrl, setWebcalUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [syncMsg, setSyncMsg] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [webcalUrl, setWebcalUrl]           = useState('');
+  const [deadlineDays, setDeadlineDays]     = useState(5);
+  const [reminderDays, setReminderDays]     = useState(7);
+  const [saving, setSaving]                 = useState(false);
+  const [syncing, setSyncing]               = useState(false);
+  const [bulking, setBulking]               = useState(false);
+  const [msg, setMsg]                       = useState('');
+  const [syncMsg, setSyncMsg]               = useState('');
+  const [deadlineMsg, setDeadlineMsg]       = useState('');
+  const [reminderMsg, setReminderMsg]       = useState('');
+  const [loading, setLoading]               = useState(true);
 
   useEffect(() => {
     api.getSettings().then(s => {
       setWebcalUrl(s.webcal_url || '');
+      setDeadlineDays(Number(s.signup_deadline_days) || 5);
+      setReminderDays(Number(s.reminder_days_before) || 7);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -657,10 +664,40 @@ function AdminSettings() {
     setSyncing(false);
   }
 
+  async function saveDeadline() {
+    setSaving(true); setDeadlineMsg('');
+    try {
+      await api.updateSettings({ signup_deadline_days: String(deadlineDays) });
+      setDeadlineMsg('Gemt');
+    } catch (e: any) { setDeadlineMsg(e.message); }
+    setSaving(false);
+  }
+
+  async function bulkUpdateDeadlines() {
+    if (!confirm(`Opdater tilmeldingsfrist til ${deadlineDays} dage før start på alle kommende kampe uden manuelt sat frist?`)) return;
+    setBulking(true); setDeadlineMsg('');
+    try {
+      const res = await api.bulkUpdateDeadlines(deadlineDays);
+      setDeadlineMsg(`${res.updated} kampe opdateret`);
+    } catch (e: any) { setDeadlineMsg(e.message); }
+    setBulking(false);
+  }
+
+  async function saveReminder() {
+    setSaving(true); setReminderMsg('');
+    try {
+      await api.updateSettings({ reminder_days_before: String(reminderDays) });
+      setReminderMsg('Gemt');
+    } catch (e: any) { setReminderMsg(e.message); }
+    setSaving(false);
+  }
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Webcal */}
       <div className="card">
         <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Webcal-sync</h2>
         <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
@@ -685,6 +722,55 @@ function AdminSettings() {
           </button>
         </div>
         {syncMsg && <p style={{ fontSize: 13, color: syncMsg === 'Sync gennemført' ? 'var(--green)' : '#e57373', marginTop: 8 }}>{syncMsg}</p>}
+      </div>
+
+      {/* Tilmeldingsfrist */}
+      <div className="card">
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Tilmeldingsfrist</h2>
+        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+          Antal dage før kampstart tilmeldingsfristen sættes. Bruges ved import fra webcal og ved oprettelse af nye kampe.
+        </p>
+        <div className="form-row" style={{ alignItems: 'center', gap: 12 }}>
+          <label className="form-label" style={{ whiteSpace: 'nowrap' }}>Dage før start</label>
+          <input
+            type="number" min={1} max={30}
+            className="input"
+            style={{ width: 80 }}
+            value={deadlineDays}
+            onChange={e => setDeadlineDays(Number(e.target.value))}
+          />
+        </div>
+        {deadlineMsg && <p style={{ fontSize: 13, color: (deadlineMsg.includes('opdateret') || deadlineMsg === 'Gemt') ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{deadlineMsg}</p>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary" onClick={saveDeadline} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? '...' : 'Gem indstilling'}
+          </button>
+          <button className="btn btn-secondary" onClick={bulkUpdateDeadlines} disabled={bulking} style={{ flex: 1, justifyContent: 'center' }}>
+            {bulking ? '...' : 'Opdater eksisterende kampe'}
+          </button>
+        </div>
+      </div>
+
+      {/* Påmindelsestidspunkt */}
+      <div className="card">
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Tilmeldingspåmindelser</h2>
+        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+          Påmindelser sendes to gange: på dagen for tilmeldingsfristen, og et antal dage før kampstart til spillere der ikke har tilmeldt sig.
+        </p>
+        <div className="form-row" style={{ alignItems: 'center', gap: 12 }}>
+          <label className="form-label" style={{ whiteSpace: 'nowrap' }}>Første påmind. (dage før start)</label>
+          <input
+            type="number" min={1} max={30}
+            className="input"
+            style={{ width: 80 }}
+            value={reminderDays}
+            onChange={e => setReminderDays(Number(e.target.value))}
+          />
+        </div>
+        {reminderMsg && <p style={{ fontSize: 13, color: reminderMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{reminderMsg}</p>}
+        <button className="btn btn-primary" onClick={saveReminder} disabled={saving} style={{ justifyContent: 'center' }}>
+          {saving ? '...' : 'Gem'}
+        </button>
       </div>
 
     </div>

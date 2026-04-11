@@ -125,8 +125,8 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
     const season = url.searchParams.get('season') || '';
     const q = url.searchParams.get('q') || '';
 
-    // cutoff: nu minus 2 dage
-    const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    // cutoff: nu minus 24 timer — events rykkes til historik 24h efter start
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const conditions: string[] = [];
     const binds: (string | number)[] = [];

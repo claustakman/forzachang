@@ -146,6 +146,8 @@ export const api = {
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
   syncWebcal: () => req<{ ok: boolean }>('POST', '/settings/sync'),
+  bulkUpdateDeadlines: (days: number) =>
+    req<{ updated: number }>('POST', '/settings/bulk-deadlines', { days }),
 
   // Fines (fase 6)
   getFineTypes: () => req<FineType[]>('GET', '/fine-types'),
@@ -236,6 +238,8 @@ export const api = {
     req<{ session: VoteSession | null }>('GET', '/votes'),
   createVoteSession: (eventId: string, candidateIds: string[], voterIds: string[], duration: number) =>
     req<{ session_id: string }>('POST', '/votes/sessions', { event_id: eventId, candidate_ids: candidateIds, voter_ids: voterIds, duration_seconds: duration }),
+  deleteVoteSession: (sessionId: string) =>
+    req<{ ok: boolean }>('DELETE', `/votes/sessions/${sessionId}`),
   castVote: (sessionId: string, candidateId: string) =>
     req<{ ok: boolean }>('POST', `/votes/sessions/${sessionId}/vote`, { candidate_id: candidateId }),
   getVoteResults: (sessionId: string) =>

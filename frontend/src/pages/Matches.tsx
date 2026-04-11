@@ -1436,7 +1436,7 @@ function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () 
     const updated: Partial<typeof form> = { start_time: v };
     if (!form.end_time || form.end_time === form.start_time) updated.end_time = v;
     updated.meeting_time = v ? addMinutes(v, -40) : '';
-    updated.signup_deadline = v ? addDays(v, -7) : '';
+    updated.signup_deadline = v ? addDays(v, -5) : '';
     setForm(f => ({ ...f, ...updated }));
   }
 

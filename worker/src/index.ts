@@ -135,6 +135,11 @@ export default {
         const m = path.match(/^\/api\/votes\/sessions\/([^/]+)\/([^/]+)$/);
         if (m) return await handleVotes(request, env, payload, m[1], m[2]);
       }
+      // /api/votes/sessions/:id (DELETE = slet)
+      {
+        const m = path.match(/^\/api\/votes\/sessions\/([^/]+)$/);
+        if (m) return await handleVotes(request, env, payload, m[1], undefined);
+      }
       // /api/votes/sessions (POST = opret) + /api/votes (GET = hent aktiv session)
       if (path.startsWith('/api/votes')) {
         return await handleVotes(request, env, payload, undefined, undefined);
@@ -163,12 +168,14 @@ export default {
 // ── Webcal-sync ───────────────────────────────────────────────────────────────
 
 export async function syncWebcal(env: Env): Promise<void> {
-  const setting = await env.DB.prepare(
-    'SELECT value FROM app_settings WHERE key=?'
-  ).bind('webcal_url').first();
+  const [setting, deadlineSetting] = await Promise.all([
+    env.DB.prepare('SELECT value FROM app_settings WHERE key=?').bind('webcal_url').first(),
+    env.DB.prepare('SELECT value FROM app_settings WHERE key=?').bind('signup_deadline_days').first(),
+  ]);
 
   if (!setting?.value) return;
 
+  const deadlineDays = Math.min(Math.max(Number(deadlineSetting?.value) || 5, 1), 30);
   const webcalUrl = (setting.value as string).replace(/^webcal:\/\//i, 'https://');
 
   let icalText: string;
@@ -214,7 +221,7 @@ export async function syncWebcal(env: Env): Promise<void> {
       }
     } else {
       const meetingTime = addMinutes(ev.start_time, -40);
-      const signupDeadline = addDays(ev.start_time, -7);
+      const signupDeadline = addDays(ev.start_time, -deadlineDays);
       const newId = crypto.randomUUID();
       await env.DB.prepare(`
         INSERT INTO events (id, type, title, location, start_time, end_time, meeting_time, signup_deadline, webcal_uid, season, result)
@@ -339,29 +346,51 @@ function icalDateToISO(dt: string): string {
 
 async function sendReminders(env: Env): Promise<void> {
   const now = new Date();
-  const in3days  = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
-  const in8days  = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString();
-  const nowIso   = now.toISOString();
+  const nowIso = now.toISOString();
 
-  // Events med tilmeldingsfrist: påmind hvis fristen er om præcis 3 dage (±12 timer)
+  // Hent konfigurerbart antal dage før kampstart (default 7)
+  const reminderSetting = await env.DB.prepare(
+    'SELECT value FROM app_settings WHERE key=?'
+  ).bind('reminder_days_before').first();
+  const reminderDays = Math.min(Math.max(Number(reminderSetting?.value) || 7, 1), 30);
+
+  // Vindue for "N dage før start": fra nu til nu+reminderDays+1 (fanger events i vinduet)
+  const inNdays     = new Date(now.getTime() + reminderDays * 24 * 60 * 60 * 1000).toISOString();
+  const inNplus1    = new Date(now.getTime() + (reminderDays + 1) * 24 * 60 * 60 * 1000).toISOString();
+
+  // Slut på i dag (til "fristdag"-påmindelser)
+  const endOfToday  = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  const endOfTodayIso = endOfToday.toISOString();
+
+  // ── Påmindelsestype "start" — send N dage før kampstart ──────────────────
+  // Events der starter om præcis N dage (start_time falder i [now+N, now+N+1 dag])
+  const byStart = await env.DB.prepare(`
+    SELECT * FROM events
+    WHERE status = 'aktiv'
+    AND start_time > ?
+    AND start_time <= ?
+  `).bind(inNdays, inNplus1).all();
+
+  // ── Påmindelsestype "deadline" — send på selve fristdagen ────────────────
+  // Events med signup_deadline der er i dag (deadline falder i [nu, slut-på-dag])
   const byDeadline = await env.DB.prepare(`
     SELECT * FROM events
     WHERE status = 'aktiv'
     AND signup_deadline IS NOT NULL
-    AND signup_deadline > ?
+    AND signup_deadline >= ?
     AND signup_deadline <= ?
-  `).bind(nowIso, in3days).all();
+  `).bind(nowIso, endOfTodayIso).all();
 
-  // Events uden tilmeldingsfrist: påmind hvis start er om præcis 8 dage (±12 timer)
-  const byStart = await env.DB.prepare(`
-    SELECT * FROM events
-    WHERE status = 'aktiv'
-    AND signup_deadline IS NULL
-    AND start_time > ?
-    AND start_time <= ?
-  `).bind(nowIso, in8days).all();
-
-  const eventsToRemind = [...byDeadline.results, ...byStart.results];
+  // Kombiner og deduplikér (et event kan optræde i begge lister)
+  const seen = new Set<string>();
+  const eventsToRemind: any[] = [];
+  for (const ev of [...byStart.results, ...byDeadline.results]) {
+    if (!seen.has(ev.id as string)) {
+      seen.add(ev.id as string);
+      eventsToRemind.push(ev);
+    }
+  }
 
   for (const ev of eventsToRemind) {
     // Find aktive spillere der ikke har meldt ud og ikke allerede fået auto-påmindelse
@@ -371,6 +400,7 @@ async function sendReminders(env: Env): Promise<void> {
       WHERE p.active = 1
       AND p.id != 'admin'
       AND p.email IS NOT NULL
+      AND p.notify_email = 1
       AND p.id NOT IN (
         SELECT player_id FROM event_signups
         WHERE event_id = ? AND status IN ('tilmeldt', 'afmeldt')

@@ -115,6 +115,15 @@ export async function handleVotes(
     return json({ session_id: id }, 201);
   }
 
+  // ── DELETE /api/votes/sessions/:id — slet afstemning (trainer+) ───────────
+  if (sessionId && !sub && method === 'DELETE') {
+    if (payload.role !== 'trainer' && payload.role !== 'admin')
+      return json({ error: 'Forbidden' }, 403);
+    await env.DB.prepare('DELETE FROM votes WHERE session_id=?').bind(sessionId).run();
+    await env.DB.prepare('DELETE FROM vote_sessions WHERE id=?').bind(sessionId).run();
+    return json({ ok: true });
+  }
+
   // ── POST /api/votes/sessions/:id/vote ───────────────────────────────────────
   if (sessionId && sub === 'vote' && method === 'POST') {
     const body = await request.json() as any;
