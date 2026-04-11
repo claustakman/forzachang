@@ -164,6 +164,14 @@ forzachang/
 | `value`      | TEXT | Værdi                              |
 | `updated_at` | TEXT | Tidsstempel                        |
 
+Kendte nøgler:
+
+| Nøgle                   | Default | Beskrivelse                                                   |
+|-------------------------|---------|---------------------------------------------------------------|
+| `webcal_url`            | —       | URL til iCal-feed (webcal:// eller https://)                  |
+| `signup_deadline_days`  | `5`     | Dage før kampstart tilmeldingsfristen sættes (webcal + opret) |
+| `reminder_days_before`  | `7`     | Dage før start der sendes første auto-påmindelse              |
+
 ### Gæster (`event_guests`)
 
 | Felt         | Type | Beskrivelse                          |
@@ -353,7 +361,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Worker cron-job kører dagligt kl. 09:00 UTC
 - Sync-logik: tilføj nye, opdater ændrede, markér slettede som `aflyst`
 - Baseret på `webcal_uid` (iCal UID-felt)
-- Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − 7 dage`
+- Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − N dage` (N = `signup_deadline_days`-setting, default 5)
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
 
@@ -441,11 +449,12 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - `auto_update = 0` for alle manuelt vedligeholdte rekorder
 
 ### Påmindelser (fase 4)
-- **Automatiske** (cron, dagligt kl. 09:00 UTC):
-  - Med tilmeldingsfrist: sender påmindelse 3 dage før fristen
-  - Uden tilmeldingsfrist: sender påmindelse 8 dage før start
-  - Kun aktive spillere med email der ikke har tilmeldt/afmeldt sig (ekskl. id='admin')
-  - Sendes kun én gang per spiller per event (sporres i `reminder_log` med `type='auto'`)
+- **Automatiske** (cron, dagligt kl. 09:00 UTC) — to vinduer:
+  - **N dage før start**: sender påmindelse til spillere der ikke har reageret (N = `reminder_days_before`-setting, default 7)
+  - **På fristdagen**: sender påmindelse på selve `signup_deadline`-datoen til spillere der stadig ikke har reageret
+  - Deduplikerer: hvis et event rammer begge vinduer samme dag, sendes kun én påmindelse
+  - Kun aktive spillere med `notify_email=1` der ikke har tilmeldt/afmeldt sig (ekskl. id='admin')
+  - Sendes kun én gang per spiller per event (logges i `reminder_log` med `type='auto'`)
 - **Manuelle** (trainer/admin via "🔔 Påmind"-knap i event-detaljeview):
   - Viser liste over spillere der ikke har meldt ud — med checkboxes
   - Sender direkte, ingen bekræftelsesdialog
@@ -549,6 +558,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | GET    | /api/settings                           | admin          | Hent app-indstillinger                           |
 | PUT    | /api/settings                           | admin          | Gem app-indstillinger                            |
 | POST   | /api/settings/sync                      | admin          | Manuel webcal-sync                               |
+| POST   | /api/settings/bulk-deadlines            | admin          | Bulk-opdater signup_deadline på alle kommende kampe (body: days) |
 | GET    | /api/matches                            | player+        | Legacy: liste over kampe                         |
 | POST   | /api/matches                            | admin          | Legacy: opret kamp                               |
 | POST   | /api/signups                            | player+        | Legacy: tilmeld/afmeld kamp                      |
@@ -654,7 +664,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 ### Opret/rediger event (modal)
 - Sluttid auto-fyldes til starttid når start sættes
 - Mødetid auto-fyldes til start − 40 min
-- Tilmeldingsfrist auto-fyldes til start − 7 dage
+- Tilmeldingsfrist auto-fyldes til start − 5 dage (matchende `signup_deadline_days`-default)
 - Alle tider redigérbare bagefter
 
 ### Reminder-banner
@@ -686,12 +696,14 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 
 - JWT gemmes i `localStorage` på frontend
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
-- Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører både webcal-sync og email-påmindelser
+- Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører webcal-sync, email-påmindelser og holdrekord-opdatering
+- Kalender-historik: events rykkes til historik-tab 24 timer efter `start_time`
 - Navigation (desktop): **Kalender** → **Opslagstavle** → **Afstemning** → **Historie** → **Bødekasse** → **Admin**
 - Navigation (mobil bundnav): **Kalender** · **Tavle** · **Afstemning** · **Mere** (slide-up panel med Historie, Bøder, Admin, Profil, Log ud)
 - `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
 - `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
+- Admin → Indstillinger har tre sektioner: **Webcal-sync**, **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before)
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
@@ -1062,13 +1074,18 @@ Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i d
 ### Tabeller
 
 #### `vote_sessions`
-| Felt         | Type | Beskrivelse                                        |
-|--------------|------|----------------------------------------------------|
-| `id`         | TEXT | UUID                                               |
-| `event_id`   | TEXT | FK → events.id (UNIQUE — én session per kamp)      |
-| `created_by` | TEXT | FK → players.id (trainer/admin der startede)       |
-| `closed_at`  | TEXT | Tidsstempel for lukning (NULL = åben)              |
-| `created_at` | TEXT | Oprettelsestidspunkt                               |
+| Felt         | Type | Beskrivelse                                                    |
+|--------------|------|----------------------------------------------------------------|
+| `id`         | TEXT | UUID                                                           |
+| `event_id`   | TEXT | FK → events.id (NULL = ad-hoc afstemning uden tilknyttet kamp) |
+| `title`      | TEXT | Valgfri titel — vises i stedet for kampnavn ved ad-hoc         |
+| `started_by` | TEXT | FK → players.id (trainer/admin der startede)                   |
+| `started_at` | TEXT | Starttidspunkt                                                 |
+| `ends_at`    | TEXT | Sluttidspunkt (auto-lukkes når overskredet)                    |
+| `status`     | TEXT | `active` eller `closed`                                        |
+| `candidates` | TEXT | JSON-array af player IDs (hvem kan stemmes på)                 |
+| `voters`     | TEXT | JSON-array af player IDs (hvem kan stemme)                     |
+| `created_at` | TEXT | Oprettelsestidspunkt                                           |
 
 #### `votes`
 | Felt           | Type | Beskrivelse                                      |
@@ -1079,33 +1096,39 @@ Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i d
 | `candidate_id` | TEXT | FK → players.id (den der stemmes på)             |
 | `created_at`   | TEXT | Tidsstempel (opdateres ved omstemmning)          |
 
-UNIQUE på `(session_id, voter_id)` — én stemme per spiller per session (kan ændres).
+UNIQUE på `(session_id, voter_id)` — én stemme per spiller per session.
 
 ### Regler
-- Kun trainer/admin kan starte og lukke en afstemning
-- Én aktiv afstemning per kamp (`UNIQUE(event_id)`) — kan genstartes ved at slette og oprette ny
-- Kun tilmeldte spillere kan stemme
-- Spillere kan stemme på sig selv
-- Én stemme per spiller — upsert, kan omgøres (stemme på ny kandidat erstatter gammel)
-- Åbne resultater: kun trainer/admin kan se mens sessionen er åben; alle ser efter lukning
-- Kandidatlisten: tilmeldte spillere til kampen (ekskl. `id='admin'`)
+- Kun trainer/admin kan starte, slette og administrere afstemninger
+- Ingen begrænsning på antal sessioner per kamp — flere kan oprettes
+- `event_id` er nullable: NULL = ad-hoc afstemning (ikke tilknyttet en kamp)
+- Candidates og voters opsættes manuelt i setup-fasen (pre-udfyldt fra tilmeldingslisten)
+- Varighed er konfigurerbar (15–180 sek, default 60) — vises som nedtælling med SVG-cirkel
+- Session auto-lukkes af worker når `ends_at` overskrides (tjekkes ved hvert GET)
+- Én stemme per spiller — upsert, kan ændres mens afstemningen er åben
+- Trainer/admin kan slette en session (DELETE) — sletter også alle stemmer
+- Push-notifikation sendes til alle voters ved sessionstart
 
 ### API-routes
 
-| Method | Path                                    | Rolle     | Beskrivelse                                    |
-|--------|-----------------------------------------|-----------|------------------------------------------------|
-| GET    | /api/votes?event_id=X                   | player+   | Hent aktiv session for en kamp                 |
-| POST   | /api/votes/sessions                     | trainer+  | Opret ny afstemning (body: event_id)           |
-| POST   | /api/votes/sessions/:id/vote            | player+   | Afgiv/opdater stemme (body: candidate_id)      |
-| GET    | /api/votes/sessions/:id/results         | player+   | Hent resultater (åbne: kun trainer; lukkede: alle) |
-| POST   | /api/votes/sessions/:id/close           | trainer+  | Luk afstemning                                 |
+| Method | Path                                    | Rolle     | Beskrivelse                                                 |
+|--------|-----------------------------------------|-----------|-------------------------------------------------------------|
+| GET    | /api/votes                              | player+   | Hent seneste session (active eller closed)                  |
+| POST   | /api/votes/sessions                     | trainer+  | Opret ny afstemning (body: event_id?, title?, candidate_ids, voter_ids, duration_seconds) |
+| DELETE | /api/votes/sessions/:id                 | trainer+  | Slet afstemning + alle stemmer                              |
+| POST   | /api/votes/sessions/:id/vote            | player+   | Afgiv/opdater stemme (body: candidate_id)                   |
+| GET    | /api/votes/sessions/:id/results         | player+   | Hent resultater (rangeret)                                  |
 
 ### Frontend — Afstemning.tsx (`/afstemning`)
 Fire tilstande:
-1. **Idle**: Liste over kampe fra de seneste 30 dage + næste 7 dage — klik for at vælge
-2. **Confirming** (trainer/admin): Bekræft start af ny afstemning for valgt kamp
-3. **Voting**: Kandidatliste — klik på spiller for at stemme (én klik, ingen bekræftelse)
-4. **Results**: Rangeret liste med stemmebar og 🏆 til vinderen; trainer/admin ser "Afslut afstemning"-knap
+1. **Idle**: Liste over kampe fra i dag og de seneste 7 dage + "✨ Start ad-hoc afstemning"-knap (trainer/admin)
+2. **Setup** (trainer/admin): Konfigurer kandidater, vælgere og varighed (slider 15–180 sek) — pre-udfyldt fra tilmeldingslisten ved kampvalg, tom ved ad-hoc
+3. **Voting**: SVG-nedtællingscirkel + kandidatliste — klik på spiller for at stemme
+4. **Results**: Rangeret liste med stemmebar og 🏆 til vinder; trainer/admin ser "🗑 Slet afstemning"-knap
+
+- Polling hvert 2. sekund under voting-fasen (via `useRef<setInterval>`)
+- Kampfilter: `start_time >= nu − 7 dage` og `<= slutningen af i dag` (henter fra begge tabs: historik + kommende)
+- Ad-hoc: `event_id = null`, valgfri titel — "Ad-hoc afstemning" hvis ingen titel
 
 Navigation: 🏆 **Afstemning** — fast ikon i bundnav (mobil) og desktop-nav.
 
