@@ -691,6 +691,12 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Overskriften "Tilmeldte (N)" er klikbar og folder listen ind/ud
 - Valget huskes i `localStorage` (`cfc_tilmeldte_collapsed`) på tværs af events og sessioner
 
+### Kommentarfrist på tilmelding
+- "+ kommentar"-knappen på tilmeldingen ghostes (grå, ikke-klikbar) når der er færre end X timer til eventstart
+- Kommentarsektionens inputfelt erstattes af grå kursiv-besked "Kommentarer lukket X timer før kampstart"
+- X styres af `comment_cutoff_hours`-setting (default 24, sæt til 0 for aldrig at lukke)
+- Setting hentes fra `GET /api/settings` ved sideload i `Matches`-komponenten og sendes som prop til `EventDetailModal` og `CommentSection`
+
 ---
 
 ## Vigtige noter
@@ -1122,10 +1128,14 @@ UNIQUE på `(session_id, voter_id)` — én stemme per spiller per session.
 
 ### Frontend — Afstemning.tsx (`/afstemning`)
 Fire tilstande:
-1. **Idle**: Liste over kampe fra i dag og de seneste 7 dage + "✨ Start ad-hoc afstemning"-knap (trainer/admin)
+1. **Idle**: Trainer/admin ser liste over kampe fra i dag og de seneste 7 dage + "✨ Start ad-hoc afstemning"-knap. Spillere (ikke trainer/admin) ser kun "Ingen igangværende afstemning".
 2. **Setup** (trainer/admin): Konfigurer kandidater, vælgere og varighed (slider 15–180 sek) — pre-udfyldt fra tilmeldingslisten ved kampvalg, tom ved ad-hoc
 3. **Voting**: SVG-nedtællingscirkel + kandidatliste — klik på spiller for at stemme
 4. **Results**: Rangeret liste med stemmebar og 🏆 til vinder; trainer/admin ser "🗑 Slet afstemning"-knap
+
+#### Rollebaseret adgang
+- **Trainer/admin**: fuld adgang — idle-skærm med kampliste, setup, voting, results
+- **Spiller**: ser kun aktiv afstemning (voting), resultat af seneste afstemning (results), eller "Ingen igangværende afstemning" — aldrig idle-skærm med kampliste
 
 - Polling hvert 2. sekund under voting-fasen (via `useRef<setInterval>`)
 - Kampfilter: `start_time >= nu − 7 dage` og `<= slutningen af i dag` (henter fra begge tabs: historik + kommende)
