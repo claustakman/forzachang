@@ -76,12 +76,13 @@ function TypeBadge({ type }: { type: 'kamp' | 'event' }) {
 
 // ── Detaljemodal ──────────────────────────────────────────────────────────────
 
-function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
+function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, commentCutoffHours }: {
   event: Event;
   onClose: () => void;
   onRefresh: () => void;
   isTrainer: boolean;
   isAdmin: boolean;
+  commentCutoffHours: number;
 }) {
   const { player } = useAuth();
   const [detail, setDetail] = useState<EventDetail | null>(null);
@@ -176,6 +177,10 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
   const tilmeldte = detail?.signups.filter(s => s.status === 'tilmeldt') || [];
   const afmeldte  = detail?.signups.filter(s => s.status === 'afmeldt') || [];
   const guests    = detail?.guests || [];
+
+  // Kommentarer lukkes X timer før eventstart
+  const hoursUntilStart = (new Date(event.start_time).getTime() - Date.now()) / (1000 * 60 * 60);
+  const commentsClosed = hoursUntilStart < commentCutoffHours;
 
   const isAfterDeadline = event.signup_deadline
     ? new Date() > new Date(event.signup_deadline)
@@ -274,8 +279,10 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
               )}
               {mySignup?.status === 'tilmeldt' && (
                 <button
-                  onClick={() => setShowComment(c => !c)}
-                  style={{ background: 'none', border: 'none', fontSize: 12, color: '#5b8dd9', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                  onClick={() => !commentsClosed && setShowComment(c => !c)}
+                  disabled={commentsClosed}
+                  title={commentsClosed ? `Kommentarer lukket ${commentCutoffHours} timer før start` : undefined}
+                  style={{ background: 'none', border: 'none', fontSize: 12, color: commentsClosed ? 'var(--cfc-text-subtle)' : '#5b8dd9', cursor: commentsClosed ? 'not-allowed' : 'pointer', padding: 0, textDecoration: commentsClosed ? 'none' : 'underline', opacity: commentsClosed ? 0.5 : 1 }}
                 >
                   {showComment ? 'Luk' : '+ kommentar'}
                 </button>
@@ -342,7 +349,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin }: {
         )}
 
         {/* Kommentarer */}
-        <CommentSection eventId={event.id} currentPlayerId={player!.id} />
+        <CommentSection eventId={event.id} currentPlayerId={player!.id} commentsClosed={commentsClosed} commentCutoffHours={commentCutoffHours} />
 
         {/* Admin-panel */}
         {isAdmin && (
@@ -918,7 +925,7 @@ function TilmeldteSection({ tilmeldte, guests, isTrainer, isAdmin }: {
 
 // ── CommentSection ────────────────────────────────────────────────────────────
 
-function CommentSection({ eventId, currentPlayerId }: { eventId: string; currentPlayerId: string }) {
+function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutoffHours }: { eventId: string; currentPlayerId: string; commentsClosed: boolean; commentCutoffHours: number }) {
   const [comments, setComments] = useState<EventComment[]>([]);
   const [newBody, setNewBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -1112,47 +1119,53 @@ function CommentSection({ eventId, currentPlayerId }: { eventId: string; current
           </div>
 
           {/* Ny kommentar */}
-          <div style={{ position: 'relative' }}>
-            <textarea
-              ref={inputRef}
-              className="input"
-              style={{ width: '100%', fontSize: 14, resize: 'none', minHeight: 60 }}
-              placeholder="Skriv en kommentar… (@ for at nævne nogen)"
-              value={newBody}
-              onChange={handleInput}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey && mentionSuggestions.length === 0) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-            />
-            {mention !== null && mentionSuggestions.length > 0 && (
-              <div style={{ position: 'absolute', bottom: '100%', left: 0, background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, overflow: 'hidden', zIndex: 10, minWidth: 160 }}>
-                {mentionSuggestions.map(s => (
-                  <button
-                    key={s.id}
-                    onMouseDown={e => { e.preventDefault(); insertMention(s.name); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--cfc-text-primary)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >
-                    @{s.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={send}
-                disabled={sending || !newBody.trim()}
-                style={{ fontSize: 13 }}
-              >
-                {sending ? '...' : 'Send'}
-              </button>
+          {commentsClosed ? (
+            <div style={{ fontSize: 13, color: 'var(--cfc-text-subtle)', textAlign: 'center', padding: '10px 0', fontStyle: 'italic' }}>
+              Kommentarer lukket {commentCutoffHours} timer før kampstart
             </div>
-          </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <textarea
+                ref={inputRef}
+                className="input"
+                style={{ width: '100%', fontSize: 14, resize: 'none', minHeight: 60 }}
+                placeholder="Skriv en kommentar… (@ for at nævne nogen)"
+                value={newBody}
+                onChange={handleInput}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && mentionSuggestions.length === 0) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+              />
+              {mention !== null && mentionSuggestions.length > 0 && (
+                <div style={{ position: 'absolute', bottom: '100%', left: 0, background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, overflow: 'hidden', zIndex: 10, minWidth: 160 }}>
+                  {mentionSuggestions.map(s => (
+                    <button
+                      key={s.id}
+                      onMouseDown={e => { e.preventDefault(); insertMention(s.name); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--cfc-text-primary)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      @{s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={send}
+                  disabled={sending || !newBody.trim()}
+                  style={{ fontSize: 13 }}
+                >
+                  {sending ? '...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1175,6 +1188,14 @@ export default function Matches() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Event | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [commentCutoffHours, setCommentCutoffHours] = useState(24);
+
+  useEffect(() => {
+    api.getSettings().then(s => {
+      const val = Number(s.comment_cutoff_hours);
+      if (!isNaN(val) && val >= 0) setCommentCutoffHours(val);
+    }).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1305,6 +1326,7 @@ export default function Matches() {
           onRefresh={load}
           isTrainer={isTrainer}
           isAdmin={isAdmin}
+          commentCutoffHours={commentCutoffHours}
         />
       )}
 

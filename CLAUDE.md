@@ -171,6 +171,7 @@ Kendte nøgler:
 | `webcal_url`            | —       | URL til iCal-feed (webcal:// eller https://)                  |
 | `signup_deadline_days`  | `5`     | Dage før kampstart tilmeldingsfristen sættes (webcal + opret) |
 | `reminder_days_before`  | `7`     | Dage før start der sendes første auto-påmindelse              |
+| `comment_cutoff_hours`  | `24`    | Timer før start "Tilføj kommentar" lukkes på tilmeldingen     |
 
 ### Gæster (`event_guests`)
 
@@ -703,7 +704,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
 - `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
-- Admin → Indstillinger har tre sektioner: **Webcal-sync**, **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before)
+- Admin → Indstillinger har fire sektioner: **Webcal-sync**, **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before), **Kommentarfrist** (comment_cutoff_hours)
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**

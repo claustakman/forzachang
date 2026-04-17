@@ -628,6 +628,7 @@ function AdminSettings() {
   const [webcalUrl, setWebcalUrl]           = useState('');
   const [deadlineDays, setDeadlineDays]     = useState(5);
   const [reminderDays, setReminderDays]     = useState(7);
+  const [commentCutoffHours, setCommentCutoffHours] = useState(24);
   const [saving, setSaving]                 = useState(false);
   const [syncing, setSyncing]               = useState(false);
   const [bulking, setBulking]               = useState(false);
@@ -635,6 +636,7 @@ function AdminSettings() {
   const [syncMsg, setSyncMsg]               = useState('');
   const [deadlineMsg, setDeadlineMsg]       = useState('');
   const [reminderMsg, setReminderMsg]       = useState('');
+  const [commentMsg, setCommentMsg]         = useState('');
   const [loading, setLoading]               = useState(true);
 
   useEffect(() => {
@@ -642,6 +644,7 @@ function AdminSettings() {
       setWebcalUrl(s.webcal_url || '');
       setDeadlineDays(Number(s.signup_deadline_days) || 5);
       setReminderDays(Number(s.reminder_days_before) || 7);
+      setCommentCutoffHours(Number(s.comment_cutoff_hours) || 24);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -689,6 +692,15 @@ function AdminSettings() {
       await api.updateSettings({ reminder_days_before: String(reminderDays) });
       setReminderMsg('Gemt');
     } catch (e: any) { setReminderMsg(e.message); }
+    setSaving(false);
+  }
+
+  async function saveCommentCutoff() {
+    setSaving(true); setCommentMsg('');
+    try {
+      await api.updateSettings({ comment_cutoff_hours: String(commentCutoffHours) });
+      setCommentMsg('Gemt');
+    } catch (e: any) { setCommentMsg(e.message); }
     setSaving(false);
   }
 
@@ -769,6 +781,28 @@ function AdminSettings() {
         </div>
         {reminderMsg && <p style={{ fontSize: 13, color: reminderMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{reminderMsg}</p>}
         <button className="btn btn-primary" onClick={saveReminder} disabled={saving} style={{ justifyContent: 'center' }}>
+          {saving ? '...' : 'Gem'}
+        </button>
+      </div>
+
+      {/* Kommentarfrist */}
+      <div className="card">
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Kommentarfrist</h2>
+        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+          Antal timer før kampstart, hvor "Tilføj kommentar" på tilmeldingen lukkes. Sæt til 0 for aldrig at lukke.
+        </p>
+        <div className="form-row" style={{ alignItems: 'center', gap: 12 }}>
+          <label className="form-label" style={{ whiteSpace: 'nowrap' }}>Timer før start</label>
+          <input
+            type="number" min={0} max={168}
+            className="input"
+            style={{ width: 80 }}
+            value={commentCutoffHours}
+            onChange={e => setCommentCutoffHours(Number(e.target.value))}
+          />
+        </div>
+        {commentMsg && <p style={{ fontSize: 13, color: commentMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{commentMsg}</p>}
+        <button className="btn btn-primary" onClick={saveCommentCutoff} disabled={saving} style={{ justifyContent: 'center' }}>
           {saving ? '...' : 'Gem'}
         </button>
       </div>

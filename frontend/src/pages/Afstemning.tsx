@@ -399,46 +399,52 @@ export default function Afstemning() {
           <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, margin: '0 0 4px', color: 'var(--cfc-text-primary)' }}>
             🏆 Kampens Spiller
           </h2>
-          <p style={{ color: 'var(--cfc-text-muted)', margin: '0 0 16px', fontSize: 14 }}>
-            Vælg en kamp, eller start en ad-hoc afstemning.
-          </p>
 
-          {isTrainerRole(player?.role) && (
-            <button onClick={() => handleSelectMatch(null)}
-              style={{
-                width: '100%', background: '#E1F5EE', border: '1px solid #A8DCC8', borderRadius: 12,
-                padding: '14px 16px', cursor: 'pointer', textAlign: 'left', marginBottom: 16,
-                display: 'flex', alignItems: 'center', gap: 14, minHeight: 56,
-              }}>
-              <span style={{ fontSize: 20 }}>✨</span>
-              <span style={{ fontWeight: 600, fontSize: 15, color: '#0F6E56' }}>Start ad-hoc afstemning</span>
-            </button>
-          )}
-
-          {recentMatches.length === 0 ? (
-            <div className="empty">Ingen kampe fra i dag eller de seneste 7 dage.</div>
+          {/* Spillere (ikke træner/admin) ser kun "ingen afstemning"-besked */}
+          {!isTrainerRole(player?.role) ? (
+            <div className="empty" style={{ marginTop: 16 }}>Ingen igangværende afstemning.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentMatches.map(ev => (
-                <button key={ev.id} onClick={() => handleSelectMatch(ev)}
-                  style={{
-                    background: '#ffffff', border: '0.5px solid var(--cfc-border)', borderRadius: 12,
-                    padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', alignItems: 'center', gap: 14, minHeight: 64,
-                  }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
-                      {ev.title}
-                    </div>
-                    <div style={{ color: 'var(--cfc-text-muted)', fontSize: 13, marginTop: 3 }}>
-                      {fmtDate(ev.start_time)}
-                      {ev.result && <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--cfc-text-primary)' }}>{ev.result}</span>}
-                    </div>
-                  </div>
-                  <span style={{ color: 'var(--cfc-text-subtle)', fontSize: 20 }}>›</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <p style={{ color: 'var(--cfc-text-muted)', margin: '0 0 16px', fontSize: 14 }}>
+                Vælg en kamp, eller start en ad-hoc afstemning.
+              </p>
+
+              <button onClick={() => handleSelectMatch(null)}
+                style={{
+                  width: '100%', background: '#E1F5EE', border: '1px solid #A8DCC8', borderRadius: 12,
+                  padding: '14px 16px', cursor: 'pointer', textAlign: 'left', marginBottom: 16,
+                  display: 'flex', alignItems: 'center', gap: 14, minHeight: 56,
+                }}>
+                <span style={{ fontSize: 20 }}>✨</span>
+                <span style={{ fontWeight: 600, fontSize: 15, color: '#0F6E56' }}>Start ad-hoc afstemning</span>
+              </button>
+
+              {recentMatches.length === 0 ? (
+                <div className="empty">Ingen kampe fra i dag eller de seneste 7 dage.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {recentMatches.map(ev => (
+                    <button key={ev.id} onClick={() => handleSelectMatch(ev)}
+                      style={{
+                        background: '#ffffff', border: '0.5px solid var(--cfc-border)', borderRadius: 12,
+                        padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', alignItems: 'center', gap: 14, minHeight: 64,
+                      }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--cfc-text-primary)', fontFamily: 'Georgia, serif' }}>
+                          {ev.title}
+                        </div>
+                        <div style={{ color: 'var(--cfc-text-muted)', fontSize: 13, marginTop: 3 }}>
+                          {fmtDate(ev.start_time)}
+                          {ev.result && <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--cfc-text-primary)' }}>{ev.result}</span>}
+                        </div>
+                      </div>
+                      <span style={{ color: 'var(--cfc-text-subtle)', fontSize: 20 }}>›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
