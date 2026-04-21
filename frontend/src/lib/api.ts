@@ -410,6 +410,7 @@ export interface EventDetail extends Event {
   signups: EventSignup[];
   organizers: EventOrganizer[];
   guests: EventGuest[];
+  no_response: { id: string; name: string; avatar_url?: string }[];
 }
 
 export interface LoginEntry {

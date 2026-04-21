@@ -109,11 +109,19 @@ export async function handleEvents(request: Request, env: Env, user: JWTPayload)
       'SELECT COUNT(*) as count FROM event_comments WHERE event_id=? AND deleted=0'
     ).bind(id).first<{ count: number }>();
 
+    // Aktive spillere der hverken har tilmeldt eller afmeldt sig
+    const signedIds = new Set(signups.results.map((s: any) => s.player_id));
+    const allActivePlayers = await env.DB.prepare(
+      `SELECT id, COALESCE(alias, name) as name, avatar_url FROM players WHERE active=1 AND id != 'admin' ORDER BY name`
+    ).bind().all();
+    const noResponse = allActivePlayers.results.filter((p: any) => !signedIds.has(p.id));
+
     return json({
       ...event,
       signups: signups.results,
       organizers: organizers.results,
       guests: guests.results,
+      no_response: noResponse,
       comment_count: commentCount?.count ?? 0,
     });
   }

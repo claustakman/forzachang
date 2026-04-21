@@ -173,10 +173,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
     } catch (e: any) { alert(e.message); }
   }
 
-  const mySignup = detail?.signups.find(s => s.player_id === player!.id);
-  const tilmeldte = detail?.signups.filter(s => s.status === 'tilmeldt') || [];
-  const afmeldte  = detail?.signups.filter(s => s.status === 'afmeldt') || [];
-  const guests    = detail?.guests || [];
+  const mySignup   = detail?.signups.find(s => s.player_id === player!.id);
+  const tilmeldte  = detail?.signups.filter(s => s.status === 'tilmeldt') || [];
+  const afmeldte   = detail?.signups.filter(s => s.status === 'afmeldt') || [];
+  const guests     = detail?.guests || [];
+  const noResponse = detail?.no_response || [];
 
   // Kommentarer lukkes X timer før eventstart
   const hoursUntilStart = (new Date(event.start_time).getTime() - Date.now()) / (1000 * 60 * 60);
@@ -328,6 +329,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Mangler udmelding */}
+            {noResponse.length > 0 && (
+              <NoResponseSection players={noResponse} />
             )}
 
             {/* Arrangører — kun for event-type */}
@@ -916,6 +922,33 @@ function TilmeldteSection({ tilmeldte, guests, isTrainer, isAdmin }: {
               <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
               <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)' }}>gæst</span>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── NoResponseSection (kollapsbar) ───────────────────────────────────────────
+
+function NoResponseSection({ players }: { players: { id: string; name: string; avatar_url?: string }[] }) {
+  const [collapsed, setCollapsed] = useState(true);
+
+  return (
+    <div>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, marginBottom: collapsed ? 0 : 6 }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7A5800' }}>
+          Mangler udmelding ({players.length})
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{collapsed ? '▼' : '▲'}</span>
+      </button>
+      {!collapsed && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {players.map(p => (
+            <PlayerRow key={p.id} name={p.name} avatarUrl={p.avatar_url} />
           ))}
         </div>
       )}
