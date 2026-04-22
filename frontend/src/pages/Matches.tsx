@@ -228,7 +228,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           )}
           {event.signup_deadline && (
             <div style={{ fontSize: 12, color: isAfterDeadline ? '#B71C1C' : 'var(--cfc-text-subtle)', marginTop: 4 }}>
-              Tilmeldingsfrist: {fmtDateShort(event.signup_deadline)}{isAfterDeadline ? ' (udløbet)' : ''}
+              Tilmeldingsfrist: {(() => {
+                const d = new Date(event.signup_deadline!);
+                return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })
+                  + ' kl. ' + d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
+              })()}{isAfterDeadline ? ' (udløbet)' : ''}
             </div>
           )}
         </div>
