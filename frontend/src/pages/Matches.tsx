@@ -273,14 +273,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <SignupBadge status={mySignup?.status} />
               {mySignup?.message && (
-                <span style={{
-                  fontSize: 12,
-                  color: '#7A5800',
-                  background: '#FFF8E1',
-                  border: '0.5px solid #FFE082',
-                  borderRadius: 6,
-                  padding: '2px 8px',
-                }}>"{mySignup.message}"</span>
+                <MessageBadge message={mySignup.message} />
               )}
               {mySignup?.status === 'tilmeldt' && (
                 <button
@@ -561,18 +554,53 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   );
 }
 
-function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: string; message?: string }) {
+function MessageBadge({ message }: { message: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = message.length > 40;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '4px 10px 4px 4px' }}>
-      <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#E1F5EE', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56' }}>
+    <span
+      onClick={isLong ? () => setExpanded(e => !e) : undefined}
+      style={{
+        fontSize: 12, color: '#7A5800', background: '#FFF8E1',
+        border: '0.5px solid #FFE082', borderRadius: 6, padding: '2px 8px',
+        cursor: isLong ? 'pointer' : 'default',
+        ...(expanded || !isLong
+          ? { wordBreak: 'break-word', whiteSpace: 'pre-wrap' }
+          : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60vw', display: 'inline-block' }),
+      }}
+      title={isLong && !expanded ? message : undefined}
+    >
+      "{message}"
+    </span>
+  );
+}
+
+function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: string; message?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = message && message.length > 30;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '4px 10px 4px 4px' }}>
+      <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#E1F5EE', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', marginTop: 2 }}>
         {avatarUrl
           ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : name.charAt(0)}
       </div>
-      <span style={{ fontSize: 14, color: 'var(--cfc-text-primary)' }}>{name}</span>
+      <span style={{ fontSize: 14, color: 'var(--cfc-text-primary)', flexShrink: 0, paddingTop: 2 }}>{name}</span>
       {message && (
-        <span style={{ fontSize: 12, color: '#7A5800', background: '#FFF8E1', border: '0.5px solid #FFE082', borderRadius: 4, padding: '1px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
-          {message}
+        <span
+          onClick={isLong ? () => setExpanded(e => !e) : undefined}
+          style={{
+            fontSize: 12, color: '#7A5800', background: '#FFF8E1', border: '0.5px solid #FFE082',
+            borderRadius: 4, padding: '2px 6px',
+            ...(expanded || !isLong
+              ? { wordBreak: 'break-word', whiteSpace: 'pre-wrap' }
+              : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }),
+            cursor: isLong ? 'pointer' : 'default',
+          }}
+          title={isLong && !expanded ? message : undefined}
+        >
+          {message}{isLong && !expanded && <span style={{ color: '#c4a000', marginLeft: 3 }}>…</span>}
         </span>
       )}
     </div>
