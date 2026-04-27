@@ -145,6 +145,32 @@ export default {
         return await handleVotes(request, env, payload, undefined, undefined);
       }
 
+      // /api/download — proxy R2-filer med korrekte CORS/download headers
+      if (path === '/api/download') {
+        const fileUrl = url.searchParams.get('url');
+        const filename = url.searchParams.get('filename') || 'download';
+        if (!fileUrl) return json({ error: 'Mangler url-parameter' }, 400);
+
+        // Tillad kun downloads fra vores egen R2-bucket
+        const R2_HOST = 'pub-afc843d1587d4ae3a4aa8f3d76547493.r2.dev';
+        let parsedUrl: URL;
+        try { parsedUrl = new URL(fileUrl); } catch { return json({ error: 'Ugyldig URL' }, 400); }
+        if (parsedUrl.hostname !== R2_HOST) return json({ error: 'Ikke tilladt' }, 403);
+
+        const r2Res = await fetch(fileUrl);
+        if (!r2Res.ok) return new Response('Kunne ikke hente fil', { status: 502 });
+
+        const headers = new Headers({
+          'Content-Type': r2Res.headers.get('Content-Type') || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+          ...corsHeaders(),
+        });
+        const ct = r2Res.headers.get('Content-Length');
+        if (ct) headers.set('Content-Length', ct);
+
+        return new Response(r2Res.body, { status: 200, headers });
+      }
+
       return json({ error: 'Not found' }, 404);
     } catch (e) {
       console.error('Unhandled error:', e);

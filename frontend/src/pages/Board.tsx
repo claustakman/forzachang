@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { api, BoardPost, BoardComment, Player, displayName } from '../lib/api';
+import { api, BoardPost, BoardComment, Player, displayName, proxyDownloadUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 function fmtDate(iso: string) {
@@ -47,45 +47,45 @@ function Avatar({ name, url, size = 32 }: { name?: string; url?: string; size?: 
 
 // Downloader via blob-URL — virker i PWA standalone på iOS/Android
 // hvor target="_blank" + cross-origin download-attribut ikke virker.
+// Download via Worker-proxy — omgår CORS på R2's public domæne.
+// Worker sætter Content-Disposition: attachment, så browseren/PWA downloader filen.
 function DownloadButton({ url, filename, style }: { url: string; filename: string; style?: React.CSSProperties }) {
-  const [loading, setLoading] = useState(false);
-
-  async function handleDownload() {
-    setLoading(true);
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-    } catch {
-      // fallback: åbn direkte i browser
-      window.open(url, '_blank');
-    }
-    setLoading(false);
-  }
+  const token = localStorage.getItem('fc_token');
+  const proxyUrl = proxyDownloadUrl(url, filename);
 
   return (
-    <button
-      onClick={handleDownload}
-      disabled={loading}
+    <a
+      href={proxyUrl}
+      download={filename}
+      onClick={e => {
+        // Sæt Authorization-header via fetch+blob (token kræves af Worker)
+        e.preventDefault();
+        fetch(proxyUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then(r => r.blob())
+          .then(blob => {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+          })
+          .catch(() => window.open(proxyUrl, '_blank'));
+      }}
       title={`Download ${filename}`}
       style={{
         background: 'rgba(255,255,255,0.85)', border: '0.5px solid #e0e0e0',
         borderRadius: 6, padding: '4px 7px', cursor: 'pointer',
         fontSize: 14, lineHeight: 1, color: '#1a1a1a',
         display: 'inline-flex', alignItems: 'center',
-        backdropFilter: 'blur(2px)',
+        backdropFilter: 'blur(2px)', textDecoration: 'none',
         ...style,
       }}
     >
-      {loading ? '⏳' : '⬇'}
-    </button>
+      ⬇
+    </a>
   );
 }
 

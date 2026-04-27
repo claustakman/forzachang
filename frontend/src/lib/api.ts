@@ -4,6 +4,11 @@ const BASE = import.meta.env.PROD
   ? 'https://forzachang-api.claus-takman.workers.dev/api'
   : '/api';
 
+// Bygger en proxy-download URL via Worker (omgår CORS på R2-domænet)
+export function proxyDownloadUrl(fileUrl: string, filename: string): string {
+  return `${BASE}/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+}
+
 function getToken(): string | null {
   return localStorage.getItem('fc_token');
 }
