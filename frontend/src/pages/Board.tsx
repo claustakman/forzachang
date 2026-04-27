@@ -45,6 +45,50 @@ function Avatar({ name, url, size = 32 }: { name?: string; url?: string; size?: 
   );
 }
 
+// Downloader via blob-URL — virker i PWA standalone på iOS/Android
+// hvor target="_blank" + cross-origin download-attribut ikke virker.
+function DownloadButton({ url, filename, style }: { url: string; filename: string; style?: React.CSSProperties }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch {
+      // fallback: åbn direkte i browser
+      window.open(url, '_blank');
+    }
+    setLoading(false);
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      title={`Download ${filename}`}
+      style={{
+        background: 'rgba(255,255,255,0.85)', border: '0.5px solid #e0e0e0',
+        borderRadius: 6, padding: '4px 7px', cursor: 'pointer',
+        fontSize: 14, lineHeight: 1, color: '#1a1a1a',
+        display: 'inline-flex', alignItems: 'center',
+        backdropFilter: 'blur(2px)',
+        ...style,
+      }}
+    >
+      {loading ? '⏳' : '⬇'}
+    </button>
+  );
+}
+
 function highlightMentions(text: string): React.ReactNode {
   const parts = text.split(/(@[\w\u00C0-\u024F\-]+)/g);
   return parts.map((part, i) =>
@@ -383,34 +427,32 @@ function PostCard({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {post.attachments.map(att => (
             att.type === 'image' ? (
-              <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer">
+              <div key={att.id} style={{ position: 'relative' }}>
                 <img
                   src={att.url}
                   alt={att.filename}
-                  style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: 'cover', border: '0.5px solid #e0e0e0' }}
+                  style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: 'cover', border: '0.5px solid #e0e0e0', display: 'block' }}
                 />
-              </a>
+                <DownloadButton url={att.url} filename={att.filename} style={{ position: 'absolute', bottom: 4, right: 4 }} />
+              </div>
             ) : (
-              <a
+              <div
                 key={att.id}
-                href={att.url}
-                target="_blank"
-                rel="noopener noreferrer"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '6px 10px',
                   background: '#f5f5f3',
                   border: '0.5px solid #e0e0e0',
                   borderRadius: 8,
-                  color: '#1a1a1a',
-                  fontSize: 13, textDecoration: 'none',
+                  fontSize: 13,
                 }}
               >
-                📄 {att.filename}
+                <span style={{ color: '#1a1a1a' }}>📄 {att.filename}</span>
                 <span style={{ color: '#999999', fontSize: 11 }}>
                   ({Math.round(att.size_bytes / 1024)} KB)
                 </span>
-              </a>
+                <DownloadButton url={att.url} filename={att.filename} />
+              </div>
             )
           ))}
         </div>
