@@ -691,6 +691,25 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - Overskriften "Tilmeldte (N)" er klikbar og folder listen ind/ud
 - Valget huskes i `localStorage` (`cfc_tilmeldte_collapsed`) på tværs af events og sessioner
 
+### Tilmeldingsliste — tre sektioner
+Tilmeldingslisterne i event-detaljemodalen vises i rækkefølge:
+1. **Tilmeldte (N)** — grøn overskrift, kollapsbar
+2. **Afmeldte (N)** — rød overskrift
+3. **Mangler udmelding (N)** — amber/gul overskrift, kollapsbar (kollapset som default)
+
+`GET /api/events/:id` returnerer `no_response`-array: aktive spillere (ekskl. id='admin') der hverken har tilmeldt eller afmeldt sig.
+
+### Tilmeldingskommentar — tap-to-expand
+- Kommentarer ≤ 30 tegn vises fuldt ud
+- Længere kommentarer afskæres med `…` og kan tappes/klikkes for at folde ud
+- `MessageBadge`-komponent bruges til egen tilmeldingskommentar øverst
+- `PlayerRow`-komponent håndterer andres kommentarer i tilmeldingslisten
+- Desktop: native `title`-tooltip ved hover på afskåret kommentar
+
+### Tilmeldingsfrist
+- Vises som `"3. jun kl. 20:00"` (dag + måned + klokkeslet HH:MM)
+- Rød farve hvis fristen er overskredet, med "(udløbet)"-suffix
+
 ### Kommentarfrist på tilmelding
 - "+ kommentar"-knappen på tilmeldingen ghostes (grå, ikke-klikbar) når der er færre end X timer til eventstart
 - Kommentarsektionens inputfelt erstattes af grå kursiv-besked "Kommentarer lukket X timer før kampstart"
@@ -1057,13 +1076,17 @@ Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i d
 - Quickfilter for admin: **Aktive** / **Arkiverede** (`?archived=1`)
 - Arkivér-knap i oplagsfooter — kun synlig for admin, viser "↩ De-arkivér" for arkiverede
 - "Nyt opslag"-modal med `@`-autocomplete og filvedhæftning
-  - Billeder vises inline, dokumenter som downloadlink med originalt filnavn
 - Oplagskort med avatar, navn, tidsstempel, titel (hvis sat), tekst (highlights @-mentions), vedhæftningslinje
 - Pin/unpin-knap (📌) for trainer/admin
 - Foldbar kommentarsektion per opslag med inline editor og @-autocomplete
 - `localStorage` nøgle `cfc_board_last_read` til unread-tracking
 - `pinned === 1` (ikke `pinned &&`) bruges til conditional rendering (D1 returnerer integers)
 - Vedhæftninger hentes via `JSON_GROUP_ARRAY(JSON_OBJECT(...))` i alle GET-queries og udpakkes med `parseAttachments()`-helper
+
+### Vedhæftninger — download i PWA
+`target="_blank"` og `download`-attributten på cross-origin URLs virker ikke i PWA standalone-mode på iOS/Android. Løsning: `DownloadButton`-komponent der henter via `fetch()`, opretter en blob-URL og klikker et midlertidigt `<a download>`-element programmatisk. Fallback til `window.open()` hvis fetch fejler.
+- **Billeder**: inline preview + lille `⬇`-knap i nederste højre hjørne
+- **Dokumenter**: filnavn + størrelse + `⬇`-knap til højre
 
 ### Notifikationstyper (opslagstavle)
 
