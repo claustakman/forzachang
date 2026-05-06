@@ -238,6 +238,7 @@ function CommentsSection({
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     api.getBoardComments(postId).then(setComments).finally(() => setLoading(false));
@@ -263,9 +264,9 @@ function CommentsSection({
   }
 
   async function deleteComment(commentId: string) {
-    if (!confirm('Slet kommentar?')) return;
     await api.deleteBoardComment(postId, commentId);
     setComments(prev => prev.map(c => c.id === commentId ? { ...c, deleted: 1 } : c));
+    setDeletingCommentId(null);
   }
 
   if (loading) return <div style={{ padding: '8px 0', color: 'var(--cfc-text-muted)', fontSize: 13 }}>Henter kommentarer…</div>;
@@ -285,9 +286,18 @@ function CommentsSection({
                     <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{c.author_name}</span>
                     <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>{fmtDate(c.created_at)}{c.edited_at ? ' · redigeret' : ''}</span>
                     {c.player_id === currentPlayerId && (
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                        <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11 }}>Rediger</button>
-                        <button onClick={() => deleteComment(c.id)} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11, color: '#e57373' }}>Slet</button>
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {deletingCommentId === c.id ? (
+                          <>
+                            <button onClick={() => deleteComment(c.id)} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11, color: '#e57373' }}>Ja, slet</button>
+                            <button onClick={() => setDeletingCommentId(null)} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11 }}>Nej</button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11 }}>Rediger</button>
+                            <button onClick={() => setDeletingCommentId(c.id)} className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11, color: '#e57373' }}>Slet</button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -344,6 +354,9 @@ function PostCard({
   players,
   onEdit,
   onDelete,
+  onDeleteConfirm,
+  onDeleteCancel,
+  deleting,
   onPin,
   onArchive,
 }: {
@@ -354,6 +367,9 @@ function PostCard({
   players: Player[];
   onEdit: (post: BoardPost) => void;
   onDelete: (postId: string) => void;
+  onDeleteConfirm: (postId: string) => void;
+  onDeleteCancel: () => void;
+  deleting?: boolean;
   onPin: (postId: string) => void;
   onArchive: (postId: string) => void;
 }) {
@@ -396,16 +412,24 @@ function PostCard({
               onClick={() => onPin(post.id)}
               className="btn btn-sm"
               title={post.pinned === 1 ? 'Frigør' : 'Fastgør'}
-              style={{ padding: '3px 8px', fontSize: 12, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 0 }}
+              style={{ padding: '6px 10px', fontSize: 14, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 44, minWidth: 44 }}
             >
               📌
             </button>
           )}
           {post.player_id === currentPlayerId && (
-            <>
-              <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12, minHeight: 0 }}>Rediger</button>
-              <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '3px 8px', fontSize: 12, color: '#d32f2f', minHeight: 0 }}>Slet</button>
-            </>
+            deleting ? (
+              <>
+                <span style={{ fontSize: 12, color: '#d32f2f' }}>Slet?</span>
+                <button onClick={() => onDeleteConfirm(post.id)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, color: '#d32f2f', minHeight: 44 }}>Ja</button>
+                <button onClick={onDeleteCancel} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, minHeight: 44 }}>Nej</button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, minHeight: 44 }}>Rediger</button>
+                <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, color: '#d32f2f', minHeight: 44 }}>Slet</button>
+              </>
+            )
           )}
         </div>
       </div>
@@ -471,7 +495,7 @@ function PostCard({
           <button
             onClick={() => onArchive(post.id)}
             className="btn btn-sm"
-            style={{ padding: '4px 10px', fontSize: 12, color: post.archived === 1 ? '#1D9E75' : '#999999', background: 'transparent', border: 'none', marginLeft: 'auto', minHeight: 0 }}
+            style={{ padding: '6px 10px', fontSize: 12, color: post.archived === 1 ? '#1D9E75' : '#999999', background: 'transparent', border: 'none', marginLeft: 'auto', minHeight: 44 }}
             title={post.archived === 1 ? 'De-arkivér opslag' : 'Arkivér opslag'}
           >
             {post.archived === 1 ? '↩ De-arkivér' : '🗄 Arkivér'}
@@ -509,6 +533,7 @@ function PostModal({
   const [body, setBody] = useState(initial?.body ?? '');
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const isEdit = !!initial;
 
@@ -523,14 +548,16 @@ function PostModal({
       } else {
         post = await api.createBoardPost(body.trim(), title.trim() || undefined);
         // Upload attachments
+        const errors: string[] = [];
         for (const file of files) {
           try {
             const att = await api.uploadBoardAttachment(post.id, file);
             post.attachments = [...(post.attachments ?? []), att];
           } catch (e: any) {
-            alert(`Kunne ikke uploade ${file.name}: ${e.message}`);
+            errors.push(`${file.name}: ${e.message}`);
           }
         }
+        if (errors.length) { setUploadErrors(errors); setSaving(false); return; }
       }
       onSave(post);
     } finally {
@@ -605,6 +632,11 @@ function PostModal({
             )}
           </div>
         )}
+        {uploadErrors.length > 0 && (
+          <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '8px 12px', borderRadius: 6, fontSize: 13, marginTop: 10 }}>
+            {uploadErrors.map((e, i) => <div key={i}>⚠ {e}</div>)}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
           <button onClick={onClose} className="btn btn-sm">Annullér</button>
           <button onClick={submit} disabled={saving || !body.trim()} className="btn btn-primary btn-sm">
@@ -667,9 +699,15 @@ export default function Board() {
     setEditPost(null);
   }
 
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+
   async function handleDelete(postId: string) {
-    if (!confirm('Slet opslag?')) return;
+    setDeletingPostId(postId);
+  }
+
+  async function confirmDeletePost(postId: string) {
     await api.deleteBoardPost(postId);
+    setDeletingPostId(null);
     setPosts(prev => prev.filter(p => p.id !== postId));
     setPinned(prev => prev.filter(p => p.id !== postId));
   }
@@ -793,6 +831,9 @@ export default function Board() {
               players={players}
               onEdit={setEditPost}
               onDelete={handleDelete}
+              onDeleteConfirm={confirmDeletePost}
+              onDeleteCancel={() => setDeletingPostId(null)}
+              deleting={deletingPostId === post.id}
               onPin={handlePin}
               onArchive={handleArchive}
             />

@@ -32,7 +32,7 @@ function Avatar({ name, url, size = 40 }: { name: string; url?: string; size?: n
 
 // ── Nedtællingscirkel ─────────────────────────────────────────────────────────
 
-function Countdown({ endsAt }: { endsAt: string }) {
+function Countdown({ endsAt, startedAt }: { endsAt: string; startedAt: string }) {
   const [secsLeft, setSecsLeft] = useState(() =>
     Math.max(0, Math.round((new Date(endsAt + 'Z').getTime() - Date.now()) / 1000))
   );
@@ -44,7 +44,8 @@ function Countdown({ endsAt }: { endsAt: string }) {
     return () => clearInterval(iv);
   }, [endsAt]);
 
-  const total = 60;
+  // Beregn faktisk varighed fra started_at → ends_at (maks. 180 sek.)
+  const total = Math.max(15, Math.round((new Date(endsAt + 'Z').getTime() - new Date(startedAt + 'Z').getTime()) / 1000));
   const pct = secsLeft / total;
   const r = 48;
   const circ = 2 * Math.PI * r;
@@ -352,10 +353,12 @@ export default function Afstemning() {
     setState({ kind: 'idle' });
   }
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   async function handleDeleteSession(sessionId: string) {
-    if (!confirm('Slet afstemning? Dette kan ikke fortrydes.')) return;
     try {
       await api.deleteVoteSession(sessionId);
+      setConfirmDelete(false);
       setState({ kind: 'idle' });
       // Genindlæs kamplisten
       const [hist2, komm2] = await Promise.all([
@@ -550,7 +553,7 @@ export default function Afstemning() {
               Startet af {s.started_by_name ?? '...'} · {s.vote_count ?? 0} stemme{(s.vote_count ?? 0) !== 1 ? 'r' : ''}
             </div>
 
-            {!isExpired && <Countdown endsAt={s.ends_at} />}
+            {!isExpired && <Countdown endsAt={s.ends_at} startedAt={s.started_at} />}
 
             {!isVoter && (
               <div style={{ background: '#FFF8E1', border: '0.5px solid #FFE082', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 14, color: '#7A5800', textAlign: 'center' }}>
@@ -614,7 +617,10 @@ export default function Afstemning() {
           nonVoters={state.nonVoters}
           onBack={handleBack}
           canDelete={isTrainerRole(player?.role)}
-          onDelete={() => handleDeleteSession(state.session.id)}
+          confirmDelete={confirmDelete}
+          onDeleteRequest={() => setConfirmDelete(true)}
+          onDeleteConfirm={() => handleDeleteSession(state.session.id)}
+          onDeleteCancel={() => setConfirmDelete(false)}
         />
       )}
     </div>
@@ -623,7 +629,7 @@ export default function Afstemning() {
 
 // ── ResultsView ───────────────────────────────────────────────────────────────
 
-function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDelete, onDelete }: {
+function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDelete, confirmDelete, onDeleteRequest, onDeleteConfirm, onDeleteCancel }: {
   session: VoteSession;
   results: VoteResult[];
   total: number;
@@ -631,7 +637,10 @@ function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDe
   nonVoters: VotePlayer[];
   onBack: () => void;
   canDelete?: boolean;
-  onDelete?: () => void;
+  confirmDelete?: boolean;
+  onDeleteRequest?: () => void;
+  onDeleteConfirm?: () => void;
+  onDeleteCancel?: () => void;
 }) {
   const isClosed = session.status === 'closed';
   const topVotes = results[0]?.votes ?? 0;
@@ -646,11 +655,19 @@ function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDe
           style={{ background: 'none', border: 'none', color: 'var(--cfc-text-muted)', fontSize: 14, cursor: 'pointer', padding: '0 0 8px' }}>
           ← Tilbage
         </button>
-        {canDelete && onDelete && (
-          <button onClick={onDelete}
-            style={{ background: 'none', border: 'none', color: '#B71C1C', fontSize: 13, cursor: 'pointer', padding: '0 0 8px', fontWeight: 600 }}>
-            🗑 Slet afstemning
-          </button>
+        {canDelete && (
+          confirmDelete ? (
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', paddingBottom: 8 }}>
+              <span style={{ fontSize: 13, color: '#B71C1C' }}>Slet?</span>
+              <button onClick={onDeleteConfirm} className="btn btn-sm btn-danger" style={{ fontSize: 12 }}>Ja</button>
+              <button onClick={onDeleteCancel} className="btn btn-sm" style={{ fontSize: 12 }}>Nej</button>
+            </span>
+          ) : (
+            <button onClick={onDeleteRequest}
+              style={{ background: 'none', border: 'none', color: '#B71C1C', fontSize: 13, cursor: 'pointer', padding: '0 0 8px', fontWeight: 600 }}>
+              🗑 Slet afstemning
+            </button>
+          )
         )}
       </div>
 

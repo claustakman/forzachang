@@ -101,6 +101,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   const [remindSelected, setRemindSelected] = useState<Set<string>>(new Set());
   const [reminding, setReminding] = useState(false);
   const [remindDone, setRemindDone] = useState<number | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => { loadDetail(); }, [event.id]);
 
@@ -110,36 +111,39 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
 
   async function doSignup(playerId: string, status: 'tilmeldt' | 'afmeldt', message?: string) {
     setSigning(playerId);
+    setDetailError(null);
     try {
       await api.setEventSignup(event.id, status, message, playerId !== player!.id ? playerId : undefined);
       await loadDetail();
       onRefresh();
       setShowComment(false);
       setComment('');
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setDetailError(e.message); }
     setSigning(null);
   }
 
   async function doDelete(playerId: string) {
     setSigning(playerId);
+    setDetailError(null);
     try {
       await api.deleteEventSignup(event.id, playerId !== player!.id ? playerId : undefined);
       await loadDetail();
       onRefresh();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setDetailError(e.message); }
     setSigning(null);
   }
 
   async function doAddGuest() {
     if (!guestName.trim()) return;
     setAddingGuest(true);
+    setDetailError(null);
     try {
       await api.addEventGuest(event.id, guestName.trim());
       setGuestName('');
       setShowGuestInput(false);
       await loadDetail();
       onRefresh();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setDetailError(e.message); }
     setAddingGuest(false);
   }
 
@@ -158,19 +162,21 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   async function doRemind() {
     if (remindSelected.size === 0) return;
     setReminding(true);
+    setDetailError(null);
     try {
       const res = await api.sendReminders(event.id, Array.from(remindSelected));
       setRemindDone(res.sent);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setDetailError(e.message); }
     setReminding(false);
   }
 
   async function doDeleteGuest(guest: EventGuest) {
+    setDetailError(null);
     try {
       await api.deleteEventGuest(event.id, guest.id);
       await loadDetail();
       onRefresh();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setDetailError(e.message); }
   }
 
   const mySignup   = detail?.signups.find(s => s.player_id === player!.id);
@@ -192,6 +198,12 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+
+        {detailError && (
+          <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
+            {detailError}
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ marginBottom: 14 }}>
@@ -616,6 +628,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   const [fineSelections, setFineSelections] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getEventStats(event.id).then(d => {
@@ -722,7 +735,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
 
       setSaved(true);
       setTimeout(onClose, 1200);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setStatsError(e.message); }
     setSaving(false);
   }
 
@@ -843,6 +856,9 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
           </>
         )}
 
+        {statsError && (
+          <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '8px 12px', borderRadius: 6, fontSize: 13, marginTop: 8 }}>{statsError}</div>
+        )}
         <div className="modal-footer" style={{ marginTop: 16 }}>
           {saved && <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Gemt!</span>}
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
@@ -1001,6 +1017,8 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [open, setOpen] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -1016,30 +1034,32 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
   async function send() {
     if (!newBody.trim()) return;
     setSending(true);
+    setCommentError(null);
     try {
       const c = await api.createComment(eventId, newBody.trim());
       setComments(prev => [...prev, c]);
       setNewBody('');
       setMention(null);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setCommentError(e.message); }
     setSending(false);
   }
 
   async function saveEdit(id: string) {
     if (!editBody.trim()) return;
+    setCommentError(null);
     try {
       await api.updateComment(eventId, id, editBody.trim());
       setComments(prev => prev.map(c => c.id === id ? { ...c, body: editBody.trim(), edited_at: new Date().toISOString() } : c));
       setEditingId(null);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setCommentError(e.message); }
   }
 
   async function doDelete(id: string) {
-    if (!confirm('Slet kommentar?')) return;
     try {
       await api.deleteComment(eventId, id);
       setComments(prev => prev.map(c => c.id === id ? { ...c, deleted: 1 } : c));
-    } catch (e: any) { alert(e.message); }
+      setDeletingCommentId(null);
+    } catch (e: any) { setCommentError(e.message); }
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -1170,9 +1190,19 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
                           {renderBody(c.body)}
                         </div>
                         {isOwn && (
-                          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                            <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--cfc-text-muted)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
-                            <button onClick={() => doDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#B71C1C', padding: 0, textDecoration: 'underline' }}>Slet</button>
+                          <div style={{ display: 'flex', gap: 10, marginTop: 4, alignItems: 'center' }}>
+                            {deletingCommentId === c.id ? (
+                              <>
+                                <span style={{ fontSize: 12, color: '#B71C1C' }}>Slet?</span>
+                                <button onClick={() => doDelete(c.id)} className="btn btn-sm btn-danger" style={{ fontSize: 11, padding: '2px 8px' }}>Ja</button>
+                                <button onClick={() => setDeletingCommentId(null)} className="btn btn-sm" style={{ fontSize: 11, padding: '2px 8px' }}>Nej</button>
+                              </>
+                            ) : (
+                              <>
+                                <button onClick={() => { setEditingId(c.id); setEditBody(c.body); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--cfc-text-muted)', padding: 0, textDecoration: 'underline' }}>Rediger</button>
+                                <button onClick={() => setDeletingCommentId(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#B71C1C', padding: 0, textDecoration: 'underline' }}>Slet</button>
+                              </>
+                            )}
                           </div>
                         )}
                       </>
@@ -1182,6 +1212,10 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
               );
             })}
           </div>
+
+          {commentError && (
+            <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '6px 10px', borderRadius: 6, fontSize: 13, marginBottom: 8 }}>{commentError}</div>
+          )}
 
           {/* Ny kommentar */}
           {commentsClosed ? (
@@ -1512,6 +1546,7 @@ function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () 
   const [organizerIds, setOrganizerIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [deletingEvent, setDeletingEvent] = useState(false);
 
   useEffect(() => {
     api.getPlayers().then(setPlayers).catch(() => {});
@@ -1644,19 +1679,24 @@ function EventModal({ event, onClose, onDeleted }: { event?: Event; onClose: () 
         {error && <p style={{ color: '#B71C1C', fontSize: 13, marginBottom: 10 }}>{error}</p>}
         <div className="modal-footer">
           {event && (
-            <button
-              className="btn btn-secondary"
-              style={{ marginRight: 'auto', color: '#B71C1C', borderColor: '#FFCDD2' }}
-              onClick={async () => {
-                if (!confirm(`Slet "${event.title}"? Dette kan ikke fortrydes.`)) return;
-                try {
-                  await api.deleteEvent(event.id);
-                  onDeleted ? onDeleted() : onClose();
-                } catch (e: any) { setError(e.message); }
-              }}
-            >
-              🗑️ Slet
-            </button>
+            deletingEvent ? (
+              <span style={{ marginRight: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: '#B71C1C' }}>Slet?</span>
+                <button className="btn btn-sm btn-danger" onClick={async () => {
+                  try { await api.deleteEvent(event.id); onDeleted ? onDeleted() : onClose(); }
+                  catch (e: any) { setError(e.message); setDeletingEvent(false); }
+                }}>Ja</button>
+                <button className="btn btn-sm btn-secondary" onClick={() => setDeletingEvent(false)}>Nej</button>
+              </span>
+            ) : (
+              <button
+                className="btn btn-secondary"
+                style={{ marginRight: 'auto', color: '#B71C1C', borderColor: '#FFCDD2' }}
+                onClick={() => setDeletingEvent(true)}
+              >
+                🗑️ Slet
+              </button>
+            )
           )}
           <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? '...' : event ? 'Gem' : 'Opret'}</button>

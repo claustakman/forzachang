@@ -140,12 +140,14 @@ export default function Fines() {
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
                 onMouseLeave={e => (e.currentTarget.style.background = p.player_id === player?.id ? 'var(--cfc-bg-hover)' : 'transparent')}
               >
-                <td style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Avatar url={p.avatar_url} name={p.name} size={28} />
-                  <span style={{ fontWeight: p.player_id === player?.id ? 600 : 400 }}>
-                    {p.name}
-                    {p.player_id === player?.id && <span style={{ color: 'var(--cfc-text-muted)', fontSize: 11, marginLeft: 4 }}>(dig)</span>}
-                  </span>
+                <td style={{ padding: '9px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Avatar url={p.avatar_url} name={p.name} size={28} />
+                    <span style={{ fontWeight: p.player_id === player?.id ? 600 : 400 }}>
+                      {p.name}
+                      {p.player_id === player?.id && <span style={{ color: 'var(--cfc-text-muted)', fontSize: 11, marginLeft: 4 }}>(dig)</span>}
+                    </span>
+                  </div>
                 </td>
                 <td style={{ padding: '9px 8px', textAlign: 'right', color: 'var(--cfc-text-muted)' }}>{fmtKr(p.total_fines)}</td>
                 <td style={{ padding: '9px 8px', textAlign: 'right', color: '#5a9e5a' }}>{fmtKr(p.total_payments)}</td>
@@ -180,10 +182,11 @@ export default function Fines() {
 function FineCatalog({ allTypes, isAdmin, onReload }: { allTypes: FineType[]; isAdmin: boolean; onReload: () => void }) {
   const [editType, setEditType] = useState<FineType | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
-  async function archive(id: string, name: string) {
-    if (!confirm(`Arkivér bødetype "${name}"? Den vises ikke længere ved tildeling af bøder.`)) return;
+  async function archive(id: string) {
     await api.deleteFineType(id);
+    setArchivingId(null);
     onReload();
   }
 
@@ -226,10 +229,17 @@ function FineCatalog({ allTypes, isAdmin, onReload }: { allTypes: FineType[]; is
                   <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 1 }}>{t.amount} kr.</div>
                 </div>
                 {isAdmin && (
-                  <>
-                    <button className="btn btn-sm btn-secondary" onClick={() => setEditType(t)}>Rediger</button>
-                    <button className="btn btn-sm btn-danger" onClick={() => archive(t.id, t.name)}>Arkivér</button>
-                  </>
+                  archivingId === t.id ? (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm btn-danger" style={{ fontSize: 12 }} onClick={() => archive(t.id)}>Ja, arkivér</button>
+                      <button className="btn btn-sm" style={{ fontSize: 12 }} onClick={() => setArchivingId(null)}>Nej</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setEditType(t)}>Rediger</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => setArchivingId(t.id)}>Arkivér</button>
+                    </>
+                  )
                 )}
               </div>
             </div>
@@ -349,6 +359,8 @@ function PlayerFinesModal({
   const [tab, setTab] = useState<'fines' | 'payments'>('fines');
   const [showAddFine, setShowAddFine] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [deletingFineId, setDeletingFineId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   useEffect(() => { loadDetail(); }, [playerSummary.player_id]);
 
@@ -367,14 +379,22 @@ function PlayerFinesModal({
   }
 
   async function removeFine(id: string) {
-    if (!confirm('Slet denne bøde?')) return;
+    setDeletingFineId(id);
+  }
+
+  async function confirmRemoveFine(id: string) {
     await api.deleteFine(id);
+    setDeletingFineId(null);
     loadDetail();
   }
 
   async function removePayment(id: string) {
-    if (!confirm('Slet denne indbetaling?')) return;
+    setDeletingPaymentId(id);
+  }
+
+  async function confirmRemovePayment(id: string) {
     await api.deleteFinePayment(id);
+    setDeletingPaymentId(null);
     loadDetail();
   }
 
@@ -468,13 +488,14 @@ function PlayerFinesModal({
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtKr(f.amount)}</div>
                       {isTrainer && (
-                        <button
-                          className="btn btn-sm btn-danger"
-                          style={{ marginTop: 4, fontSize: 10, padding: '2px 8px' }}
-                          onClick={() => removeFine(f.id)}
-                        >
-                          Slet
-                        </button>
+                        deletingFineId === f.id ? (
+                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                            <button className="btn btn-sm btn-danger" style={{ fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => confirmRemoveFine(f.id)}>Ja</button>
+                            <button className="btn btn-sm" style={{ fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => setDeletingFineId(null)}>Nej</button>
+                          </div>
+                        ) : (
+                          <button className="btn btn-sm btn-danger" style={{ marginTop: 4, fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => removeFine(f.id)}>Slet</button>
+                        )
                       )}
                     </div>
                   </div>
@@ -510,13 +531,14 @@ function PlayerFinesModal({
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: '#5a9e5a' }}>+ {fmtKr(p.amount)}</div>
                       {isTrainer && (
-                        <button
-                          className="btn btn-sm btn-danger"
-                          style={{ marginTop: 4, fontSize: 10, padding: '2px 8px' }}
-                          onClick={() => removePayment(p.id)}
-                        >
-                          Slet
-                        </button>
+                        deletingPaymentId === p.id ? (
+                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                            <button className="btn btn-sm btn-danger" style={{ fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => confirmRemovePayment(p.id)}>Ja</button>
+                            <button className="btn btn-sm" style={{ fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => setDeletingPaymentId(null)}>Nej</button>
+                          </div>
+                        ) : (
+                          <button className="btn btn-sm btn-danger" style={{ marginTop: 4, fontSize: 12, padding: '6px 10px', minHeight: 44 }} onClick={() => removePayment(p.id)}>Slet</button>
+                        )
                       )}
                     </div>
                   </div>

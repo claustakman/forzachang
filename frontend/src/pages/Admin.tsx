@@ -57,12 +57,15 @@ function AdminPlayers() {
 
   useEffect(() => { load(); }, []);
 
+  const [loadError, setLoadError] = useState('');
+
   async function load() {
     setLoading(true);
+    setLoadError('');
     try {
       setPlayers(await api.getPlayers(true));
     } catch (e: any) {
-      alert('Fejl ved hentning af spillere: ' + e.message);
+      setLoadError('Fejl ved hentning af spillere: ' + e.message);
     }
     setLoading(false);
   }
@@ -74,9 +77,13 @@ function AdminPlayers() {
     .sort((a, b) => parseInt(a.license_number!) - parseInt(b.license_number!));
   const shown = subTab === 'active' ? active : subTab === 'inactive' ? inactive : [];
 
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [inviteMsg, setInviteMsg] = useState<{ id: string; msg: string } | null>(null);
+
   async function deactivate(id: string) {
-    if (!confirm('Deaktiver spiller? De kan ikke længere logge ind.')) return;
     await api.deletePlayer(id);
+    setDeactivatingId(null);
     load();
   }
 
@@ -88,15 +95,17 @@ function AdminPlayers() {
   async function sendInvite(id: string, name: string) {
     try {
       await api.sendInvite(id);
-      alert(`Velkomst-email sendt til ${name}`);
+      setInviteMsg({ id, msg: `✓ Velkomst-email sendt til ${name}` });
+      setTimeout(() => setInviteMsg(null), 4000);
     } catch (e: any) {
-      alert('Fejl: ' + e.message);
+      setInviteMsg({ id, msg: `Fejl: ${e.message}` });
+      setTimeout(() => setInviteMsg(null), 4000);
     }
   }
 
-  async function deletePermanently(id: string, name: string) {
-    if (!confirm(`Slet ${name} permanent? Dette kan ikke fortrydes.`)) return;
+  async function deletePermanently(id: string) {
     await api.deletePlayerPermanently(id);
+    setDeletingId(null);
     load();
   }
 
@@ -104,6 +113,9 @@ function AdminPlayers() {
 
   return (
     <>
+      {loadError && (
+        <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>{loadError}</div>
+      )}
       <button
         className="btn btn-primary"
         style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
@@ -174,9 +186,16 @@ function AdminPlayers() {
             isLast={i === shown.length - 1}
             onEdit={() => setEditPlayer(p)}
             onInvite={() => sendInvite(p.id, p.name)}
-            onDeactivate={() => deactivate(p.id)}
+            inviteMsg={inviteMsg?.id === p.id ? inviteMsg.msg : undefined}
+            deactivating={deactivatingId === p.id}
+            onDeactivate={() => setDeactivatingId(p.id)}
+            onDeactivateConfirm={() => deactivate(p.id)}
+            onDeactivateCancel={() => setDeactivatingId(null)}
+            deleting={deletingId === p.id}
+            onDelete={() => setDeletingId(p.id)}
+            onDeleteConfirm={() => deletePermanently(p.id)}
+            onDeleteCancel={() => setDeletingId(null)}
             onReactivate={() => reactivate(p.id)}
-            onDelete={() => deletePermanently(p.id, p.name)}
             onShowLogins={() => setLoginPlayer(p)}
           />
         ))}
@@ -190,14 +209,21 @@ function AdminPlayers() {
   );
 }
 
-function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReactivate, onDelete, onShowLogins }: {
+function PlayerRow({ player: p, isLast, onEdit, onInvite, inviteMsg, deactivating, onDeactivate, onDeactivateConfirm, onDeactivateCancel, deleting, onDelete, onDeleteConfirm, onDeleteCancel, onReactivate, onShowLogins }: {
   player: Player;
   isLast: boolean;
   onEdit: () => void;
   onInvite: () => void;
+  inviteMsg?: string;
+  deactivating?: boolean;
   onDeactivate: () => void;
-  onReactivate: () => void;
+  onDeactivateConfirm: () => void;
+  onDeactivateCancel: () => void;
+  deleting?: boolean;
   onDelete: () => void;
+  onDeleteConfirm: () => void;
+  onDeleteCancel: () => void;
+  onReactivate: () => void;
   onShowLogins: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -218,23 +244,27 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
 
   const manualTypes = honorTypes.filter(t => t.type === 'manual');
 
+  const [honorError, setHonorError] = useState('');
+  const [deletingHonorId, setDeletingHonorId] = useState<string | null>(null);
+
   async function saveHonor() {
     if (!addHonorTypeId || !addHonorYear) return;
     setSavingHonor(true);
+    setHonorError('');
     try {
       await api.createHonor({ player_id: p.id, honor_type_id: addHonorTypeId, season: Number(addHonorYear) });
       setHonors(await api.getHonors(p.id));
       setShowAddHonor(false);
       setAddHonorTypeId('');
     } catch (e: any) {
-      alert('Fejl: ' + e.message);
+      setHonorError(e.message);
     }
     setSavingHonor(false);
   }
 
-  async function deleteHonor(id: string) {
-    if (!confirm('Slet hædersbevisning?')) return;
+  async function confirmDeleteHonor(id: string) {
     await api.deleteHonor(id);
+    setDeletingHonorId(null);
     setHonors(await api.getHonors(p.id));
   }
 
@@ -295,16 +325,33 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
               ? new Date(p.last_seen).toLocaleString('da-DK', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
               : '—'}
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-sm btn-secondary" onClick={onShowLogins}>🕐 Aktivitet</button>
             {p.active === 1
               ? <>
                   <button className="btn btn-sm btn-secondary" onClick={onInvite}>Send velkomst-email</button>
-                  <button className="btn btn-sm btn-danger" onClick={onDeactivate}>Deaktiver</button>
+                  {inviteMsg && <span style={{ fontSize: 12, color: inviteMsg.startsWith('✓') ? '#1D9E75' : '#e57373' }}>{inviteMsg}</span>}
+                  {deactivating ? (
+                    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>Deaktiver?</span>
+                      <button className="btn btn-sm btn-danger" onClick={onDeactivateConfirm}>Ja</button>
+                      <button className="btn btn-sm" onClick={onDeactivateCancel}>Nej</button>
+                    </span>
+                  ) : (
+                    <button className="btn btn-sm btn-danger" onClick={onDeactivate}>Deaktiver</button>
+                  )}
                 </>
               : <>
                   <button className="btn btn-sm btn-secondary" onClick={onReactivate}>Genaktiver</button>
-                  <button className="btn btn-sm btn-danger" onClick={onDelete}>Slet permanent</button>
+                  {deleting ? (
+                    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: '#B71C1C' }}>Slet permanent?</span>
+                      <button className="btn btn-sm btn-danger" onClick={onDeleteConfirm}>Ja</button>
+                      <button className="btn btn-sm" onClick={onDeleteCancel}>Nej</button>
+                    </span>
+                  ) : (
+                    <button className="btn btn-sm btn-danger" onClick={onDelete}>Slet permanent</button>
+                  )}
                 </>
             }
           </div>
@@ -316,12 +363,19 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
             </div>
             {honors.length === 0 && <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', marginBottom: 6 }}>Ingen endnu</div>}
             {honors.map(h => (
-              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12 }}>
+              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 12, flexWrap: 'wrap' }}>
                 <span style={{ padding: '2px 8px', borderRadius: 100, background: h.honor_type === 'auto' ? '#0f1a2e' : '#1a1200', color: h.honor_type === 'auto' ? '#5b8dd9' : '#c4a000', border: `0.5px solid ${h.honor_type === 'auto' ? '#1a3a5c' : '#3a2a00'}` }}>
                   {h.honor_name}{h.season ? ` ${h.season}` : ''}
                 </span>
                 {h.honor_type === 'manual' && (
-                  <button onClick={() => deleteHonor(h.id)} style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }} title="Slet">✕</button>
+                  deletingHonorId === h.id ? (
+                    <>
+                      <button className="btn btn-sm btn-danger" style={{ fontSize: 11, padding: '1px 7px' }} onClick={() => confirmDeleteHonor(h.id)}>Ja</button>
+                      <button className="btn btn-sm" style={{ fontSize: 11, padding: '1px 7px' }} onClick={() => setDeletingHonorId(null)}>Nej</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setDeletingHonorId(h.id)} style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }} title="Slet">✕</button>
+                  )
                 )}
               </div>
             ))}
@@ -336,6 +390,7 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, onDeactivate, onReacti
                 <input className="input" style={{ fontSize: 12, width: 70 }} type="number" value={addHonorYear} onChange={e => setAddHonorYear(e.target.value)} placeholder="Årstal" />
                 <button className="btn btn-sm btn-primary" disabled={savingHonor || !addHonorTypeId} onClick={saveHonor}>Gem</button>
                 <button className="btn btn-sm btn-secondary" onClick={() => setShowAddHonor(false)}>Annullér</button>
+                {honorError && <span style={{ fontSize: 12, color: '#e57373', width: '100%' }}>{honorError}</span>}
               </div>
             )}
           </div>
@@ -676,9 +731,11 @@ function AdminSettings() {
     setSaving(false);
   }
 
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+
   async function bulkUpdateDeadlines() {
-    if (!confirm(`Opdater tilmeldingsfrist til ${deadlineDays} dage før start på alle kommende kampe uden manuelt sat frist?`)) return;
     setBulking(true); setDeadlineMsg('');
+    setBulkConfirm(false);
     try {
       const res = await api.bulkUpdateDeadlines(deadlineDays);
       setDeadlineMsg(`${res.updated} kampe opdateret`);
@@ -757,10 +814,24 @@ function AdminSettings() {
           <button className="btn btn-primary" onClick={saveDeadline} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
             {saving ? '...' : 'Gem indstilling'}
           </button>
-          <button className="btn btn-secondary" onClick={bulkUpdateDeadlines} disabled={bulking} style={{ flex: 1, justifyContent: 'center' }}>
-            {bulking ? '...' : 'Opdater eksisterende kampe'}
-          </button>
+          {bulkConfirm ? (
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+              <button className="btn btn-danger" onClick={bulkUpdateDeadlines} disabled={bulking} style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}>
+                {bulking ? '...' : 'Ja, opdater'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setBulkConfirm(false)} style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}>Nej</button>
+            </div>
+          ) : (
+            <button className="btn btn-secondary" onClick={() => setBulkConfirm(true)} style={{ flex: 1, justifyContent: 'center' }}>
+              Opdater eksisterende kampe
+            </button>
+          )}
         </div>
+        {bulkConfirm && !bulking && (
+          <p style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 6 }}>
+            Opdater frist til {deadlineDays} dage før start på alle kommende kampe?
+          </p>
+        )}
       </div>
 
       {/* Påmindelsestidspunkt */}
