@@ -598,6 +598,7 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | DELETE | /api/board/posts/:id/comments/:cid      | self           | Slet kommentar (soft delete)                     |
 | POST   | /api/board/posts/:id/attachments        | self           | Upload vedhæftning til R2 (filnavn via X-Filename header) |
 | DELETE | /api/board/attachments/:aid             | self           | Slet vedhæftning fra R2 + DB                     |
+| GET    | /api/download                           | player+        | Proxy-download af R2-fil (?url=&filename=) — omgår CORS  |
 | GET    | /api/honors                             | player+        | Alle hædersbevisninger (?player_id= filter)      |
 | GET    | /api/honors/summary                     | player+        | Aggregeret per honor_type (til Hæder-siden)      |
 | POST   | /api/honors                             | admin          | Tildel manuel hædersbevisning                    |
@@ -1154,12 +1155,13 @@ Fire tilstande:
 1. **Idle**: Trainer/admin ser liste over kampe fra i dag og de seneste 7 dage + "✨ Start ad-hoc afstemning"-knap. Spillere (ikke trainer/admin) ser kun "Ingen igangværende afstemning".
 2. **Setup** (trainer/admin): Konfigurer kandidater, vælgere og varighed (slider 15–180 sek) — pre-udfyldt fra tilmeldingslisten ved kampvalg, tom ved ad-hoc
 3. **Voting**: SVG-nedtællingscirkel + kandidatliste — klik på spiller for at stemme
-4. **Results**: Rangeret liste med stemmebar og 🏆 til vinder; trainer/admin ser "🗑 Slet afstemning"-knap
+4. **Results**: Rangeret liste med stemmebar og 🏆 til vinder; sektion "Har ikke stemt (N)" i amber nederst; trainer/admin ser "🗑 Slet afstemning"-knap
 
 #### Rollebaseret adgang
 - **Trainer/admin**: fuld adgang — idle-skærm med kampliste, setup, voting, results
 - **Spiller**: ser kun aktiv afstemning (voting), resultat af seneste afstemning (results), eller "Ingen igangværende afstemning" — aldrig idle-skærm med kampliste
 
+- `GET /api/votes/sessions/:id/results` returnerer `non_voters`-array: voters der ikke afgav stemme
 - Polling hvert 2. sekund under voting-fasen (via `useRef<setInterval>`)
 - Kampfilter: `start_time >= nu − 7 dage` og `<= slutningen af i dag` (henter fra begge tabs: historik + kommende)
 - Ad-hoc: `event_id = null`, valgfri titel — "Ad-hoc afstemning" hvis ingen titel
