@@ -631,5 +631,6 @@ export interface VoteResults {
   session: VoteSession;
   results: VoteResult[];
   total_votes: number;
+  non_voters: VotePlayer[];
   my_vote: string | null;
 }

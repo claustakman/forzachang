@@ -167,7 +167,7 @@ type PageState =
   | { kind: 'idle' }
   | { kind: 'setup'; event: Event | null; allPlayers: VotePlayer[] }   // event=null → ad-hoc
   | { kind: 'voting'; session: VoteSession }
-  | { kind: 'results'; session: VoteSession; results: VoteResult[]; total: number; myVote: string | null };
+  | { kind: 'results'; session: VoteSession; results: VoteResult[]; total: number; myVote: string | null; nonVoters: VotePlayer[] };
 
 const isTrainerRole = (role?: string) => role === 'trainer' || role === 'admin';
 
@@ -210,7 +210,7 @@ export default function Afstemning() {
       if (s.status === 'closed') {
         stopPoll();
         const res = await api.getVoteResults(s.id);
-        setState({ kind: 'results', session: s, results: res.results, total: res.total_votes, myVote: res.my_vote });
+        setState({ kind: 'results', session: s, results: res.results, total: res.total_votes, myVote: res.my_vote, nonVoters: res.non_voters ?? [] });
       } else {
         setState(prev => prev.kind === 'voting' ? { kind: 'voting', session: s } : prev);
       }
@@ -238,7 +238,7 @@ export default function Afstemning() {
             setState({ kind: 'voting', session: s });
           } else {
             const res = await api.getVoteResults(s.id);
-            setState({ kind: 'results', session: s, results: res.results, total: res.total_votes, myVote: res.my_vote });
+            setState({ kind: 'results', session: s, results: res.results, total: res.total_votes, myVote: res.my_vote, nonVoters: res.non_voters ?? [] });
           }
           setLoading(false);
           return;
@@ -611,6 +611,7 @@ export default function Afstemning() {
           results={state.results}
           total={state.total}
           myVote={state.myVote}
+          nonVoters={state.nonVoters}
           onBack={handleBack}
           canDelete={isTrainerRole(player?.role)}
           onDelete={() => handleDeleteSession(state.session.id)}
@@ -622,11 +623,12 @@ export default function Afstemning() {
 
 // ── ResultsView ───────────────────────────────────────────────────────────────
 
-function ResultsView({ session, results, total, myVote, onBack, canDelete, onDelete }: {
+function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDelete, onDelete }: {
   session: VoteSession;
   results: VoteResult[];
   total: number;
   myVote: string | null;
+  nonVoters: VotePlayer[];
   onBack: () => void;
   canDelete?: boolean;
   onDelete?: () => void;
@@ -746,6 +748,23 @@ function ResultsView({ session, results, total, myVote, onBack, canDelete, onDel
 
       {results.length === 0 && (
         <div className="empty">Ingen stemmer afgivet endnu.</div>
+      )}
+
+      {/* Har ikke stemt */}
+      {nonVoters.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7A5800', marginBottom: 8 }}>
+            Har ikke stemt ({nonVoters.length})
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {nonVoters.map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#FFF8E1', border: '0.5px solid #FFE082', borderRadius: 20, padding: '4px 10px 4px 4px' }}>
+                <Avatar name={p.name} url={p.avatar_url} size={22} />
+                <span style={{ fontSize: 13, color: '#7A5800' }}>{p.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -173,19 +173,27 @@ export async function handleVotes(
     if (!session) return json({ error: 'Afstemning ikke fundet' }, 404);
 
     const candidateIds: string[] = JSON.parse(session.candidates || '[]');
+    const voterIds: string[] = JSON.parse(session.voters || '[]');
+
     const votesRes = await env.DB.prepare(
-      `SELECT candidate_id, COUNT(*) as votes FROM votes WHERE session_id=? GROUP BY candidate_id`
+      `SELECT candidate_id, voter_id FROM votes WHERE session_id=?`
     ).bind(sessionId).all();
-    const votesMap = new Map((votesRes.results as any[]).map(r => [r.candidate_id, Number(r.votes)]));
+
+    const votesMap = new Map<string, number>();
+    const votedIds = new Set<string>();
+    for (const r of votesRes.results as any[]) {
+      votesMap.set(r.candidate_id, (votesMap.get(r.candidate_id) ?? 0) + 1);
+      votedIds.add(r.voter_id);
+    }
 
     const candidates = await getPlayerObjects(env, candidateIds);
     const results = (candidates as any[])
       .map(c => ({ ...c, votes: votesMap.get(c.id) ?? 0 }))
       .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
 
-    const totalVotes = await env.DB.prepare(
-      'SELECT COUNT(*) as count FROM votes WHERE session_id=?'
-    ).bind(sessionId).first() as any;
+    // Voters der ikke har stemt
+    const nonVoterIds = voterIds.filter(id => !votedIds.has(id));
+    const nonVoters = await getPlayerObjects(env, nonVoterIds);
 
     const myVote = await env.DB.prepare(
       'SELECT candidate_id FROM votes WHERE session_id=? AND voter_id=?'
@@ -194,7 +202,8 @@ export async function handleVotes(
     return json({
       session,
       results,
-      total_votes: Number(totalVotes?.count ?? 0),
+      total_votes: votedIds.size,
+      non_voters: nonVoters,
       my_vote: myVote?.candidate_id ?? null,
     });
   }
