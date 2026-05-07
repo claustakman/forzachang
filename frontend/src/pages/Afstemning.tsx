@@ -2,33 +2,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, Event, VoteSession, VotePlayer, VoteResult } from '../lib/api';
 import { useAuth } from '../lib/auth';
-
-// ── Hjælpere ──────────────────────────────────────────────────────────────────
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function Avatar({ name, url, size = 40 }: { name: string; url?: string; size?: number }) {
-  const colors = ['#1D9E75', '#0C447C', '#7A5800', '#B71C1C', '#6B21A8'];
-  const color = colors[(name.charCodeAt(0) + (name.charCodeAt(1) || 0)) % colors.length];
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  if (url) {
-    return (
-      <img src={url} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-    );
-  }
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', background: color + '22',
-      color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 700, fontSize: size * 0.38, flexShrink: 0, border: `1.5px solid ${color}44`,
-    }}>
-      {initials}
-    </div>
-  );
-}
+import Avatar from '../components/Avatar';
+import { fmtDate } from '../lib/format';
 
 // ── Nedtællingscirkel ─────────────────────────────────────────────────────────
 
@@ -572,7 +547,7 @@ export default function Afstemning() {
                 <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
                   Vælg kampens bedste spiller:
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, opacity: submitting ? 0.5 : 1, transition: 'opacity 0.15s', pointerEvents: submitting ? 'none' : undefined }}>
                   {s.candidates.map(c => {
                     const sel = selectedCandidate === c.id;
                     return (
@@ -599,7 +574,7 @@ export default function Afstemning() {
                   className="btn btn-primary"
                   style={{ width: '100%', justifyContent: 'center', fontSize: 15, minHeight: 52 }}
                 >
-                  {submitting ? '...' : 'Afgiv stemme'}
+                  {submitting ? 'Sender stemme…' : 'Afgiv stemme'}
                 </button>
               </>
             )}

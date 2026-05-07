@@ -1,34 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, Player, EventComment, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
-
-// ── Hjælpefunktioner ──────────────────────────────────────────────────────────
-
-function fmtDateTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'short' })
-    + ' kl. ' + d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
-}
-
-function fmtDateShort(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
-}
-
-function fmtWeekday(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', { weekday: 'short' }).toUpperCase();
-}
-
-function fmtDay(iso: string) {
-  return new Date(iso).getDate().toString();
-}
-
-function fmtMonthShort(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', { month: 'short' }).toUpperCase();
-}
+import { fmtDate, fmtDateTime, fmtDateTimeShort, fmtTime, fmtWeekday, fmtDay, fmtMonth } from '../lib/format';
 
 function toLocalInput(iso: string) {
   const d = new Date(iso);
@@ -240,11 +213,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           )}
           {event.signup_deadline && (
             <div style={{ fontSize: 12, color: isAfterDeadline ? '#B71C1C' : 'var(--cfc-text-subtle)', marginTop: 4 }}>
-              Tilmeldingsfrist: {(() => {
-                const d = new Date(event.signup_deadline!);
-                return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' })
-                  + ' kl. ' + d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
-              })()}{isAfterDeadline ? ' (udløbet)' : ''}
+              Tilmeldingsfrist: {fmtDateTimeShort(event.signup_deadline!)}{isAfterDeadline ? ' (udløbet)' : ''}
             </div>
           )}
         </div>
@@ -566,9 +535,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   );
 }
 
+const MSG_TRUNCATE = 30;
+
 function MessageBadge({ message }: { message: string }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = message.length > 40;
+  const isLong = message.length > MSG_TRUNCATE;
   return (
     <span
       onClick={isLong ? () => setExpanded(e => !e) : undefined}
@@ -589,7 +560,7 @@ function MessageBadge({ message }: { message: string }) {
 
 function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: string; message?: string }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = message && message.length > 30;
+  const isLong = message && message.length > MSG_TRUNCATE;
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, background: 'var(--cfc-bg-hover)', borderRadius: 20, padding: '4px 10px 4px 4px' }}>
@@ -1094,12 +1065,6 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
     );
   }
 
-  function fmtTime(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' }) + ' ' +
-      d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
-  }
-
   const displayedComments = sortOldest ? [...comments] : [...comments].reverse();
   const visibleCount = comments.filter(c => !c.deleted).length;
 
@@ -1166,7 +1131,7 @@ function CommentSection({ eventId, currentPlayerId, commentsClosed, commentCutof
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cfc-text-primary)' }}>{c.author_name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fmtTime(c.created_at)}</span>
+                      <span style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>{fmtDateTimeShort(c.created_at)}</span>
                       {c.edited_at && <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)' }}>· redigeret</span>}
                     </div>
                     {editingId === c.id ? (
@@ -1473,7 +1438,7 @@ function EventRow({ event: ev, onClick }: {
           {fmtDay(ev.start_time)}
         </div>
         <div style={{ fontSize: 10, color: 'var(--cfc-text-muted)', letterSpacing: '0.06em', marginTop: 2 }}>
-          {fmtMonthShort(ev.start_time)}
+          {fmtMonth(ev.start_time)}
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--cfc-text-primary)', marginTop: 4 }}>
           {fmtTime(ev.start_time)}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api, Fine, FineType, FinePayment, PlayerFinesSummary, Event, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import Avatar from '../components/Avatar';
+import { fmtDate } from '../lib/format';
 
 function autoAssignLabel(v?: string) {
   if (v === 'absence')     return { label: 'Auto: afbud',          bg: '#2a1010', color: '#e57373' };
@@ -11,10 +13,6 @@ function autoAssignLabel(v?: string) {
 
 function fmtKr(kr: number) {
   return kr.toLocaleString('da-DK', { style: 'currency', currency: 'DKK', minimumFractionDigits: 0 });
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default function Fines() {
@@ -625,7 +623,7 @@ function AddFineModal({
             <option value="">Ingen tilknytning</option>
             {events.slice(0, 30).map(ev => (
               <option key={ev.id} value={ev.id}>
-                {ev.title} ({new Date(ev.start_time).toLocaleDateString('da-DK')})
+                {ev.title} ({fmtDate(ev.start_time)})
               </option>
             ))}
           </select>
@@ -693,21 +691,3 @@ function AddPaymentModal({
   );
 }
 
-// ── Avatar helper ─────────────────────────────────────────────────────────────
-
-function Avatar({ url, name, size = 36 }: { url?: string; name: string; size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: 'var(--cfc-bg-hover)',
-      border: '0.5px solid var(--cfc-border)',
-      overflow: 'hidden', flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.35, fontWeight: 600, color: 'var(--cfc-text-muted)',
-    }}>
-      {url
-        ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        : name.charAt(0).toUpperCase()}
-    </div>
-  );
-}

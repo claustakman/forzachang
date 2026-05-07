@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api, Player, LoginEntry, HonorType, PlayerHonor } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
+import { fmtDateTimeFull, fmtRelative } from '../lib/format';
 
 export default function Admin() {
   const { isAdmin } = useAuth();
@@ -321,9 +322,7 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, inviteMsg, deactivatin
           </div>
           <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Sidst aktiv</span>{' '}
-            {p.last_seen
-              ? new Date(p.last_seen).toLocaleString('da-DK', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              : '—'}
+            {p.last_seen ? fmtDateTimeFull(p.last_seen) : '—'}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-sm btn-secondary" onClick={onShowLogins}>🕐 Aktivitet</button>
@@ -626,13 +625,6 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
       .finally(() => setLoading(false));
   }, [player.id]);
 
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleString('da-DK', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  }
-
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
@@ -657,7 +649,7 @@ function LoginLogModal({ player, onClose }: { player: Player; onClose: () => voi
                 borderRadius: 6,
               }}>
                 <span style={{ fontSize: 13, color: 'var(--cfc-text-primary)' }}>
-                  {fmtDate(log.created_at)}
+                  {fmtDateTimeFull(log.created_at)}
                 </span>
                 {log.ip && (
                   <span style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontFamily: 'monospace' }}>
@@ -684,7 +676,10 @@ function AdminSettings() {
   const [deadlineDays, setDeadlineDays]     = useState(5);
   const [reminderDays, setReminderDays]     = useState(7);
   const [commentCutoffHours, setCommentCutoffHours] = useState(24);
-  const [saving, setSaving]                 = useState(false);
+  const [savingWebcal, setSavingWebcal]       = useState(false);
+  const [savingDeadline, setSavingDeadline] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [savingComment, setSavingComment]   = useState(false);
   const [syncing, setSyncing]               = useState(false);
   const [bulking, setBulking]               = useState(false);
   const [msg, setMsg]                       = useState('');
@@ -705,12 +700,12 @@ function AdminSettings() {
   }, []);
 
   async function save() {
-    setSaving(true); setMsg('');
+    setSavingWebcal(true); setMsg('');
     try {
       await api.updateSettings({ webcal_url: webcalUrl });
       setMsg('Gemt');
     } catch (e: any) { setMsg(e.message); }
-    setSaving(false);
+    setSavingWebcal(false);
   }
 
   async function sync() {
@@ -723,12 +718,12 @@ function AdminSettings() {
   }
 
   async function saveDeadline() {
-    setSaving(true); setDeadlineMsg('');
+    setSavingDeadline(true); setDeadlineMsg('');
     try {
       await api.updateSettings({ signup_deadline_days: String(deadlineDays) });
       setDeadlineMsg('Gemt');
     } catch (e: any) { setDeadlineMsg(e.message); }
-    setSaving(false);
+    setSavingDeadline(false);
   }
 
   const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -744,21 +739,21 @@ function AdminSettings() {
   }
 
   async function saveReminder() {
-    setSaving(true); setReminderMsg('');
+    setSavingReminder(true); setReminderMsg('');
     try {
       await api.updateSettings({ reminder_days_before: String(reminderDays) });
       setReminderMsg('Gemt');
     } catch (e: any) { setReminderMsg(e.message); }
-    setSaving(false);
+    setSavingReminder(false);
   }
 
   async function saveCommentCutoff() {
-    setSaving(true); setCommentMsg('');
+    setSavingComment(true); setCommentMsg('');
     try {
       await api.updateSettings({ comment_cutoff_hours: String(commentCutoffHours) });
       setCommentMsg('Gemt');
     } catch (e: any) { setCommentMsg(e.message); }
-    setSaving(false);
+    setSavingComment(false);
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>;
@@ -783,8 +778,8 @@ function AdminSettings() {
         </div>
         {msg && <p style={{ fontSize: 13, color: msg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{msg}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" onClick={save} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? '...' : 'Gem'}
+          <button className="btn btn-primary" onClick={save} disabled={savingWebcal} style={{ flex: 1, justifyContent: 'center' }}>
+            {savingWebcal ? '...' : 'Gem'}
           </button>
           <button className="btn btn-secondary" onClick={sync} disabled={syncing || !webcalUrl} style={{ flex: 1, justifyContent: 'center' }}>
             {syncing ? 'Synkroniserer...' : 'Synkroniser nu'}
@@ -811,8 +806,8 @@ function AdminSettings() {
         </div>
         {deadlineMsg && <p style={{ fontSize: 13, color: (deadlineMsg.includes('opdateret') || deadlineMsg === 'Gemt') ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{deadlineMsg}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" onClick={saveDeadline} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? '...' : 'Gem indstilling'}
+          <button className="btn btn-primary" onClick={saveDeadline} disabled={savingDeadline} style={{ flex: 1, justifyContent: 'center' }}>
+            {savingDeadline ? '...' : 'Gem indstilling'}
           </button>
           {bulkConfirm ? (
             <div style={{ display: 'flex', gap: 6, flex: 1 }}>
@@ -851,8 +846,8 @@ function AdminSettings() {
           />
         </div>
         {reminderMsg && <p style={{ fontSize: 13, color: reminderMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{reminderMsg}</p>}
-        <button className="btn btn-primary" onClick={saveReminder} disabled={saving} style={{ justifyContent: 'center' }}>
-          {saving ? '...' : 'Gem'}
+        <button className="btn btn-primary" onClick={saveReminder} disabled={savingReminder} style={{ justifyContent: 'center' }}>
+          {savingReminder ? '...' : 'Gem'}
         </button>
       </div>
 
@@ -873,8 +868,8 @@ function AdminSettings() {
           />
         </div>
         {commentMsg && <p style={{ fontSize: 13, color: commentMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{commentMsg}</p>}
-        <button className="btn btn-primary" onClick={saveCommentCutoff} disabled={saving} style={{ justifyContent: 'center' }}>
-          {saving ? '...' : 'Gem'}
+        <button className="btn btn-primary" onClick={saveCommentCutoff} disabled={savingComment} style={{ justifyContent: 'center' }}>
+          {savingComment ? '...' : 'Gem'}
         </button>
       </div>
 

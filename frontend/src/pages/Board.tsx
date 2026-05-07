@@ -1,49 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, BoardPost, BoardComment, Player, displayName, proxyDownloadUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
-
-function fmtDate(iso: string) {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'lige nu';
-  if (diffMin < 60) return `${diffMin} min siden`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH} t siden`;
-  return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
-}
-
-function Avatar({ name, url, size = 32 }: { name?: string; url?: string; size?: number }) {
-  if (url) return (
-    <img
-      src={url}
-      alt={name}
-      style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-    />
-  );
-  // Farvelogik baseret på første bogstav
-  const palettes = [
-    { bg: '#e8f8f2', color: '#1D9E75' },
-    { bg: '#e8f0fb', color: '#3a7fd4' },
-    { bg: '#fef3e2', color: '#e07b00' },
-    { bg: '#fce8e8', color: '#d32f2f' },
-    { bg: '#f3e5f5', color: '#7b1fa2' },
-  ];
-  const idx = ((name || '?').charCodeAt(0) % palettes.length);
-  const { bg, color } = palettes[idx];
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.4, fontWeight: 700, color,
-      flexShrink: 0,
-    }}>
-      {(name || '?').charAt(0).toUpperCase()}
-    </div>
-  );
-}
+import Avatar from '../components/Avatar';
+import { fmtRelative as fmtDate } from '../lib/format';
 
 // Downloader via blob-URL — virker i PWA standalone på iOS/Android
 // hvor target="_blank" + cross-origin download-attribut ikke virker.
