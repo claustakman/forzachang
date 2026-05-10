@@ -61,8 +61,10 @@ forzachang/
 │   │   ├── lib/
 │   │   │   ├── api.ts          # API client (BASE_URL skifter prod/dev)
 │   │   │   ├── auth.tsx        # Auth context (JWT i localStorage)
+│   │   │   ├── format.ts       # Fælles datoformateringshjælpere (fmtDate, fmtDateTime m.fl.)
 │   │   │   └── push.ts         # Browser-side push-subscription helpers
 │   │   ├── components/
+│   │   │   ├── Avatar.tsx      # Fælles Avatar-komponent (initialer + farvepalette + foto)
 │   │   │   ├── Layout.tsx      # Navigation shell
 │   │   │   └── PwaBanner.tsx   # Installationsbanner (iOS/Android instruktioner)
 │   │   └── pages/
@@ -523,6 +525,27 @@ wrangler d1 execute forzachang-db --remote --command "SELECT * FROM events;"
 wrangler d1 execute forzachang-db --local --file=database/schema.sql
 ```
 
+### Backup
+
+```bash
+# Komplet backup — hele databasen som SQL (anbefalet)
+wrangler d1 export forzachang-db --remote --output=backup-$(date +%Y%m%d).sql
+
+# Selektiv backup — kun statistik og historik
+wrangler d1 export forzachang-db --remote --output=backup-stats-$(date +%Y%m%d).sql \
+  --table=match_stats \
+  --table=player_stats_legacy \
+  --table=player_honors \
+  --table=season_matches \
+  --table=season_standings \
+  --table=team_records
+
+# Gendan fra backup
+wrangler d1 execute forzachang-db --remote --file=backup-YYYYMMDD.sql
+```
+
+Backup-filer gemmes i projektrodmappen og må **ikke** committes til git (tilføj `backup-*.sql` til `.gitignore`).
+
 ---
 
 ## Secrets (Worker environment)
@@ -719,6 +742,52 @@ Tilmeldingslisterne i event-detaljemodalen vises i rækkefølge:
 
 ---
 
+## Frontend-konventioner
+
+### Fælles komponenter
+- **`Avatar`** (`src/components/Avatar.tsx`): bruges i alle sider med spillervisning. Props: `name`, `url`, `size` (default 36). Viser `<img>` hvis `url` er sat, ellers initialer med farvepalette baseret på navn. Importér altid fra `../components/Avatar` — opret ikke lokale kopier.
+- **`Layout`** (`src/components/Layout.tsx`): navigation shell — wrapper rundt om alle sider.
+
+### Datoformatering
+Brug altid helpers fra `src/lib/format.ts` — opret ikke lokale `fmtDate`-funktioner i pages:
+
+| Helper | Output | Typisk brug |
+|--------|--------|-------------|
+| `fmtDate` | "3. jun 2024" | Bøder, historik, datoer med årstal |
+| `fmtDateTime` | "tir 3. jun kl. 18:00" | Kampstart, events |
+| `fmtDateTimeShort` | "3. jun kl. 18:00" | Tilmeldingsfrist, kommentar-tidsstempel |
+| `fmtTime` | "18:00" | Mødetid, starttid i kalender |
+| `fmtRelative` | "5 min siden" / "3. jun" | Opslagstavle, seneste aktivitet |
+| `fmtDateTimeFull` | "3. jun 2024 kl. 18:00" | Admin login-log |
+| `fmtWeekday` / `fmtDay` / `fmtMonth` | "TIR" / "3" / "JUN" | Kalender-datokolonne |
+
+### Confirmations — ingen native dialogs
+Brug aldrig `alert()` eller `confirm()` — virker dårligt i PWA og på iOS. Brug state-drevet inline Ja/Nej-mønster:
+```tsx
+{deletingId === item.id ? (
+  <>
+    <button onClick={() => doDelete(item.id)}>Ja</button>
+    <button onClick={() => setDeletingId(null)}>Nej</button>
+  </>
+) : (
+  <button onClick={() => setDeletingId(item.id)}>Slet</button>
+)}
+```
+
+### Touch targets
+Alle interaktive knapper skal have `minHeight: 44` (og `minWidth: 44` for ikoner) — iOS/Android HIG-krav.
+
+### AdminSettings — saving-state
+`AdminSettings` har fire uafhængige saving-booleans: `savingWebcal`, `savingDeadline`, `savingReminder`, `savingComment`. Brug altid den sektion-specifikke boolean — aldrig én delt `saving`.
+
+### Tilmeldingskommentar — trunkering
+`MSG_TRUNCATE = 30` tegn i `Matches.tsx` — gælder for både `MessageBadge` og `PlayerRow`. Juster konstanten ét sted.
+
+### D1 integers som booleans
+D1 returnerer integers (0/1) ikke booleans — brug altid `=== 1` (ikke blot `&&`) til conditional rendering for kolonner som `pinned`, `archived`, `deleted`, `active`.
+
+---
+
 ## Vigtige noter
 
 - JWT gemmes i `localStorage` på frontend
@@ -734,7 +803,6 @@ Tilmeldingslisterne i event-detaljemodalen vises i rækkefølge:
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
-- D1 returnerer integers (0/1) ikke booleans — brug altid `=== 1` (ikke `&&`) til conditional rendering i React for integer-kolonner som `pinned`, `archived`, `deleted`
 
 ---
 
