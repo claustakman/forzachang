@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { api, StatsRow, PlayerSeasonStats, Player, PlayerHonor, HonorsSummary } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -869,7 +869,8 @@ function HoldhistorikTab() {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {([['saesoner', 'Tidligere sæsoner'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setHoldTab(v)} className="btn btn-sm" style={{
             background: holdTab === v ? 'var(--cfc-bg-hover)' : 'transparent',
@@ -877,6 +878,10 @@ function HoldhistorikTab() {
             border: `0.5px solid ${holdTab === v ? 'var(--cfc-border)' : 'transparent'}`,
           }}>{label}</button>
         ))}
+        </div>
+        <Link to="/stilling" style={{ fontSize: 13, color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          📈 Aktuel stilling →
+        </Link>
       </div>
       {holdTab === 'rekorder' && <HoldrekorderTab />}
       {holdTab === 'saesoner' && <TidligereSaesoner />}

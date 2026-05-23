@@ -680,6 +680,9 @@ function AdminSettings() {
   const [savingDeadline, setSavingDeadline] = useState(false);
   const [savingReminder, setSavingReminder] = useState(false);
   const [savingComment, setSavingComment]   = useState(false);
+  const [standingsUrl, setStandingsUrl]     = useState('');
+  const [savingStandings, setSavingStandings] = useState(false);
+  const [standingsMsg, setStandingsMsg]     = useState('');
   const [syncing, setSyncing]               = useState(false);
   const [bulking, setBulking]               = useState(false);
   const [msg, setMsg]                       = useState('');
@@ -695,6 +698,7 @@ function AdminSettings() {
       setDeadlineDays(Number(s.signup_deadline_days) || 5);
       setReminderDays(Number(s.reminder_days_before) || 7);
       setCommentCutoffHours(Number(s.comment_cutoff_hours) || 24);
+      setStandingsUrl(s.standings_url || '');
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -745,6 +749,15 @@ function AdminSettings() {
       setReminderMsg('Gemt');
     } catch (e: any) { setReminderMsg(e.message); }
     setSavingReminder(false);
+  }
+
+  async function saveStandings() {
+    setSavingStandings(true); setStandingsMsg('');
+    try {
+      await api.updateSettings({ standings_url: standingsUrl });
+      setStandingsMsg('Gemt');
+    } catch (e: any) { setStandingsMsg(e.message); }
+    setSavingStandings(false);
   }
 
   async function saveCommentCutoff() {
@@ -870,6 +883,27 @@ function AdminSettings() {
         {commentMsg && <p style={{ fontSize: 13, color: commentMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{commentMsg}</p>}
         <button className="btn btn-primary" onClick={saveCommentCutoff} disabled={savingComment} style={{ justifyContent: 'center' }}>
           {savingComment ? '...' : 'Gem'}
+        </button>
+      </div>
+
+      {/* Aktuel stilling */}
+      <div className="card">
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aktuel stilling</h2>
+        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+          URL til igangværende sæsons stillingsoversigt på DAI-sport. Opdateres ved sæsonstart.
+        </p>
+        <div className="form-row">
+          <label className="form-label">Stilling-URL</label>
+          <input
+            className="input"
+            value={standingsUrl}
+            onChange={e => setStandingsUrl(e.target.value)}
+            placeholder="https://resultater.dai-sport.dk/..."
+          />
+        </div>
+        {standingsMsg && <p style={{ fontSize: 13, color: standingsMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{standingsMsg}</p>}
+        <button className="btn btn-primary" onClick={saveStandings} disabled={savingStandings} style={{ justifyContent: 'center' }}>
+          {savingStandings ? '...' : 'Gem'}
         </button>
       </div>
 

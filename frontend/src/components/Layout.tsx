@@ -18,6 +18,7 @@ const DESKTOP_NAV = [
   { to: '/opslagstavle', label: 'Opslagstavle' },
   { to: '/afstemning',   label: 'Afstemning'  },
   { to: '/historie',     label: 'Historie'    },
+  { to: '/stilling',     label: 'Stilling'    },
   { to: '/bødekasse',    label: 'Bødekasse'   },
 ];
 
@@ -66,6 +67,7 @@ export default function Layout() {
   // Mere-panel items
   const moreItems = [
     { to: '/historie',  label: 'Historie', icon: '📊' },
+    { to: '/stilling',  label: 'Stilling', icon: '📈' },
     { to: '/bødekasse', label: 'Bøder',    icon: '💰' },
     ...(canAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️' }] : []),
     { to: '/profil',    label: 'Profil',   icon: '👤' },

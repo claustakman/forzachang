@@ -12,6 +12,7 @@ import Fines from './pages/Fines';
 import Admin from './pages/Admin';
 import Profile from './pages/Profile';
 import Afstemning from './pages/Afstemning';
+import Stilling from './pages/Stilling';
 import './index.css';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="statistik" element={<Navigate to="/historie" replace />} />
             <Route path="hæder" element={<Navigate to="/historie?tab=hold" replace />} />
             <Route path="afstemning" element={<Afstemning />} />
+            <Route path="stilling" element={<Stilling />} />
             <Route path="bødekasse" element={<Fines />} />
             <Route path="admin" element={<Admin />} />
             <Route path="profil" element={<Profile />} />
