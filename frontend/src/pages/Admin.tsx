@@ -801,6 +801,27 @@ function AdminSettings() {
         {syncMsg && <p style={{ fontSize: 13, color: syncMsg === 'Sync gennemført' ? 'var(--green)' : '#e57373', marginTop: 8 }}>{syncMsg}</p>}
       </div>
 
+      {/* Aktuel stilling */}
+      <div className="card">
+        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aktuel stilling</h2>
+        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+          URL til igangværende sæsons stillingsoversigt på DAI-sport. Opdateres ved sæsonstart.
+        </p>
+        <div className="form-row">
+          <label className="form-label">Stilling-URL</label>
+          <input
+            className="input"
+            value={standingsUrl}
+            onChange={e => setStandingsUrl(e.target.value)}
+            placeholder="https://resultater.dai-sport.dk/..."
+          />
+        </div>
+        {standingsMsg && <p style={{ fontSize: 13, color: standingsMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{standingsMsg}</p>}
+        <button className="btn btn-primary" onClick={saveStandings} disabled={savingStandings} style={{ justifyContent: 'center' }}>
+          {savingStandings ? '...' : 'Gem'}
+        </button>
+      </div>
+
       {/* Tilmeldingsfrist */}
       <div className="card">
         <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Tilmeldingsfrist</h2>
@@ -886,26 +907,6 @@ function AdminSettings() {
         </button>
       </div>
 
-      {/* Aktuel stilling */}
-      <div className="card">
-        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aktuel stilling</h2>
-        <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
-          URL til igangværende sæsons stillingsoversigt på DAI-sport. Opdateres ved sæsonstart.
-        </p>
-        <div className="form-row">
-          <label className="form-label">Stilling-URL</label>
-          <input
-            className="input"
-            value={standingsUrl}
-            onChange={e => setStandingsUrl(e.target.value)}
-            placeholder="https://resultater.dai-sport.dk/..."
-          />
-        </div>
-        {standingsMsg && <p style={{ fontSize: 13, color: standingsMsg === 'Gemt' ? 'var(--green)' : '#e57373', marginBottom: 8 }}>{standingsMsg}</p>}
-        <button className="btn btn-primary" onClick={saveStandings} disabled={savingStandings} style={{ justifyContent: 'center' }}>
-          {savingStandings ? '...' : 'Gem'}
-        </button>
-      </div>
 
     </div>
   );
