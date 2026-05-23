@@ -775,8 +775,8 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
               <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>Spillet</div>
             </div>
 
-            {/* Tilmeldte */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+            {/* Tilmeldte + Gæster — fælles scrollbar container */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 300, overflowY: 'auto' }}>
               {tilmeldte.map(s => {
                 const r = rows[s.id] || { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: 1 };
                 return (
@@ -797,20 +797,18 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                   </div>
                 );
               })}
-            </div>
 
-            {/* Gæster */}
-            {(data.guests || []).length > 0 && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--cfc-border)' }}>
-                <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
-                  Gæster ({data.guests.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Gæster — inde i samme scroll-container */}
+              {(data.guests || []).length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 6, paddingTop: 6, borderTop: '0.5px solid var(--cfc-border)' }}>
+                    Gæster ({data.guests.length})
+                  </div>
                   {data.guests.map(g => {
                     const r = guestRows[g.id] || { guest_id: g.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0 };
                     return (
                       <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '1fr 48px 48px 48px 52px 44px', gap: 4, alignItems: 'center' }}>
-                        <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                        <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
                           <span style={{ fontSize: 10, background: '#FFF8E1', color: '#7A5800', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>gæst</span>
                           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
                         </div>
@@ -828,9 +826,9 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             {/* Afmeldte */}
             {afmeldte.length > 0 && (
