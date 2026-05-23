@@ -249,6 +249,26 @@ export async function handleStats(request: Request, env: Env, user: JWTPayload):
 
       updateTeamRecords(env).catch(e => console.error('updateTeamRecords failed:', e));
 
+      // Gem gæstestatistik (mål, kort, MoM — ingen bøder)
+      if (Array.isArray(body.guest_rows)) {
+        for (const gr of body.guest_rows) {
+          const { guest_id, goals = 0, yellow_cards = 0, red_cards = 0, mom = 0 } = gr;
+          if (!guest_id) continue;
+          const existingGuest = await env.DB.prepare(
+            'SELECT id FROM event_guest_stats WHERE event_id=? AND guest_id=?'
+          ).bind(body.event_id, guest_id).first();
+          if (existingGuest) {
+            await env.DB.prepare(
+              'UPDATE event_guest_stats SET goals=?,yellow_cards=?,red_cards=?,mom=? WHERE event_id=? AND guest_id=?'
+            ).bind(goals, yellow_cards, red_cards, mom ? 1 : 0, body.event_id, guest_id).run();
+          } else {
+            await env.DB.prepare(
+              'INSERT INTO event_guest_stats (id,event_id,guest_id,goals,yellow_cards,red_cards,mom) VALUES(?,?,?,?,?,?,?)'
+            ).bind(nanoid(), body.event_id, guest_id, goals, yellow_cards, red_cards, mom ? 1 : 0).run();
+          }
+        }
+      }
+
       return json({ ok: true });
     }
 
@@ -342,6 +362,15 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     // Tabellerne eksisterer ikke endnu — returnér tomme lister
   }
 
+  // Gæster tilmeldt eventet + eksisterende gæstestatistik
+  const guests = await env.DB.prepare(
+    'SELECT id, name FROM event_guests WHERE event_id = ? ORDER BY created_at'
+  ).bind(eventId).all();
+
+  const guestStats = await env.DB.prepare(
+    'SELECT * FROM event_guest_stats WHERE event_id = ?'
+  ).bind(eventId).all();
+
   return json({
     event,
     signups: allSignups,
@@ -349,5 +378,7 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     auto_stats: autoStats,
     fine_types: fineTypes,
     existing_fines: existingFines,
+    guests: guests.results,
+    guest_stats: guestStats.results,
   });
 }

@@ -152,6 +152,18 @@ CREATE TABLE IF NOT EXISTS event_guests (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS event_guest_stats (
+  id           TEXT PRIMARY KEY,
+  event_id     TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  guest_id     TEXT NOT NULL REFERENCES event_guests(id) ON DELETE CASCADE,
+  goals        INTEGER NOT NULL DEFAULT 0,
+  yellow_cards INTEGER NOT NULL DEFAULT 0,
+  red_cards    INTEGER NOT NULL DEFAULT 0,
+  mom          INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(event_id, guest_id)
+);
+
 CREATE TABLE IF NOT EXISTS login_log (
   id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,

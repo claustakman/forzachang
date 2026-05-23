@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, Player, EventComment, displayName } from '../lib/api';
+import { api, Event, EventDetail, EventGuest, EventStatsResponse, MatchStatRow, GuestStatRow, Player, EventComment, displayName } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtDate, fmtDateTime, fmtDateTimeShort, fmtTime, fmtWeekday, fmtDay, fmtMonth } from '../lib/format';
 
@@ -595,6 +595,7 @@ function PlayerRow({ name, avatarUrl, message }: { name: string; avatarUrl?: str
 function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const [data, setData] = useState<EventStatsResponse | null>(null);
   const [rows, setRows] = useState<Record<string, MatchStatRow>>({});
+  const [guestRows, setGuestRows] = useState<Record<string, GuestStatRow>>({});
   // fineSelections: { [fine_type_id]: Set<player_id> }
   const [fineSelections, setFineSelections] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
@@ -617,6 +618,16 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
           : { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: s.status === 'tilmeldt' ? 1 : 0, late_signup: 0, absence: s.status === 'afmeldt' ? 1 : 0, no_signup: s.status === 'ikke meldt' ? 1 : 0 };
       }
       setRows(init);
+
+      // Pre-udfyld gæstestatistik
+      const guestInit: Record<string, GuestStatRow> = {};
+      for (const g of d.guests || []) {
+        const existing = d.guest_stats?.find(x => x.guest_id === g.id);
+        guestInit[g.id] = existing
+          ? { guest_id: g.id, goals: existing.goals, yellow_cards: existing.yellow_cards, red_cards: existing.red_cards, mom: existing.mom }
+          : { guest_id: g.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0 };
+      }
+      setGuestRows(guestInit);
 
       // Pre-udfyld bøder: eksisterende bøder + auto-assign baseret på signups
       const sel: Record<string, Set<string>> = {};
@@ -648,10 +659,28 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
     setRows(r => ({ ...r, [playerId]: { ...r[playerId], [field]: value } }));
   }
 
-  function setMom(playerId: string) {
+  function setMomPlayer(playerId: string) {
     setRows(r => {
       const next = { ...r };
       for (const id of Object.keys(next)) next[id] = { ...next[id], mom: id === playerId ? 1 : 0 };
+      return next;
+    });
+    setGuestRows(r => {
+      const next = { ...r };
+      for (const id of Object.keys(next)) next[id] = { ...next[id], mom: 0 };
+      return next;
+    });
+  }
+
+  function setMomGuest(guestId: string) {
+    setGuestRows(r => {
+      const next = { ...r };
+      for (const id of Object.keys(next)) next[id] = { ...next[id], mom: id === guestId ? 1 : 0 };
+      return next;
+    });
+    setRows(r => {
+      const next = { ...r };
+      for (const id of Object.keys(next)) next[id] = { ...next[id], mom: 0 };
       return next;
     });
   }
@@ -688,7 +717,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
       }
 
       // 1. Gem statistik (auto-bøder tildeles server-side — minus skippede)
-      await api.saveEventStats(event.id, Object.values(rows), skippedAutoFines);
+      await api.saveEventStats(event.id, Object.values(rows), skippedAutoFines, Object.values(guestRows));
 
       // 2. Tildel manuelle bøder fra UI (kun ikke-auto typer — auto håndteres af saveEventStats)
       for (const [fineTypeId, playerIds] of Object.entries(fineSelections)) {
@@ -758,7 +787,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                         className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }} />
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMom(s.id)}
+                      <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMomPlayer(s.id)}
                         style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#c4a000' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -769,6 +798,39 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                 );
               })}
             </div>
+
+            {/* Gæster */}
+            {(data.guests || []).length > 0 && (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--cfc-border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--cfc-text-subtle)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Gæster ({data.guests.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {data.guests.map(g => {
+                    const r = guestRows[g.id] || { guest_id: g.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0 };
+                    return (
+                      <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '1fr 48px 48px 48px 52px 44px', gap: 4, alignItems: 'center' }}>
+                        <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                          <span style={{ fontSize: 10, background: '#FFF8E1', color: '#7A5800', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>gæst</span>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
+                        </div>
+                        {(['goals', 'yellow_cards', 'red_cards'] as const).map(field => (
+                          <input key={field} type="number" min={0} max={20}
+                            value={r[field]}
+                            onChange={e => setGuestRows(prev => ({ ...prev, [g.id]: { ...prev[g.id], [field]: Number(e.target.value) } }))}
+                            className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }} />
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMomGuest(g.id)}
+                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#c4a000' }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', color: 'var(--cfc-text-subtle)', fontSize: 13 }}>—</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Afmeldte */}
             {afmeldte.length > 0 && (

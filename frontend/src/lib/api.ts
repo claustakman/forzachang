@@ -140,8 +140,8 @@ export const api = {
   // Kampstatistik
   getEventStats: (eventId: string) =>
     req<EventStatsResponse>('GET', `/events/${eventId}/stats`),
-  saveEventStats: (eventId: string, rows: MatchStatRow[], skippedAutoFines?: Record<string, string[]>) =>
-    req<{ ok: boolean }>('POST', '/stats', { event_id: eventId, rows, skipped_auto_fines: skippedAutoFines ?? {} }),
+  saveEventStats: (eventId: string, rows: MatchStatRow[], skippedAutoFines?: Record<string, string[]>, guestRows?: GuestStatRow[]) =>
+    req<{ ok: boolean }>('POST', '/stats', { event_id: eventId, rows, skipped_auto_fines: skippedAutoFines ?? {}, guest_rows: guestRows ?? [] }),
 
   // Legacy stats import
   saveLegacyStats: (rows: { player_id: string; season: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number; fines_amount: number }[]) =>
@@ -451,6 +451,14 @@ export interface EventStatsSignup {
   signed_at?: string;
 }
 
+export interface GuestStatRow {
+  guest_id: string;
+  goals: number;
+  yellow_cards: number;
+  red_cards: number;
+  mom: number;
+}
+
 export interface EventStatsResponse {
   event: Event;
   signups: EventStatsSignup[];
@@ -458,6 +466,8 @@ export interface EventStatsResponse {
   auto_stats: MatchStatRow[];
   fine_types: FineType[];
   existing_fines: { player_id: string; fine_type_id: string }[];
+  guests: { id: string; name: string }[];
+  guest_stats: (GuestStatRow & { id: string; event_id: string })[];
 }
 
 export interface PlayerSeasonStats {
