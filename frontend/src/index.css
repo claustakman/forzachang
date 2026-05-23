@@ -151,6 +151,7 @@ select.input option { background: #fff; color: var(--cfc-text-primary); }
   z-index: 100; padding: 1rem;
 }
 .modal {
+  position: relative;
   background: var(--cfc-bg-card);
   border: 0.5px solid var(--cfc-border);
   border-radius: 14px;

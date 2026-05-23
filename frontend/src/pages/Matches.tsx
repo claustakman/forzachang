@@ -178,6 +178,20 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           </div>
         )}
 
+        {/* Luk-knap øverst til højre */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 14, right: 14,
+            width: 30, height: 30, borderRadius: '50%',
+            background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)',
+            color: 'var(--cfc-text-muted)', fontSize: 18, lineHeight: 1,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0,
+          }}
+          aria-label="Luk"
+        >×</button>
+
         {/* Header */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
