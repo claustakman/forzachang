@@ -798,7 +798,8 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                     <div style={{ fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
                     {(['goals', 'yellow_cards', 'red_cards'] as const).map(field => (
                       <input key={field} type="number" min={0} max={20} value={r[field]} onChange={e => setField(s.id, field, Number(e.target.value))}
-                        className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }} />
+                        className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }}
+                            onFocus={e => e.target.select()} />
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMomPlayer(s.id)}
@@ -830,7 +831,8 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
                           <input key={field} type="number" min={0} max={20}
                             value={r[field]}
                             onChange={e => setGuestRows(prev => ({ ...prev, [g.id]: { ...prev[g.id], [field]: Number(e.target.value) } }))}
-                            className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }} />
+                            className="input" style={{ padding: '4px 6px', textAlign: 'center', fontSize: 13 }}
+                            onFocus={e => e.target.select()} />
                         ))}
                         <div style={{ display: 'flex', justifyContent: 'center' }}>
                           <input type="radio" name="mom" checked={r.mom === 1} onChange={() => setMomGuest(g.id)}
