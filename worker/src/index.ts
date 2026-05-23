@@ -19,6 +19,7 @@ import { handleRecords, updateTeamRecords } from './routes/records';
 import { handleStandings } from './routes/standings';
 import { handleBoard, handleBoardAttachment } from './routes/board';
 import { handleVotes } from './routes/votes';
+import { handleLeagueTable } from './routes/leagueTable';
 
 export interface Env {
   DB: D1Database;
@@ -143,6 +144,11 @@ export default {
       // /api/votes/sessions (POST = opret) + /api/votes (GET = hent aktiv session)
       if (path.startsWith('/api/votes')) {
         return await handleVotes(request, env, payload, undefined, undefined);
+      }
+
+      // /api/league-table — hent og parse stilling fra DAI-sport
+      if (path === '/api/league-table') {
+        return await handleLeagueTable(request, env);
       }
 
       // /api/download — proxy R2-filer med korrekte CORS/download headers

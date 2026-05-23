@@ -147,6 +147,18 @@ export const api = {
   saveLegacyStats: (rows: { player_id: string; season: number; matches: number; goals: number; mom: number; yellow_cards: number; red_cards: number; fines_amount: number }[]) =>
     req<{ ok: boolean }>('POST', '/stats/legacy', rows),
 
+  // League table (stilling fra DAI-sport)
+  getLeagueTable: () => req<{
+    league_name: string;
+    rows: {
+      position: number; team: string;
+      played: number; won: number; drawn: number; lost: number;
+      goals_for: number; goals_against: number; points: number;
+      is_cfc: boolean; separator: boolean;
+    }[];
+    fetched_at: string;
+  }>('GET', '/league-table'),
+
   // Settings
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
