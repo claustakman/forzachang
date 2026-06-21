@@ -443,11 +443,11 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 10 }}>
               Træner/admin
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {isAdmin && (
                 <button
                   className="btn btn-secondary"
-                  style={{ fontSize: 13, justifyContent: 'center' }}
+                  style={{ fontSize: 13, justifyContent: 'center', width: '100%' }}
                   onClick={() => {
                     setShowAdmin(true);
                     if (allPlayers.length === 0) api.getPlayers().then(setAllPlayers).catch(() => {});
@@ -456,24 +456,26 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
                   ⚙ Administrer tilmeldinger
                 </button>
               )}
-              {isTrainer && event.status === 'aktiv' && (
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: 13, justifyContent: 'center' }}
-                  onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
-                >
-                  🔔 Påmind
-                </button>
-              )}
               {isTrainer && isKamp && (() => { const d = new Date(event.start_time); d.setHours(0,0,0,0); return d <= new Date(); })() && (
-                <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center' }} onClick={() => setShowStats(true)}>
+                <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center', width: '100%' }} onClick={() => setShowStats(true)}>
                   📊 Statistik & Bøder
                 </button>
               )}
               {isTrainer && (
-                <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center' }} onClick={() => setEditing(true)}>
-                  ✏️ Rediger
-                </button>
+                <div style={{ display: 'grid', gridTemplateColumns: event.status === 'aktiv' ? '1fr 1fr' : '1fr', gap: 8 }}>
+                  {event.status === 'aktiv' && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: 13, justifyContent: 'center' }}
+                      onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
+                    >
+                      🔔 Påmind
+                    </button>
+                  )}
+                  <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center' }} onClick={() => setEditing(true)}>
+                    ✏️ Rediger
+                  </button>
+                </div>
               )}
             </div>
           </div>
