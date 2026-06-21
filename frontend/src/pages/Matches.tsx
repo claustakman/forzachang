@@ -1537,10 +1537,30 @@ export default function Matches() {
         </div>
       )}
 
-      {/* Opret-knap */}
+      {/* Opret-knap (floating) */}
       {isTrainer && (
-        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }} onClick={() => setShowCreate(true)}>
-          + Opret event / kamp
+        <button
+          aria-label="Opret event / kamp"
+          title="Opret event / kamp"
+          onClick={() => setShowCreate(true)}
+          className="cfc-fab-create btn btn-primary"
+          style={{
+            position: 'fixed',
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 28,
+            lineHeight: 1,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            zIndex: 40,
+          }}
+        >
+          +
         </button>
       )}
 

@@ -167,3 +167,13 @@ select.input option { background: #fff; color: var(--cfc-text-primary); }
 }
 .modal h2 { font-size: 17px; font-weight: 600; margin-bottom: 1.25rem; color: var(--cfc-text-primary); }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }
+
+/* Floating action button — placeres over bundnav på mobil */
+.cfc-fab-create {
+  bottom: calc(20px + env(safe-area-inset-bottom));
+}
+@media (max-width: 768px) {
+  .cfc-fab-create {
+    bottom: calc(72px + 12px + env(safe-area-inset-bottom));
+  }
+}
