@@ -343,7 +343,7 @@ export async function handleEventStats(request: Request, env: Env, user: JWTPayl
     const absence    = s.status === 'afmeldt' ? 1 : 0;
     const no_signup  = s.status === 'ikke meldt' ? 1 : 0;
     const played     = (absence || no_signup) ? 0 : 1;
-    const late_signup = (!absence && !no_signup && deadline && s.signed_at > deadline) ? 1 : 0;
+    const late_signup = (!no_signup && deadline && s.signed_at > deadline) ? 1 : 0;
     return { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played, late_signup, absence, no_signup };
   }).filter(Boolean);
 

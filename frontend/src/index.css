@@ -129,6 +129,11 @@ select.input option { background: #fff; color: var(--cfc-text-primary); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
 .empty { text-align: center; padding: 2.5rem 1rem; color: var(--cfc-text-muted); font-size: 14px; }
 
 /* Table */

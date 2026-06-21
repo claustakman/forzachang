@@ -47,6 +47,13 @@ function TypeBadge({ type }: { type: 'kamp' | 'event' }) {
   );
 }
 
+function kitConflict(kit: string): boolean {
+  // Udtræk kun trøjefarven — teksten før "(trøje)" eller første ord hvis intet parentesformat
+  const jerseyMatch = kit.match(/^([^(]+)\s*\(trøje\)/i);
+  const jerseyColor = (jerseyMatch ? jerseyMatch[1] : kit).toLowerCase();
+  return ['sort', 'hvid', 'sort/hvid', 'hvid/sort', 'black', 'white'].some(c => jerseyColor.includes(c));
+}
+
 // ── Detaljemodal ──────────────────────────────────────────────────────────────
 
 function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, commentCutoffHours }: {
@@ -66,9 +73,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   const [editing, setEditing] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showStats, setShowStats] = useState(false);
-  const [guestName, setGuestName] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
-  const [showGuestInput, setShowGuestInput] = useState(false);
   const [showRemind, setShowRemind] = useState(false);
   const [remindPlayers, setRemindPlayers] = useState<Player[]>([]);
   const [remindSelected, setRemindSelected] = useState<Set<string>>(new Set());
@@ -106,14 +111,12 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
     setSigning(null);
   }
 
-  async function doAddGuest() {
-    if (!guestName.trim()) return;
+  async function doAddGuest(name: string) {
+    if (!name.trim()) return;
     setAddingGuest(true);
     setDetailError(null);
     try {
-      await api.addEventGuest(event.id, guestName.trim());
-      setGuestName('');
-      setShowGuestInput(false);
+      await api.addEventGuest(event.id, name.trim());
       await loadDetail();
       onRefresh();
     } catch (e: any) { setDetailError(e.message); }
@@ -169,28 +172,44 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
   const isKamp = event.type === 'kamp';
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+
+        {/* Topbar med tilbage-knap */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px',
+          borderBottom: '0.5px solid var(--cfc-border)',
+          position: 'sticky', top: 0,
+          background: 'var(--cfc-bg-primary)',
+          zIndex: 10,
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0',
+              minHeight: 44,
+            }}
+            aria-label="Tilbage"
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+
+        <div style={{ padding: '16px 16px 0' }}>
 
         {detailError && (
           <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
             {detailError}
           </div>
         )}
-
-        {/* Luk-knap øverst til højre */}
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute', top: 14, right: 14,
-            width: 30, height: 30, borderRadius: '50%',
-            background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)',
-            color: 'var(--cfc-text-muted)', fontSize: 18, lineHeight: 1,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 0,
-          }}
-          aria-label="Luk"
-        >×</button>
 
         {/* Header */}
         <div style={{ marginBottom: 14 }}>
@@ -219,6 +238,21 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           {event.result && (
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--cfc-text-primary)', marginTop: 6 }}>
               Resultat: {event.result}
+            </div>
+          )}
+          {isKamp && event.opponent_kit && (
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>
+                👕 {event.opponent_kit}
+              </span>
+              {kitConflict(event.opponent_kit) && (
+                <span style={{
+                  fontSize: 11, padding: '2px 7px', borderRadius: 99,
+                  background: '#1a1200', color: '#c4a000', fontWeight: 600,
+                }}>
+                  ⚠️ Tjek trøjer
+                </span>
+              )}
             </div>
           )}
           {/* Beskrivelse kun for events (ikke kamp) */}
@@ -349,118 +383,6 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
         {/* Kommentarer */}
         <CommentSection eventId={event.id} currentPlayerId={player!.id} commentsClosed={commentsClosed} commentCutoffHours={commentCutoffHours} />
 
-        {/* Admin-panel */}
-        {isAdmin && (
-          <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => {
-                const next = !showAdmin;
-                setShowAdmin(next);
-                if (next && allPlayers.length === 0) {
-                  api.getPlayers().then(setAllPlayers).catch(() => {});
-                }
-              }}
-              style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}
-            >
-              {showAdmin ? '▲ Luk administrer tilmeldinger' : '⚙ Administrer tilmeldinger'}
-            </button>
-
-            {showAdmin && detail && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                {/* Tilmeld/afmeld på vegne — alle aktive spillere */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
-                    Tilmeld / afmeld spillere
-                  </div>
-                  {allPlayers.length === 0 ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}><div className="spinner" /></div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {allPlayers.filter(p => p.active && p.id !== 'admin').map(p => {
-                        const signup = detail.signups.find(s => s.player_id === p.id);
-                        return (
-                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{displayName(p)}</span>
-                            <SignupBadge status={signup?.status ?? null} />
-                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                              <button
-                                className="btn btn-sm"
-                                style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'tilmeldt' ? 0.4 : 1 }}
-                                disabled={signing !== null || signup?.status === 'tilmeldt'}
-                                onClick={() => doSignup(p.id, 'tilmeldt')}
-                              >
-                                Tilmeld
-                              </button>
-                              <button
-                                className="btn btn-sm"
-                                style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'afmeldt' ? 0.4 : 1 }}
-                                disabled={signing !== null || signup?.status === 'afmeldt'}
-                                onClick={() => doSignup(p.id, 'afmeldt')}
-                              >
-                                Afmeld
-                              </button>
-                              {signup && (
-                                <button className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 13 }} disabled={signing !== null} onClick={() => doDelete(p.id)} title="Fjern tilmelding">
-                                  ↩
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Tilføj gæst */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
-                    Gæster ({guests.length})
-                  </div>
-                  {guests.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-                      {guests.map(g => (
-                        <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
-                          <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doDeleteGuest(g)}>
-                            Fjern
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {!showGuestInput ? (
-                    <button className="btn btn-sm btn-secondary" style={{ fontSize: 12 }} onClick={() => setShowGuestInput(true)}>
-                      + Tilføj gæst
-                    </button>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        className="input"
-                        style={{ flex: 1, fontSize: 13 }}
-                        placeholder="Gæstens navn"
-                        value={guestName}
-                        onChange={e => setGuestName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && doAddGuest()}
-                        autoFocus
-                      />
-                      <button className="btn btn-sm btn-primary" onClick={doAddGuest} disabled={addingGuest || !guestName.trim()}>
-                        {addingGuest ? '...' : 'Tilføj'}
-                      </button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => { setShowGuestInput(false); setGuestName(''); }}>
-                        Annuller
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Påmind-panel */}
         {isTrainer && showRemind && detail && (
           <div style={{ marginTop: 14, borderTop: '0.5px solid var(--cfc-border)', paddingTop: 12 }}>
@@ -509,28 +431,56 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           </div>
         )}
 
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {isTrainer && isKamp && (() => { const d = new Date(event.start_time); d.setHours(0,0,0,0); return d <= new Date(); })() && (
-            <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => setShowStats(true)}>
-              📊 Statistik & Bøder
-            </button>
-          )}
-          <div className="modal-footer">
-            {isTrainer && event.status === 'aktiv' && (
-              <button
-                className="btn btn-secondary"
-                onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
-              >
-                🔔 Påmind
-              </button>
-            )}
-            {isTrainer && (
-              <button className="btn btn-secondary" onClick={() => setEditing(true)}>✏️ Rediger</button>
-            )}
-            <button className="btn btn-secondary" onClick={onClose}>✕ Luk</button>
+        {/* Træner/admin — samlet handlingspanel */}
+        {(isAdmin || isTrainer) && (
+          <div style={{
+            marginTop: 16,
+            padding: 12,
+            background: 'var(--cfc-bg-hover)',
+            border: '0.5px solid var(--cfc-border)',
+            borderRadius: 10,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 10 }}>
+              Træner/admin
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {isAdmin && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 13, justifyContent: 'center' }}
+                  onClick={() => {
+                    setShowAdmin(true);
+                    if (allPlayers.length === 0) api.getPlayers().then(setAllPlayers).catch(() => {});
+                  }}
+                >
+                  ⚙ Administrer tilmeldinger
+                </button>
+              )}
+              {isTrainer && event.status === 'aktiv' && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 13, justifyContent: 'center' }}
+                  onClick={() => { if (!showRemind) { openRemind(); } else { setShowRemind(false); } }}
+                >
+                  🔔 Påmind
+                </button>
+              )}
+              {isTrainer && isKamp && (() => { const d = new Date(event.start_time); d.setHours(0,0,0,0); return d <= new Date(); })() && (
+                <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center' }} onClick={() => setShowStats(true)}>
+                  📊 Statistik & Bøder
+                </button>
+              )}
+              {isTrainer && (
+                <button className="btn btn-secondary" style={{ fontSize: 13, justifyContent: 'center' }} onClick={() => setEditing(true)}>
+                  ✏️ Rediger
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+
+        </div>{/* /padding wrapper */}
+      </div>{/* /maxWidth container */}
 
       {editing && (
         <EventModal
@@ -545,6 +495,163 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           onClose={() => setShowStats(false)}
         />
       )}
+      {showAdmin && detail && (
+        <AdminSignupsModal
+          detail={detail}
+          allPlayers={allPlayers}
+          guests={guests}
+          signing={signing}
+          addingGuest={addingGuest}
+          onClose={() => setShowAdmin(false)}
+          onSignup={doSignup}
+          onDelete={doDelete}
+          onAddGuest={doAddGuest}
+          onDeleteGuest={doDeleteGuest}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Administrer tilmeldinger-modal (trainer/admin) ────────────────────────────
+
+function AdminSignupsModal({ detail, allPlayers, guests, signing, addingGuest, onClose, onSignup, onDelete, onAddGuest, onDeleteGuest }: {
+  detail: EventDetail;
+  allPlayers: Player[];
+  guests: EventGuest[];
+  signing: string | null;
+  addingGuest: boolean;
+  onClose: () => void;
+  onSignup: (playerId: string, status: 'tilmeldt' | 'afmeldt') => void;
+  onDelete: (playerId: string) => void;
+  onAddGuest: (name: string) => void;
+  onDeleteGuest: (guest: EventGuest) => void;
+}) {
+  const [guestName, setGuestName] = useState('');
+  const [showGuestInput, setShowGuestInput] = useState(false);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px',
+          borderBottom: '0.5px solid var(--cfc-border)',
+          position: 'sticky', top: 0,
+          background: 'var(--cfc-bg-primary)',
+          zIndex: 10,
+        }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0', minHeight: 44 }} aria-label="Tilbage">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+
+        <div style={{ padding: '16px' }}>
+          <h2 style={{ color: 'var(--cfc-text-primary)', margin: '0 0 16px', fontFamily: 'Georgia, serif' }}>Administrer tilmeldinger</h2>
+
+          {/* Tilmeld/afmeld på vegne — alle aktive spillere */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+              Tilmeld / afmeld spillere
+            </div>
+            {allPlayers.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}><div className="spinner" /></div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {allPlayers.filter(p => p.active && p.id !== 'admin').map(p => {
+                  const signup = detail.signups.find(s => s.player_id === p.id);
+                  return (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{displayName(p)}</span>
+                      <SignupBadge status={signup?.status ?? null} />
+                      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                        <button
+                          className="btn btn-sm"
+                          style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'tilmeldt' ? 0.4 : 1 }}
+                          disabled={signing !== null || signup?.status === 'tilmeldt'}
+                          onClick={() => onSignup(p.id, 'tilmeldt')}
+                        >
+                          Tilmeld
+                        </button>
+                        <button
+                          className="btn btn-sm"
+                          style={{ padding: '6px 12px', fontSize: 13, opacity: signup?.status === 'afmeldt' ? 0.4 : 1 }}
+                          disabled={signing !== null || signup?.status === 'afmeldt'}
+                          onClick={() => onSignup(p.id, 'afmeldt')}
+                        >
+                          Afmeld
+                        </button>
+                        {signup && (
+                          <button className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 13 }} disabled={signing !== null} onClick={() => onDelete(p.id)} title="Fjern tilmelding">
+                            ↩
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Tilføj gæst */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+              Gæster ({guests.length})
+            </div>
+            {guests.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                {guests.map(g => (
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--cfc-text-primary)' }}>{g.name}</span>
+                    <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onDeleteGuest(g)}>
+                      Fjern
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!showGuestInput ? (
+              <button className="btn btn-sm btn-secondary" style={{ fontSize: 12 }} onClick={() => setShowGuestInput(true)}>
+                + Tilføj gæst
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  className="input"
+                  style={{ flex: 1, fontSize: 13 }}
+                  placeholder="Gæstens navn"
+                  value={guestName}
+                  onChange={e => setGuestName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && guestName.trim()) {
+                      onAddGuest(guestName);
+                      setGuestName('');
+                      setShowGuestInput(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  className="btn btn-sm btn-primary"
+                  disabled={addingGuest || !guestName.trim()}
+                  onClick={() => { onAddGuest(guestName); setGuestName(''); setShowGuestInput(false); }}
+                >
+                  {addingGuest ? '...' : 'Tilføj'}
+                </button>
+                <button className="btn btn-sm btn-secondary" onClick={() => { setShowGuestInput(false); setGuestName(''); }}>
+                  Annuller
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -615,6 +722,7 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [step, setStep] = useState<'stats' | 'fines'>('stats');
 
   useEffect(() => {
     api.getEventStats(event.id).then(d => {
@@ -767,14 +875,36 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
   ];
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+        {/* Topbar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px',
+          borderBottom: '0.5px solid var(--cfc-border)',
+          position: 'sticky', top: 0,
+          background: 'var(--cfc-bg-primary)',
+          zIndex: 10,
+        }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0', minHeight: 44 }} aria-label="Tilbage">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+        <div style={{ padding: '16px' }}>
         <h2 style={{ color: 'var(--cfc-text-primary)', margin: '0 0 4px', fontFamily: 'Georgia, serif' }}>Statistik & Bøder</h2>
-        <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 16 }}>{event.title}</div>
+        <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 4 }}>{event.title}</div>
+        <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)', marginBottom: 16 }}>
+          {step === 'stats' ? 'Trin 1 af 2 · Statistik' : 'Trin 2 af 2 · Bøder'}
+        </div>
 
         {!data ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
-        ) : (
+        ) : step === 'stats' ? (
           <>
             {/* ── Statistik ── */}
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 8 }}>Statistik</div>
@@ -789,8 +919,8 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
               <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', textAlign: 'center' }}>Spillet</div>
             </div>
 
-            {/* Tilmeldte + Gæster — fælles scrollbar container */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 300, overflowY: 'auto' }}>
+            {/* Tilmeldte + Gæster */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {tilmeldte.map(s => {
                 const r = rows[s.id] || { player_id: s.id, goals: 0, yellow_cards: 0, red_cards: 0, mom: 0, played: 1 };
                 return (
@@ -870,11 +1000,12 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
               </div>
             )}
 
+          </>
+        ) : (
+          <>
             {/* ── Bøder ── */}
             {data.fine_types.length > 0 && (
-              <div style={{ marginTop: 18, paddingTop: 14, borderTop: '0.5px solid var(--cfc-border)' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cfc-text-muted)', marginBottom: 12 }}>Bøder</div>
-
+              <div>
                 {/* Auto-bøder (absence + late_signup) */}
                 {autoFineTypes.map(ft => (
                   <FineTypeSection
@@ -906,14 +1037,26 @@ function MatchStatsModal({ event, onClose }: { event: Event; onClose: () => void
         {statsError && (
           <div style={{ background: '#FDECEA', color: '#B71C1C', padding: '8px 12px', borderRadius: 6, fontSize: 13, marginTop: 8 }}>{statsError}</div>
         )}
-        <div className="modal-footer" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 }}>
           {saved && <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Gemt!</span>}
-          <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving || !data}>
-            {saving ? '...' : 'Gem'}
-          </button>
+          {step === 'stats' ? (
+            <>
+              <button className="btn btn-secondary" onClick={onClose}>Annuller</button>
+              <button className="btn btn-primary" onClick={() => setStep('fines')} disabled={!data}>
+                Videre →
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-secondary" onClick={() => setStep('stats')} disabled={saving}>← Tilbage</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving || !data}>
+                {saving ? '...' : 'Gem'}
+              </button>
+            </>
+          )}
         </div>
-      </div>
+        </div>{/* /padding */}
+      </div>{/* /maxWidth */}
     </div>
   );
 }
@@ -1560,6 +1703,16 @@ function EventRow({ event: ev, onClick }: {
           }}>
             <span style={{ fontSize: 11, color: '#0C447C' }}>💬</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#0C447C', lineHeight: 1 }}>{ev.unread_comments}</span>
+          </div>
+        )}
+        {ev.type === 'kamp' && ev.opponent_kit && kitConflict(ev.opponent_kit) && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center',
+            background: '#1a1200', border: '0.5px solid #7A5800',
+            borderRadius: 20, padding: '3px 8px',
+            fontSize: 11, color: '#c4a000', fontWeight: 700,
+          }}>
+            ⚠️ Tjek trøjer
           </div>
         )}
       </div>

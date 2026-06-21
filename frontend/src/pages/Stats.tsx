@@ -77,8 +77,20 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
   const hasFines = totals.fines_amount > 0 || seasons.some(s => (s.fines_amount || 0) > 0);
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+        {/* Topbar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '0.5px solid var(--cfc-border)', position: 'sticky', top: 0, background: 'var(--cfc-bg-primary)', zIndex: 10 }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0', minHeight: 44 }} aria-label="Tilbage">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+        <div style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
             {(player as any).avatar_url
@@ -178,10 +190,8 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
           </table>
         )}
 
-        <div className="modal-footer" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" onClick={onClose}>Luk</button>
-        </div>
-      </div>
+        </div>{/* /padding */}
+      </div>{/* /maxWidth */}
     </div>
   );
 }

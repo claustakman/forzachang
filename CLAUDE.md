@@ -49,7 +49,9 @@ forzachang/
 │   │       ├── board.ts        # Opslagstavle: opslag, kommentarer, vedhæftninger (fase 11)
 │   │       ├── votes.ts        # Kampens Spiller afstemning (fase 12)
 │   │       ├── records.ts      # Holdrekorder
-│   │       └── standings.ts    # Sæsonstillinger + kamphistorik
+│   │       ├── standings.ts    # Sæsonstillinger + kamphistorik
+│   │       ├── leagueTable.ts  # Henter + parser DAI-sport HTML → ligastilling JSON
+│   │       └── kitFetcher.ts   # Henter modstandernes spilletøjsfarver fra DAI-sport
 │   └── wrangler.toml
 ├── frontend/                   # React app
 │   ├── public/
@@ -77,6 +79,7 @@ forzachang/
 │   │       ├── Fines.tsx       # Bødekasse + Bødekatalog-fane
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings) + Licensliste
 │   │       ├── Afstemning.tsx  # Kampens Spiller afstemning (fase 12)
+│   │       ├── Stilling.tsx    # Aktuel ligastilling (hentet + parset fra DAI-sport af Worker)
 │   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
 │   └── vite.config.ts
 ├── scripts/
@@ -137,6 +140,7 @@ forzachang/
 | `webcal_uid`      | TEXT    | UID fra iCal-feed (NULL for manuelle events)     |
 | `season`          | INTEGER | Kalenderår, fx `2025`                            |
 | `result`          | TEXT    | Kampresultat, fx `3-1` (kun kampe)               |
+| `opponent_kit`    | TEXT    | Modstanderens spilletøj fra DAI-sport, fx `"Sort (trøje) Hvid (buks)"` |
 | `created_by`      | TEXT    | FK → players.id                                  |
 | `created_at`      | TEXT    | Oprettelsestidspunkt                             |
 
@@ -174,6 +178,7 @@ Kendte nøgler:
 | `signup_deadline_days`  | `5`     | Dage før kampstart tilmeldingsfristen sættes (webcal + opret) |
 | `reminder_days_before`  | `7`     | Dage før start der sendes første auto-påmindelse              |
 | `comment_cutoff_hours`  | `24`    | Timer før start "Tilføj kommentar" lukkes på tilmeldingen     |
+| `standings_url`         | —       | URL til DAI-sport ligastillingsside (sættes af admin)         |
 
 ### Gæster (`event_guests`)
 
@@ -185,7 +190,22 @@ Kendte nøgler:
 | `added_by`   | TEXT | FK → players.id (trainer/admin)      |
 | `created_at` | TEXT | Oprettelsestidspunkt                 |
 
-Gæster tæller med i `signup_count`, vises i tilmeldingslisten, men har ingen bruger og tæller ikke i statistik eller bøder.
+Gæster tæller med i `signup_count`, vises i tilmeldingslisten, men har ingen bruger og tæller ikke i bøder.
+
+### Gæstestatistik (`event_guest_stats`)
+
+| Felt           | Type    | Beskrivelse                                   |
+|----------------|---------|-----------------------------------------------|
+| `id`           | TEXT    | UUID                                          |
+| `event_id`     | TEXT    | FK → events.id                                |
+| `guest_id`     | TEXT    | FK → event_guests.id                          |
+| `goals`        | INTEGER | Mål scoret                                    |
+| `yellow_cards` | INTEGER | Gule kort                                     |
+| `red_cards`    | INTEGER | Røde kort                                     |
+| `mom`          | INTEGER | 1 = Man of the Match                          |
+| `created_at`   | TEXT    | Oprettelsestidspunkt                          |
+
+UNIQUE på `(event_id, guest_id)`. Ingen `played`, `absence`, `late_signup`, `no_signup` — gæster er per definition til stede. Ingen bøder for gæster.
 
 ### Login-log (`login_log`)
 
@@ -220,7 +240,7 @@ UNIQUE constraint på `(event_id, player_id, type)` — forhindrer duplikate på
 | `red_cards`    | INTEGER | Røde kort                                     |
 | `mom`          | INTEGER | 1 = Man of the Match (kun én per kamp)        |
 | `played`       | INTEGER | 1 = spillede, 0 = afbud                       |
-| `late_signup`  | INTEGER | 1 = tilmeldt efter tilmeldingsfristen          |
+| `late_signup`  | INTEGER | 1 = til- eller afmeldt efter tilmeldingsfristen |
 | `absence`      | INTEGER | 1 = meldt afbud (afmeldt)                      |
 | `no_signup`    | INTEGER | 1 = slet ikke reageret (hverken til- eller afmeldt) |
 | `created_at`   | TEXT    | Oprettelsestidspunkt                          |
@@ -257,6 +277,12 @@ UNIQUE constraint på `(player_id, season)`. Moderne `match_stats` vinder over l
 
 Bødekatalog sorteres stigende efter `amount`, derefter `sort_order`, derefter `name`.
 
+Der findes én systemtype med `active=0` (skjult fra katalog):
+
+| id | Navn | Beløb | Beskrivelse |
+|----|------|-------|-------------|
+| `discount-injury` | Langtidsskaderabat | 0 | FK-anker for negative bøder (rabatter) til langstidsskadede |
+
 Bødekatalog (13 typer — vises under Bødekasse → Bødekatalog, administreres af admin):
 
 | Navn | Beløb | auto_assign |
@@ -289,6 +315,8 @@ Bødekatalog (13 typer — vises under Bødekasse → Bødekatalog, administrere
 | `created_at`    | TEXT    | Oprettelsestidspunkt                                 |
 
 UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer duplikate auto-bøder per kamp.
+
+**Negative bøder (rabatter)**: Langtidsskaderabat indsættes med `fine_type_id='discount-injury'` og negativt `amount`. `event_id = NULL` — SQLite behandler NULL ≠ NULL i UNIQUE constraints, så flere rabatter til samme spiller er tilladt. Saldi beregnes automatisk korrekt (negative beløb reducerer `total_fines`).
 
 ### Indbetalinger (`fine_payments`)
 
@@ -387,14 +415,15 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Trainer/admin åbner "📊 Statistik & Bøder" via event-detaljemodal (synlig fra kampdagen og frem)
 - Knappen har sin egen fuldbred-række over Rediger/Luk/Påmind
 - **Statistik-sektion**: tilmeldte spillere med inputfelter: mål, gule, røde, MoM (radio — kun én per kamp), spillet (checkbox)
-- **Auto-udfyld statistik**: played=1 for tilmeldte, late_signup=1 for sent tilmeldte, absence=1 for afmeldte, no_signup=1 for spillere uden nogen reaktion
+- **Gæstestatistik**: gæster vises i en separat sektion under tilmeldte — mål, gule, røde, MoM kan registreres; ingen bøder, ingen "spillet"-checkbox. MoM er fælles radio-gruppe med spillere (kun én vinder total)
+- **Auto-udfyld statistik**: played=1 for tilmeldte, late_signup=1 hvis til- eller afmelding skete efter `signup_deadline` (kan kombineres med absence=1), absence=1 for afmeldte, no_signup=1 for spillere uden nogen reaktion
 - **Tre lister** (read-only): Afbud (afmeldte) + Ikke meldt ud (gul overskrift, alle aktive spillere uden signup)
 - **Bøde-sektion** under statistikken: foldbare sektioner per bødetype med checkboxes per spiller
   - Auto-bødetyper (`absence`, `late_signup`, `no_signup`) folder automatisk ud og pre-selecterer relevante spillere
   - Manuelle bødetyper: kamprelaterede bøder vises øverst (`For sent fremmøde`, `Fremmøde efter kampstart`, `Afbud på kampdag`, `Udeblivelse fra kamp`), derefter resten
   - Alle manuelle bødetyper starter lukkede
 - **Fravalg af auto-bøder**: Trainer kan fjerne flueben for en spiller i en auto-bødetype — frontend sender `skipped_auto_fines: { [fine_type_id]: player_id[] }` med i stats-kaldet, og server springer de fravalgte over
-- **Gem**: statistik → `POST /api/stats` (auto-bøder tildeles server-side minus fravalgte), manuelle bøder → `POST /api/fines` per tjekket spiller
+- **Gem**: statistik → `POST /api/stats` med `guest_rows[]` (auto-bøder tildeles server-side minus fravalgte), manuelle bøder → `POST /api/fines` per tjekket spiller
 - UNIQUE constraint på `(player_id, fine_type_id, event_id)` forhindrer duplikate bøder
 - Slet kamp: lukker begge modaler og sender brugeren tilbage til kalenderlisten
 - **Statistiksiden** kombinerer `match_stats` og `player_stats_legacy`:
@@ -403,6 +432,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
   - Default sæsonfilter: indeværende år (fx 2026) — kan ændres til andre sæsoner eller "Alle sæsoner"
   - Filtre: sæson, aktiv/pensionerede/alle, fritekst-søgning
   - Spillerprofil-header viser avatar + alias (hvis sat) eller fuldt navn
+  - Spillerprofil-modal har × luk-knap i øverste højre hjørne
   - På mobil (< 600px) vises et gult banner "Vend skærmen for bedre visning" ved Sæsonoversigt og Spillerprofil
 
 ### Bødekasse (fase 6)
@@ -411,12 +441,13 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - **Bødeoversigt viser fulde navn eller alias** (ikke kun fornavn) — `alias?.trim() || name`
 - **Automatisk tildeling** sker server-side ved gem af kampstatistik via `auto_assign`-feltet på bødetypen:
   - `absence` → tildeles spillere med `absence=1` (afmeldte)
-  - `late_signup` → tildeles spillere med `late_signup=1` (tilmeldt efter frist)
+  - `late_signup` → tildeles spillere med `late_signup=1` (til- eller afmeldt efter frist — kan udløse sammen med `absence`-bøden hvis spilleren afmeldte sig for sent)
   - `no_signup` → tildeles spillere der slet ikke har reageret (hverken tilmeldt eller afmeldt)
   - Trainer kan fraville auto-bøder per spiller i UI'et — fravalgte springes over server-side
 - **Manuelle bøder** tildeles af trainer/admin — enten fra Statistik & Bøder-modalen eller direkte fra Bødekassen
+- **Langtidsskaderabat** (admin only): knap "🏥 Langtidsskaderabat" i `PlayerFinesModal` → Bøder-fanen. Åbner inline formular med beløbsfelt + note. Opretter negativ bøde via `POST /api/fines/discount`. Vises i bødelisten med grøn farve og "rabat"-badge. Reducerer automatisk spillerens saldo
 - **Bødeside** (`/bøder`): holdoversigt (total skyldig + total bøder), spillertabel (klik → detaljemodal), detaljemodal med bøder/indbetalinger-tabs
-- **Bødeside → Bødekatalog-fane**: liste over bødetyper synlig for alle; opret/rediger/arkivér kun for admin; auto_assign-typer markeret med badge
+- **Bødeside → Bødekatalog-fane**: liste over bødetyper synlig for alle; opret/rediger/arkivér kun for admin; auto_assign-typer markeret med badge; systemtypen `discount-injury` vises ikke (active=0)
 - Alle kan se alles bøder og saldi
 
 ### Import af historisk statistik
@@ -626,6 +657,10 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | GET    | /api/honors/summary                     | player+        | Aggregeret per honor_type (til Hæder-siden)      |
 | POST   | /api/honors                             | admin          | Tildel manuel hædersbevisning                    |
 | DELETE | /api/honors/:id                         | admin          | Slet hædersbevisning (kun manuelle)              |
+| GET    | /api/league-table                       | player+        | Hent + parser DAI-sport ligastilling som JSON    |
+| POST   | /api/fines/discount                     | admin          | Giv langtidsskaderabat (negativ bøde, frit beløb)|
+| GET    | /api/events/:id/stats                   | trainer+       | Hent kampstatistik inkl. guests + guest_stats    |
+| POST   | /api/settings/fetch-kits                | admin          | Hent modstandernes spilletøjsfarver fra DAI-sport og gem på events |
 
 ---
 
@@ -685,6 +720,28 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 - **Annullering**: `↩ Annullér` fjerner tilmelding helt (DELETE signup)
 - Trainer/admin ser per-spiller Tilmeld/Afmeld-knapper i event-detaljevisningen
 - Administrer tilmeldinger viser alle aktive spillere ekskl. id='admin' — knapper har `padding: 6px 12px, fontSize: 13` for god mobil-touch-størrelse
+
+### Fullscreen slide-in — mønster
+Indholdstunge visninger åbner som fullscreen slide-in i stedet for modal:
+- `position: fixed; inset: 0` — fylder hele skærmen
+- `overflowY: auto` — scroller frit, ingen højdebegrænsning
+- `animation: slideInRight 0.22s ease-out` — glider ind fra højre
+- Max 560px bredde på desktop, centreret med `margin: 0 auto`
+- **Sticky topbar** øverst med `‹ Tilbage`-knap (min-height 44px, touch-venlig, `position: sticky; top: 0`)
+- Indhold i `<div style={{ padding: '16px' }}>` under topbaren
+- `slideInRight`-keyframe defineret i `index.css`
+
+Følgende er fullscreen slide-in:
+- **Event-detaljer** (`EventDetailModal` i `Matches.tsx`) — kamp/event detaljer, tilmeldinger, kommentarer
+- **Statistik & Bøder** (`MatchStatsModal` i `Matches.tsx`) — statistikregistrering + bøder
+- **Spillerprofil** (`PlayerProfileModal` i `Historie.tsx` og `Stats.tsx`) — sæsonstatistik + hædersbevisninger
+- **Spillerbøder** (`PlayerFinesModal` i `Fines.tsx`) — bøder + indbetalinger per spiller
+
+Følgende er stadig modaler (kortvarige formularer/handlinger):
+- `EventModal` — opret/rediger event
+- `FineTypeModal` — opret/rediger bødetype
+- `AddFineModal` / `AddPaymentModal` — tildel bøde / registrer indbetaling
+- Admin-modaler — opret/rediger spiller, login-log
 
 ### Opret/rediger event (modal)
 - Sluttid auto-fyldes til starttid når start sættes
@@ -794,12 +851,12 @@ D1 returnerer integers (0/1) ikke booleans — brug altid `=== 1` (ikke blot `&&
 - `api.ts` bruger `import.meta.env.PROD` til at skelne prod/dev BASE_URL
 - Scheduled Worker (cron, dagligt kl. 09:00 UTC) kører webcal-sync, email-påmindelser og holdrekord-opdatering
 - Kalender-historik: events rykkes til historik-tab 24 timer efter `start_time`
-- Navigation (desktop): **Kalender** → **Opslagstavle** → **Afstemning** → **Historie** → **Bødekasse** → **Admin**
-- Navigation (mobil bundnav): **Kalender** · **Tavle** · **Afstemning** · **Mere** (slide-up panel med Historie, Bøder, Admin, Profil, Log ud)
+- Navigation (desktop): **Kalender** → **Opslagstavle** → **Afstemning** → **Historie** → **Stilling** → **Bødekasse** → **Admin**
+- Navigation (mobil bundnav): **Kalender** · **Tavle** · **Afstemning** · **Mere** (slide-up panel med Historie, Stilling, Bøder, Admin, Profil, Log ud)
 - `/statistik` og `/hæder` redirecter til `/historie` (bagudkompatibilitet)
 - `/hæder` redirecter til `/historie?tab=haeder`
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
-- Admin → Indstillinger har fire sektioner: **Webcal-sync**, **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before), **Kommentarfrist** (comment_cutoff_hours)
+- Admin → Indstillinger har fem sektioner (i rækkefølge): **Webcal-sync**, **Aktuel stilling** (standings_url), **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before), **Kommentarfrist** (comment_cutoff_hours)
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
@@ -1064,9 +1121,12 @@ UNIQUE på `(team_type, season)`.
 | `goals_for`    | INTEGER | Mål for (altid fra CFCs perspektiv)      |
 | `goals_against`| INTEGER | Mål imod (altid fra CFCs perspektiv)     |
 | `result`       | TEXT    | `sejr`, `uafgjort` eller `nederlag`      |
+| `walkover`     | TEXT    | `UHT` (udehold taberdømt) eller `HHT` (hjemmehold taberdømt) — NULL hvis kampen blev spillet |
 | `event_id`     | TEXT    | FK → events.id (NULL for historiske)     |
 
 UNIQUE på `(team_type, season, match_date, opponent)`.
+
+Walkover markerer kampe afgjort uden spil (et hold meldte afbud/udgik) — kilden bruger `(LP)`-notation. Vises som lille grå badge efter resultatbadgen i `Historie.tsx`.
 
 ### Holdhistorik — visning i frontend
 - Sæsoner hentes fra `season_standings` (slutstillinger) + `season_matches` (kampdata)
@@ -1242,6 +1302,73 @@ Navigation: 🏆 **Afstemning** — fast ikon i bundnav (mobil) og desktop-nav.
 - `input/select/textarea`: `font-size: 16px` (iOS auto-zoom undgås)
 - `.btn`: `min-height: 44px`, `.input`: `min-height: 44px` (touch targets)
 - Bundnav: 3 faste ikoner (Kalender, Tavle, Afstemning) + Mere-knap (☰)
-- Mere-panel: slide-up med rundet top, linker til Historie, Bøder, Admin (trainer/admin), Profil, Log ud
+- Mere-panel: slide-up med rundet top, linker til Historie, Stilling, Bøder, Admin (trainer/admin), Profil, Log ud
 - `paddingBottom: env(safe-area-inset-bottom)` på bundnav (iPhone safe area)
 - Opslagstavle-kort: hvid baggrund, `border-radius: 12px`, subtil `box-shadow`
+
+---
+
+## Fase 13 — Stilling, Gæstestatistik, Langtidsskaderabat
+
+### Aktuel stilling (`/stilling` — `Stilling.tsx`)
+- Worker henter DAI-sport HTML fra `standings_url` (app_settings) og parser den server-side
+- `GET /api/league-table` returnerer `{ league_name, rows[], fetched_at }` — ingen iframe
+- Parsing: `<tr>` med klasse `srOdd`/`srEven` → kampdata fra kolonner `c01`–`c12`; `lineType1`-rækker sætter `separator: true` på forrige række
+- CFC-detektering: teamnavn matches case-insensitiv mod `['cfc', 'forza chang', 'copenhagen forza chang', 'cph. forza chang', 'cph forza chang']`
+- Frontend viser native styled tabel (ikke iframe): CFC-række fremhævet med `#0d2e1a` baggrund + grøn tekst + "CFC"-badge
+- Separatorlinjer viser afstandszoner i ligaen
+- Admin sætter URL under Admin → Indstillinger → **Aktuel stilling** (placeret direkte under Webcal-sync)
+- Genvej i Historie → Holdhistorik: "📈 Aktuel stilling →" link
+
+### Gæstestatistik
+- Gæster tilknyttet en kamp kan tildeles mål, gule/røde kort og MoM i Statistik & Bøder-modalen
+- Vises i egen sektion under tilmeldte spillere i statistiktabellen — med gul "gæst"-badge
+- MoM er fælles for spillere og gæster — kun én kan vinde per kamp
+- `POST /api/stats` accepterer `guest_rows: GuestStatRow[]` — gemmes i `event_guest_stats`-tabellen
+- `GET /api/events/:id/stats` returnerer `guests[]` og `guest_stats[]`
+- Ingen bøder for gæster; "Spillet"-kolonne vises som `—`
+
+### Langtidsskaderabat
+- Admin-only funktion i Bødekassen: "🏥 Langtidsskaderabat"-knap i `PlayerFinesModal` → Bøder-fanen
+- Inline formular med positivt beløbsfelt + note → gemmes som negativ `fines`-række
+- `POST /api/fines/discount` — admin only — indsætter med `fine_type_id='discount-injury'`, `amount = -Math.abs(input)`, `event_id = NULL`
+- SQLite NULL ≠ NULL i UNIQUE: flere rabatter til samme spiller er tilladt
+- Vises i bødelisten med grøn farve + "rabat"-badge; reducerer spillerens saldo automatisk
+
+### UI-forbedringer
+- **× luk-knap** på modaler: event-detaljemodal og spillerprofil-modal har begge × i øverste højre hjørne
+  - Kræver `position: relative` på `.modal` (sat i `index.css`)
+  - Style: 30×30px cirkel, `var(--cfc-bg-hover)` baggrund, `var(--cfc-text-muted)` farve
+- **Talfelter markeres ved fokus**: `onFocus={e => e.target.select()}` på alle number inputs i statistikmodalen — typing overskriver 0 direkte
+
+---
+
+## Fase 14 — Modstanderens spilletøjsfarver
+
+### Formål
+CFC spiller i Sort/Hvid. Hvis en modstander også spiller i hvid eller sort trøje, skal der advares så holdet husker udebanetrøjer.
+
+### Dataflow
+- Admin trykker "👕 Hent spilletøjsfarver" i Admin → Indstillinger → Webcal-kortet — én gang per sæson
+- Worker henter `PuljeId` fra `standings_url`, fetcher `Pulje-Holdoversigt.aspx?PuljeId=N`
+- For hvert hold (undtagen CFC): fetcher `Hold-Information.aspx?HoldId=N` → parser "Spilletøj 1"-rækken
+- Matcher holdnavn mod `events.title` med `LOWER(title) LIKE '%holdnavn%'`
+- `UPDATE events SET opponent_kit=?` for alle matchende webcal-kampe
+- Returnerer `{ teams_processed, events_updated }`
+
+### Konfliktlogik (`kitConflict` i `Matches.tsx`)
+- Parser kun **trøjefarven** — teksten før `(trøje)` i strengen (buks ignoreres)
+- Konflikt hvis trøjefarven indeholder: `sort`, `hvid`, `sort/hvid`, `hvid/sort`, `black`, `white`
+- DAI-sport format: `"Sort (trøje) Hvid (buks) Rød (målvogter)"`
+
+### Frontend
+- **Kampkort** (`EventRow`): `⚠️ Tjek trøjer`-badge i højre kolonne ved konflikt (mørk amber, samme stil som andre badges)
+- **Kampdetaljer** (`EventDetailModal`): `👕 [kitfarve]` + `⚠️ Tjek trøjer`-badge efter resultat-linjen (kun for kampe, kun hvis `opponent_kit` er sat)
+- Intet vises hvis `opponent_kit` er NULL
+
+### Nøglefiler
+- `worker/src/routes/kitFetcher.ts` — henter + gemmer kitfarver
+- `worker/src/index.ts` — route `POST /api/settings/fetch-kits` (registreret **før** `startsWith('/api/settings')`)
+- `frontend/src/pages/Admin.tsx` — "👕 Hent spilletøjsfarver"-knap i Webcal-kortet (under sync-knapper, adskilt med border-top)
+- `frontend/src/pages/Matches.tsx` — `kitConflict()` + badge på kort + visning i detaljer
+- `frontend/src/lib/api.ts` — `opponent_kit?` på `Event`; `fetchOpponentKits()`

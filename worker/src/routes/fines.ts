@@ -93,6 +93,31 @@ export async function handleFines(request: Request, env: Env, user: JWTPayload):
     return json(fine, 201);
   }
 
+  // ── POST /api/fines/discount ─────────────────────────────────────────────
+  if (request.method === 'POST' && path === '/api/fines/discount') {
+    const isAdmin = user.role === 'admin';
+    if (!isAdmin) return json({ error: 'Forbidden' }, 403);
+    const { player_id, amount, note } = await request.json() as any;
+    if (!player_id || !amount || amount <= 0) return json({ error: 'player_id og positivt amount kræves' }, 400);
+
+    const id = nanoid();
+    await env.DB.prepare(
+      'INSERT INTO fines (id, player_id, fine_type_id, event_id, amount, note, assigned_by) VALUES (?,?,?,NULL,?,?,?)'
+    ).bind(id, player_id, 'discount-injury', -Math.abs(amount), note || 'Langtidsskaderabat', user.sub).run();
+
+    const fine = await env.DB.prepare(`
+      SELECT f.*, COALESCE(p.alias, p.name) as player_name, p.avatar_url as player_avatar_url,
+        ft.name as fine_type_name, e.title as event_title
+      FROM fines f
+      JOIN players p ON p.id = f.player_id
+      JOIN fine_types ft ON ft.id = f.fine_type_id
+      LEFT JOIN events e ON e.id = f.event_id
+      WHERE f.id = ?
+    `).bind(id).first();
+
+    return json(fine, 201);
+  }
+
   // ── DELETE /api/fines/:id ─────────────────────────────────────────────────
   const fineMatch = path.match(/^\/api\/fines\/([^/]+)$/);
   if (request.method === 'DELETE' && fineMatch) {

@@ -95,7 +95,8 @@ INSERT OR IGNORE INTO fine_types (id, name, amount, auto_assign, active, sort_or
   ('ft-late-show',    'For sent fremmøde',                     60, NULL,          1, 10),
   ('ft-disciplinary', 'Disciplinærstraf',                      60, NULL,          1, 11),
   ('ft-bad-action',   'Elendig aktion (min. 4 stemmer)',       60, NULL,          1, 12),
-  ('ft-kenneth',      'Afbud til kamp (Kennethgebyr)',         30, 'absence',     1, 13);
+  ('ft-kenneth',      'Afbud til kamp (Kennethgebyr)',         30, 'absence',     1, 13),
+  ('discount-injury', 'Langtidsskaderabat',                     0, NULL,          0, 999); -- Systemtype: bruges til negative bøder (rabatter), skjult i katalog
 
 -- Default admin user (password: admin123 — CHANGE THIS)
 -- password_hash is bcrypt of 'admin123'
@@ -118,6 +119,7 @@ CREATE TABLE IF NOT EXISTS events (
   webcal_uid TEXT UNIQUE,                    -- UID fra iCal-feed (NULL = manuelt)
   season INTEGER NOT NULL,                   -- kalenderår, fx 2025
   result TEXT,                               -- kampresultat, fx '3-1'
+  opponent_kit TEXT,                         -- modstanderens spilletøj fra DAI-sport
   created_by TEXT REFERENCES players(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -343,6 +345,7 @@ CREATE TABLE IF NOT EXISTS season_matches (
   goals_for INTEGER,
   goals_against INTEGER,
   result TEXT CHECK(result IN ('sejr','uafgjort','nederlag')),
+  walkover TEXT CHECK(walkover IN ('UHT','HHT')),  -- Udehold/Hjemmehold taberdømt
   event_id TEXT REFERENCES events(id),
   UNIQUE(team_type, season, match_date, opponent)
 );

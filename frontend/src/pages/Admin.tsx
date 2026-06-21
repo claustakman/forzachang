@@ -684,6 +684,8 @@ function AdminSettings() {
   const [savingStandings, setSavingStandings] = useState(false);
   const [standingsMsg, setStandingsMsg]     = useState('');
   const [syncing, setSyncing]               = useState(false);
+  const [fetchingKits, setFetchingKits]     = useState(false);
+  const [kitsMsg, setKitsMsg]               = useState('');
   const [bulking, setBulking]               = useState(false);
   const [msg, setMsg]                       = useState('');
   const [syncMsg, setSyncMsg]               = useState('');
@@ -719,6 +721,15 @@ function AdminSettings() {
       setSyncMsg('Sync gennemført');
     } catch (e: any) { setSyncMsg(e.message); }
     setSyncing(false);
+  }
+
+  async function fetchKits() {
+    setFetchingKits(true); setKitsMsg('');
+    try {
+      const res = await api.fetchOpponentKits();
+      setKitsMsg(`✓ ${res.events_updated} kampe opdateret`);
+    } catch (e: any) { setKitsMsg(e.message); }
+    setFetchingKits(false);
   }
 
   async function saveDeadline() {
@@ -799,6 +810,20 @@ function AdminSettings() {
           </button>
         </div>
         {syncMsg && <p style={{ fontSize: 13, color: syncMsg === 'Sync gennemført' ? 'var(--green)' : '#e57373', marginTop: 8 }}>{syncMsg}</p>}
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--cfc-border)' }}>
+          <p style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+            Hent modstandernes spilletøjsfarver fra DAI-sport og gem på kommende kampe. Gøres én gang per sæson.
+          </p>
+          <button
+            className="btn btn-secondary"
+            onClick={fetchKits}
+            disabled={fetchingKits || !webcalUrl}
+            style={{ width: '100%', justifyContent: 'center' }}
+          >
+            {fetchingKits ? 'Henter...' : '👕 Hent spilletøjsfarver'}
+          </button>
+          {kitsMsg && <p style={{ fontSize: 13, color: kitsMsg.startsWith('✓') ? 'var(--green)' : '#e57373', marginTop: 6 }}>{kitsMsg}</p>}
+        </div>
       </div>
 
       {/* Aktuel stilling */}

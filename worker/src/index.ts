@@ -20,6 +20,7 @@ import { handleStandings } from './routes/standings';
 import { handleBoard, handleBoardAttachment } from './routes/board';
 import { handleVotes } from './routes/votes';
 import { handleLeagueTable } from './routes/leagueTable';
+import { handleFetchKits } from './routes/kitFetcher';
 
 export interface Env {
   DB: D1Database;
@@ -88,6 +89,7 @@ export default {
         if (m) return await handleComments(request, env, payload, m[1], m[2] || undefined);
       }
       if (path.startsWith('/api/events'))   return await handleEvents(request, env, payload);
+      if (path === '/api/settings/fetch-kits') return await handleFetchKits(request, env, payload);
       if (path.startsWith('/api/settings')) return await handleSettings(request, env, payload);
       // /api/honors/summary + /api/honors/:id
       {

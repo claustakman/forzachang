@@ -167,6 +167,7 @@ export default function Fines() {
           playerSummary={selectedPlayer}
           fineTypes={activeFineTypes}
           isTrainer={!!isTrainer}
+          isAdmin={!!isAdmin}
           onClose={() => { setSelectedPlayer(null); load(); }}
         />
       )}
@@ -344,11 +345,12 @@ function FineTypeModal({ fineType, onClose }: { fineType?: FineType; onClose: ()
 // ── PlayerFinesModal ──────────────────────────────────────────────────────────
 
 function PlayerFinesModal({
-  playerSummary, fineTypes, isTrainer, onClose,
+  playerSummary, fineTypes, isTrainer, isAdmin, onClose,
 }: {
   playerSummary: PlayerFinesSummary;
   fineTypes: FineType[];
   isTrainer: boolean;
+  isAdmin: boolean;
   onClose: () => void;
 }) {
   const [fines, setFines] = useState<Fine[]>([]);
@@ -359,6 +361,11 @@ function PlayerFinesModal({
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [deletingFineId, setDeletingFineId] = useState<string | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [showDiscount, setShowDiscount] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountNote, setDiscountNote] = useState('');
+  const [savingDiscount, setSavingDiscount] = useState(false);
+  const [discountError, setDiscountError] = useState('');
 
   useEffect(() => { loadDetail(); }, [playerSummary.player_id]);
 
@@ -396,13 +403,42 @@ function PlayerFinesModal({
     loadDetail();
   }
 
+  async function saveDiscount() {
+    const amt = Number(discountAmount);
+    if (!amt || amt <= 0) { setDiscountError('Angiv et positivt beløb'); return; }
+    setSavingDiscount(true);
+    setDiscountError('');
+    try {
+      await api.createDiscount(playerSummary.player_id, amt, discountNote || undefined);
+      setShowDiscount(false);
+      setDiscountAmount('');
+      setDiscountNote('');
+      loadDetail();
+    } catch (e: any) {
+      setDiscountError(e.message);
+      setSavingDiscount(false);
+    }
+  }
+
   const totalFines = fines.reduce((s, f) => s + f.amount, 0);
   const totalPayments = payments.reduce((s, p) => s + p.amount, 0);
   const balance = totalFines - totalPayments;
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+        {/* Topbar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '0.5px solid var(--cfc-border)', position: 'sticky', top: 0, background: 'var(--cfc-bg-primary)', zIndex: 10 }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0', minHeight: 44 }} aria-label="Tilbage">
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+        <div style={{ padding: '16px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <Avatar url={playerSummary.avatar_url} name={playerSummary.name} size={48} />
@@ -458,11 +494,66 @@ function PlayerFinesModal({
                 {isTrainer && (
                   <button
                     className="btn btn-sm btn-primary"
-                    style={{ marginBottom: 10, width: '100%', justifyContent: 'center' }}
+                    style={{ marginBottom: 8, width: '100%', justifyContent: 'center' }}
                     onClick={() => setShowAddFine(true)}
                   >
                     + Tildel bøde
                   </button>
+                )}
+                {isAdmin && (
+                  <>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      style={{ marginBottom: 10, width: '100%', justifyContent: 'center', color: '#5a9e5a', borderColor: '#5a9e5a' }}
+                      onClick={() => { setShowDiscount(v => !v); setDiscountError(''); }}
+                    >
+                      🏥 Langtidsskaderabat
+                    </button>
+                    {showDiscount && (
+                      <div style={{ background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, padding: '12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginBottom: 8 }}>
+                          Giv en negativ bøde (rabat) til langstidsskadet spiller
+                        </div>
+                        <div className="form-row" style={{ marginBottom: 8 }}>
+                          <label className="form-label">Rabatbeløb (kr.)</label>
+                          <input
+                            className="input"
+                            type="number"
+                            min="1"
+                            value={discountAmount}
+                            onChange={e => setDiscountAmount(e.target.value)}
+                            onFocus={e => e.target.select()}
+                            placeholder="fx 15"
+                            style={{ marginBottom: 0 }}
+                          />
+                        </div>
+                        <div className="form-row" style={{ marginBottom: 8 }}>
+                          <label className="form-label">Note (valgfri)</label>
+                          <input
+                            className="input"
+                            value={discountNote}
+                            onChange={e => setDiscountNote(e.target.value)}
+                            placeholder="fx 'halvt Kennethgebyr pga skade'"
+                            style={{ marginBottom: 0 }}
+                          />
+                        </div>
+                        {discountError && <p style={{ color: '#e57373', fontSize: 12, margin: '0 0 8px' }}>{discountError}</p>}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={saveDiscount}
+                            disabled={savingDiscount}
+                            style={{ flex: 1, justifyContent: 'center', background: '#1a4a2a', borderColor: '#5a9e5a', color: '#5a9e5a' }}
+                          >
+                            {savingDiscount ? '...' : 'Gem rabat'}
+                          </button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setShowDiscount(false)}>
+                            Annuller
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 {fines.length === 0 && (
                   <div style={{ textAlign: 'center', color: 'var(--cfc-text-muted)', padding: '1.5rem', fontSize: 13 }}>Ingen bøder</div>
@@ -470,7 +561,10 @@ function PlayerFinesModal({
                 {fines.map(f => (
                   <div key={f.id} style={{ borderBottom: '0.5px solid var(--cfc-border)', padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13 }}>{f.fine_type_name}</div>
+                      <div style={{ fontWeight: 500, fontSize: 13, color: f.amount < 0 ? '#5a9e5a' : 'var(--cfc-text-primary)' }}>
+                        {f.fine_type_name}
+                        {f.amount < 0 && <span style={{ fontSize: 10, marginLeft: 6, background: '#162416', color: '#5a9e5a', borderRadius: 3, padding: '1px 5px' }}>rabat</span>}
+                      </div>
                       {f.event_title && (
                         <div style={{ fontSize: 11, color: 'var(--cfc-text-muted)', marginTop: 1 }}>
                           Kamp: {f.event_title}
@@ -484,7 +578,7 @@ function PlayerFinesModal({
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtKr(f.amount)}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: f.amount < 0 ? '#5a9e5a' : 'var(--cfc-text-primary)' }}>{fmtKr(f.amount)}</div>
                       {isTrainer && (
                         deletingFineId === f.id ? (
                           <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
@@ -546,27 +640,25 @@ function PlayerFinesModal({
           </>
         )}
 
-        <div className="modal-footer" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" onClick={onClose}>Luk</button>
-        </div>
+        </div>{/* /padding */}
+      </div>{/* /maxWidth */}
 
-        {/* Sub-modaler */}
-        {showAddFine && (
-          <AddFineModal
-            playerId={playerSummary.player_id}
-            playerName={playerSummary.name}
-            fineTypes={fineTypes}
-            onClose={() => { setShowAddFine(false); loadDetail(); }}
-          />
-        )}
-        {showAddPayment && (
-          <AddPaymentModal
-            playerId={playerSummary.player_id}
-            playerName={playerSummary.name}
-            onClose={() => { setShowAddPayment(false); loadDetail(); }}
-          />
-        )}
-      </div>
+      {/* Sub-modaler */}
+      {showAddFine && (
+        <AddFineModal
+          playerId={playerSummary.player_id}
+          playerName={playerSummary.name}
+          fineTypes={fineTypes}
+          onClose={() => { setShowAddFine(false); loadDetail(); }}
+        />
+      )}
+      {showAddPayment && (
+        <AddPaymentModal
+          playerId={playerSummary.player_id}
+          playerName={playerSummary.name}
+          onClose={() => { setShowAddPayment(false); loadDetail(); }}
+        />
+      )}
     </div>
   );
 }

@@ -68,8 +68,38 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
   const hasFines = totals.fines_amount > 0 || seasons.some(s => (s.fines_amount || 0) > 0);
 
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 0 80px' }}>
+
+        {/* Topbar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px',
+          borderBottom: '0.5px solid var(--cfc-border)',
+          position: 'sticky', top: 0,
+          background: 'var(--cfc-bg-primary)',
+          zIndex: 10,
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--cfc-text-muted)', fontSize: 14, padding: '4px 0',
+              minHeight: 44,
+            }}
+            aria-label="Tilbage"
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Tilbage
+          </button>
+        </div>
+
+        <div style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--cfc-border)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
             {(player as any).avatar_url
@@ -158,10 +188,8 @@ function PlayerProfileModal({ player, onClose }: { player: Player; onClose: () =
             </tbody>
           </table>
         )}
-        <div className="modal-footer" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" onClick={onClose}>Luk</button>
-        </div>
-      </div>
+        </div>{/* /padding wrapper */}
+      </div>{/* /maxWidth container */}
     </div>
   );
 }
@@ -520,6 +548,7 @@ interface SeasonStanding {
 interface SeasonMatch {
   id: string; team_type: string; season: number; match_date?: string; opponent: string;
   home_away?: string; goals_for?: number; goals_against?: number; result?: string;
+  walkover?: 'UHT' | 'HHT';
 }
 
 function fmtResult(r: string) {
@@ -585,8 +614,9 @@ function MatchList({ matches }: { matches: SeasonMatch[] }) {
               <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap' }}>
                 {scoreLabel !== '–' ? scoreLabel : ''}
               </td>
-              <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+              <td style={{ padding: '7px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {res && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: res.bg, color: res.color, fontWeight: 700 }}>{res.label}</span>}
+                {m.walkover && <span style={{ marginLeft: 4, fontSize: 10, padding: '1px 5px', borderRadius: 100, background: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-muted)', fontWeight: 600 }}>{m.walkover}</span>}
               </td>
             </tr>
           );
@@ -826,8 +856,9 @@ function TidligereSaesoner() {
                         <td style={{ padding: '6px 8px', color: 'var(--cfc-text-subtle)', fontSize: 11, whiteSpace: 'nowrap' }}>{m.match_date || '–'}</td>
                         <td style={{ padding: '6px 8px', color: 'var(--cfc-text-primary)' }}>{matchLabel}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--cfc-text-primary)', whiteSpace: 'nowrap' }}>{scoreLabel}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           {res && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 100, background: res.bg, color: res.color, fontWeight: 700 }}>{res.label}</span>}
+                          {m.walkover && <span style={{ marginLeft: 4, fontSize: 10, padding: '1px 5px', borderRadius: 100, background: 'var(--cfc-bg-hover)', color: 'var(--cfc-text-muted)', fontWeight: 600 }}>{m.walkover}</span>}
                         </td>
                       </tr>
                     );

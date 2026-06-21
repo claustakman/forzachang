@@ -163,6 +163,8 @@ export const api = {
   getSettings: () => req<Record<string, string>>('GET', '/settings'),
   updateSettings: (data: Record<string, string>) => req<{ ok: boolean }>('PUT', '/settings', data),
   syncWebcal: () => req<{ ok: boolean }>('POST', '/settings/sync'),
+  fetchOpponentKits: () =>
+    req<{ ok: boolean; teams_processed: number; events_updated: number }>('POST', '/settings/fetch-kits'),
   bulkUpdateDeadlines: (days: number) =>
     req<{ updated: number }>('POST', '/settings/bulk-deadlines', { days }),
 
@@ -177,6 +179,8 @@ export const api = {
   createFine: (data: { player_id: string; fine_type_id: string; event_id?: string; note?: string }) =>
     req<Fine>('POST', '/fines', data),
   deleteFine: (id: string) => req<{ ok: boolean }>('DELETE', `/fines/${id}`),
+  createDiscount: (player_id: string, amount: number, note?: string) =>
+    req<Fine>('POST', '/fines/discount', { player_id, amount, note }),
 
   getFineSummary: () => req<PlayerFinesSummary[]>('GET', '/fines/summary'),
 
@@ -386,6 +390,7 @@ export interface Event {
   webcal_uid?: string;
   season: number;
   result?: string;
+  opponent_kit?: string;
   created_by?: string;
   signup_count?: number;
   my_status?: 'tilmeldt' | 'afmeldt' | null;
@@ -580,6 +585,7 @@ export interface SeasonMatch {
   goals_for?: number;
   goals_against?: number;
   result?: string;
+  walkover?: 'UHT' | 'HHT';
 }
 
 // Opslagstavle (fase 11)
