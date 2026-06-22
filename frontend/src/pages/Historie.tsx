@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api, StatsRow, PlayerSeasonStats, Player, PlayerHonor, HonorsSummary } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -984,37 +984,20 @@ function HistorieTab() {
   );
 }
 
-// ── Hoved-komponent ───────────────────────────────────────────────────────────
+// ── Hoved-komponenter (to separate ruter) ─────────────────────────────────────
 
-type MainTab = 'spillerstatistik' | 'historie';
-
-export default function Historie() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const rawTab = searchParams.get('tab');
-  // Bagudkompatibilitet: gamle tabs redirectes
-  const tab: MainTab = (rawTab === 'rekorder' || rawTab === 'historik' || rawTab === 'hold') ? 'historie'
-    : 'spillerstatistik';
-
-  function setTab(t: MainTab) { setSearchParams({ tab: t }); }
-
+export function Historie() {
   return (
     <div className="page" style={{ color: 'var(--cfc-text-primary)' }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-        {([
-          ['historie',         'Historie'],
-          ['spillerstatistik', 'Spillerstatistik'],
-        ] as [MainTab, string][]).map(([v, label]) => (
-          <button key={v} onClick={() => setTab(v)} className="btn btn-sm" style={{
-            background: tab === v ? 'var(--cfc-bg-hover)' : 'transparent',
-            color: tab === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-            border: `0.5px solid ${tab === v ? 'var(--cfc-border)' : 'transparent'}`,
-            fontSize: 15, padding: '7px 16px',
-          }}>{label}</button>
-        ))}
-      </div>
+      <HistorieTab />
+    </div>
+  );
+}
 
-      {tab === 'spillerstatistik' && <SpillerstatistikTab />}
-      {tab === 'historie'         && <HistorieTab />}
+export function Spillerstatistik() {
+  return (
+    <div className="page" style={{ color: 'var(--cfc-text-primary)' }}>
+      <SpillerstatistikTab />
     </div>
   );
 }
