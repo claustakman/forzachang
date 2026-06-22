@@ -351,7 +351,7 @@ function SpillerstatistikTab() {
       {showRotate && <RotateBanner />}
       {/* Sub-tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-        {([['spiller', 'Spillerstatistik'], ['top10', 'Top 10'], ['haeder', 'Hæder']] as [SpillerView, string][]).map(([v, label]) => (
+        {([['top10', 'Top 10'], ['haeder', 'Hæder'], ['spiller', 'Spillerstatistik']] as [SpillerView, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setView(v)} className="btn btn-sm" style={{
             background: view === v ? 'var(--cfc-bg-hover)' : 'transparent',
             color: view === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
@@ -371,7 +371,7 @@ function SpillerstatistikTab() {
             <option value="inactive">Pensionerede</option>
           </select>
           {view !== 'top10' && (
-            <input className="input" style={{ flex: 1, minWidth: 120, fontSize: 13 }} placeholder="Søg spiller..." value={q} onChange={e => setQ(e.target.value)} />
+            <input className="input" style={{ flex: 1, minWidth: 120 }} placeholder="Søg spiller..." value={q} onChange={e => setQ(e.target.value)} />
           )}
         </div>
       )}
@@ -862,7 +862,7 @@ function TidligereSaesoner() {
     <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         <input
-          className="input" style={{ flex: 1, fontSize: 13 }}
+          className="input" style={{ flex: 1 }}
           placeholder="🔍 Søg på modstander, fx Lokomotiv..."
           value={searchQ} onChange={e => setSearchQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && doSearch()}
@@ -959,13 +959,13 @@ function TidligereSaesoner() {
 type HoldTab = 'saeson' | 'saesoner' | 'rekorder';
 
 function HistorieTab() {
-  const [holdTab, setHoldTab] = useState<HoldTab>('saeson');
+  const [holdTab, setHoldTab] = useState<HoldTab>('saesoner');
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {([['saeson', 'Sæsonoversigt'], ['saesoner', 'Tidligere sæsoner'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
+        {([['saesoner', 'Tidligere sæsoner'], ['saeson', 'Bidrag per sæson'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setHoldTab(v)} className="btn btn-sm" style={{
             background: holdTab === v ? 'var(--cfc-bg-hover)' : 'transparent',
             color: holdTab === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',

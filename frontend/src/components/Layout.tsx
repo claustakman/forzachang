@@ -68,7 +68,7 @@ export default function Layout() {
   // Mere-panel items
   const moreItems = [
     { to: '/historie',         label: 'Historie',         icon: '📊' },
-    { to: '/spillerstatistik', label: 'Spillerstatistik', icon: '🧮' },
+    { to: '/spillerstatistik', label: 'Spillerstatistik', icon: '⚽' },
     { to: '/stilling',  label: 'Stilling', icon: '📈' },
     { to: '/bødekasse', label: 'Bøder',    icon: '💰' },
     ...(canAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️' }] : []),
