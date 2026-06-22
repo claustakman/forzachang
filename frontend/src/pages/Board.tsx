@@ -729,10 +729,31 @@ export default function Board() {
     <div className="page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: 20 }}>Opslagstavle</h2>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary btn-sm">
-          + Nyt opslag
-        </button>
       </div>
+
+      <button
+        aria-label="Nyt opslag"
+        title="Nyt opslag"
+        className="cfc-fab-create btn btn-primary"
+        style={{
+          position: 'fixed',
+          right: 20,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 28,
+          lineHeight: 1,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          zIndex: 40,
+        }}
+        onClick={() => setShowModal(true)}
+      >
+        +
+      </button>
 
       {/* Quickfilter (kun admin) + søgefelt */}
       {isAdmin && (

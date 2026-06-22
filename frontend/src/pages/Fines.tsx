@@ -201,11 +201,27 @@ function FineCatalog({ allTypes, isAdmin, onReload }: { allTypes: FineType[]; is
     <>
       {isAdmin && (
         <button
-          className="btn btn-primary"
-          style={{ marginBottom: 12, width: '100%', justifyContent: 'center' }}
+          aria-label="Ny bødetype"
+          title="Ny bødetype"
+          className="cfc-fab-create btn btn-primary"
+          style={{
+            position: 'fixed',
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 28,
+            lineHeight: 1,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            zIndex: 40,
+          }}
           onClick={() => setShowAdd(true)}
         >
-          + Ny bødetype
+          +
         </button>
       )}
 
