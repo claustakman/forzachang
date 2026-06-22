@@ -526,18 +526,28 @@ function PostModal({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 200, padding: 16,
-    }} onClick={onClose}>
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'var(--cfc-bg-primary)',
+      overflowY: 'auto',
+      animation: 'slideInRight 0.22s ease-out',
+    }}>
       <div style={{
-        background: '#ffffff',
-        border: '0.5px solid #e0e0e0',
-        borderRadius: 12, padding: 20,
-        width: '100%', maxWidth: 560,
-        maxHeight: '90dvh', overflowY: 'auto',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-      }} onClick={e => e.stopPropagation()}>
+        position: 'sticky', top: 0, zIndex: 1,
+        background: 'var(--cfc-bg-primary)',
+        borderBottom: '0.5px solid var(--cfc-border)',
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '0 16px',
+        minHeight: 44,
+      }}>
+        <button
+          onClick={onClose}
+          className="btn btn-sm"
+          style={{ background: 'none', border: 'none', color: 'var(--cfc-text-muted)', padding: '8px 0' }}
+        >
+          ‹ Tilbage
+        </button>
+      </div>
+      <div style={{ padding: 16, maxWidth: 560, margin: '0 auto' }}>
         <h3 style={{ margin: '0 0 14px', fontSize: 16 }}>{isEdit ? 'Rediger opslag' : 'Nyt opslag'}</h3>
         <input
           className="input"
