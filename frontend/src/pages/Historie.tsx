@@ -284,17 +284,36 @@ function HaederTab() {
   );
 }
 
-// ── Spillerhistorik ───────────────────────────────────────────────────────────
+// ── "Vend skærmen"-banner — afviselig, neutral stil ──────────────────────────
 
-type SpillerView = 'saeson' | 'spiller' | 'top10' | 'haeder';
+const ROTATE_DISMISS_KEY = 'cfc_rotate_banner_dismissed';
 
-function SpillerhistorikTab() {
-  const [view, setView] = useState<SpillerView>('saeson');
-  const [seasonSaeson, setSeasonSaeson] = useState<string>(String(THIS_YEAR));
+function RotateBanner() {
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(ROTATE_DISMISS_KEY) === '1');
+  if (dismissed) return null;
+  return (
+    <div style={{ background: 'var(--cfc-bg-hover)', border: '0.5px solid var(--cfc-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--cfc-text-muted)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 20 }}>↻</span>
+      <span style={{ flex: 1 }}>Vend skærmen for bedre visning</span>
+      <button
+        onClick={() => { localStorage.setItem(ROTATE_DISMISS_KEY, '1'); setDismissed(true); }}
+        aria-label="Luk"
+        style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', fontSize: 16, padding: 4, cursor: 'pointer', lineHeight: 1 }}
+      >×</button>
+    </div>
+  );
+}
+
+// ── Spillerstatistik ──────────────────────────────────────────────────────────
+
+type SpillerView = 'spiller' | 'top10' | 'haeder';
+
+function SpillerstatistikTab() {
+  const [view, setView] = useState<SpillerView>('spiller');
   const [seasonTop10, setSeasonTop10] = useState<string>('');
   const [seasonSpiller, setSeasonSpiller] = useState<string>('');
-  const season = view === 'saeson' ? seasonSaeson : view === 'top10' ? seasonTop10 : seasonSpiller;
-  const setSeason = view === 'saeson' ? setSeasonSaeson : view === 'top10' ? setSeasonTop10 : setSeasonSpiller;
+  const season = view === 'top10' ? seasonTop10 : seasonSpiller;
+  const setSeason = view === 'top10' ? setSeasonTop10 : setSeasonSpiller;
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [stats, setStats] = useState<StatsRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -325,18 +344,14 @@ function SpillerhistorikTab() {
   const sorted = [...filtered].sort((a, b) => b.matches - a.matches || b.goals - a.goals);
 
   const isNarrow = typeof window !== 'undefined' && window.innerWidth < 600;
-  const showRotate = (view === 'saeson' || view === 'spiller') && isNarrow;
+  const showRotate = view === 'spiller' && isNarrow;
 
   return (
     <>
-      {showRotate && (
-        <div style={{ background: '#1a1200', border: '0.5px solid #c4a000', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#c4a000', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 20 }}>↻</span><span>Vend skærmen for bedre visning</span>
-        </div>
-      )}
+      {showRotate && <RotateBanner />}
       {/* Sub-tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-        {([['saeson', 'Sæsonoversigt'], ['spiller', 'Spillerstatistik'], ['top10', 'Top 10'], ['haeder', 'Hæder']] as [SpillerView, string][]).map(([v, label]) => (
+        {([['spiller', 'Spillerstatistik'], ['top10', 'Top 10'], ['haeder', 'Hæder']] as [SpillerView, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setView(v)} className="btn btn-sm" style={{
             background: view === v ? 'var(--cfc-bg-hover)' : 'transparent',
             color: view === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
@@ -383,44 +398,6 @@ function SpillerhistorikTab() {
               {filtered.length === 0 && <div className="empty">Ingen statistik for valgte filtre.</div>}
             </div>
           )}
-          {view === 'saeson' && (
-            <div style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, overflow: 'hidden' }}>
-              {sorted.length === 0 ? <div className="empty">Ingen statistik for valgte filtre.</div> : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '0.5px solid var(--cfc-border)', background: 'var(--cfc-bg-hover)' }}>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>#</th>
-                      <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Spiller</th>
-                      {['⚽','🎯','🏆','🟨','🟥','💸'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((row, i) => (
-                      <tr key={row.id} onClick={() => setSelectedPlayer(row as unknown as Player)}
-                        style={{ borderBottom: '0.5px solid var(--cfc-border)', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '')}>
-                        <td style={{ padding: '8px 12px', color: 'var(--cfc-text-subtle)', fontSize: 11 }}>{i + 1}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: i < 3 ? 700 : 400, color: 'var(--cfc-text-primary)' }}>
-                          {row.name}{!row.active && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 6 }}>pensioneret</span>}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)' }}>{row.matches || '–'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: row.goals > 0 ? '#5a9e5a' : 'var(--cfc-text-subtle)', fontWeight: row.goals > 0 ? 700 : 400 }}>{row.goals || '–'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.mom || 0) > 0 ? '#c4a000' : 'var(--cfc-text-subtle)' }}>{row.mom || '–'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: row.yellow_cards > 0 ? '#b45309' : 'var(--cfc-text-subtle)' }}>{row.yellow_cards || '–'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: row.red_cards > 0 ? '#e57373' : 'var(--cfc-text-subtle)' }}>{row.red_cards || '–'}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.fines_amount || 0) > 0 ? '#9b59b6' : 'var(--cfc-text-subtle)' }}>
-                          {(row.fines_amount || 0) > 0 ? fmtKr(row.fines_amount) : '–'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
           {view === 'spiller' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {sorted.length === 0 && <div className="empty">Ingen spillere matcher.</div>}
@@ -442,6 +419,91 @@ function SpillerhistorikTab() {
             </div>
           )}
         </>
+      )}
+      {selectedPlayer && <PlayerProfileModal player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />}
+    </>
+  );
+}
+
+// ── Sæsonoversigt ─────────────────────────────────────────────────────────────
+
+function SaesonoversigtTab() {
+  const [season, setSeason] = useState<string>(String(THIS_YEAR));
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [stats, setStats] = useState<StatsRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api.getStats(season || undefined).then(rows => {
+      setStats(rows as unknown as StatsRow[]);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [season]);
+
+  const filtered = stats.filter(r => {
+    if (activeFilter === 'active' && !r.active) return false;
+    if (activeFilter === 'inactive' && r.active) return false;
+    return true;
+  });
+  const sorted = [...filtered].sort((a, b) => b.matches - a.matches || b.goals - a.goals);
+
+  const isNarrow = typeof window !== 'undefined' && window.innerWidth < 600;
+
+  return (
+    <>
+      {isNarrow && <RotateBanner />}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="input" style={{ width: 110, fontSize: 13 }} value={season} onChange={e => setSeason(e.target.value)}>
+          <option value="">Alle sæsoner</option>
+          {SEASONS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select className="input" style={{ width: 120, fontSize: 13 }} value={activeFilter} onChange={e => setActiveFilter(e.target.value as any)}>
+          <option value="all">Alle spillere</option>
+          <option value="active">Kun aktive</option>
+          <option value="inactive">Pensionerede</option>
+        </select>
+      </div>
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
+      ) : (
+        <div style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, overflow: 'hidden' }}>
+          {sorted.length === 0 ? <div className="empty">Ingen statistik for valgte filtre.</div> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '0.5px solid var(--cfc-border)', background: 'var(--cfc-bg-hover)' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>#</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>Spiller</th>
+                  {['⚽','🎯','🏆','🟨','🟥','💸'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row, i) => (
+                  <tr key={row.id} onClick={() => setSelectedPlayer(row as unknown as Player)}
+                    style={{ borderBottom: '0.5px solid var(--cfc-border)', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--cfc-bg-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                    <td style={{ padding: '8px 12px', color: 'var(--cfc-text-subtle)', fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: i < 3 ? 700 : 400, color: 'var(--cfc-text-primary)' }}>
+                      {row.name}{!row.active && <span style={{ fontSize: 10, color: 'var(--cfc-text-subtle)', marginLeft: 6 }}>pensioneret</span>}
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--cfc-text-muted)' }}>{row.matches || '–'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: row.goals > 0 ? '#5a9e5a' : 'var(--cfc-text-subtle)', fontWeight: row.goals > 0 ? 700 : 400 }}>{row.goals || '–'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.mom || 0) > 0 ? '#c4a000' : 'var(--cfc-text-subtle)' }}>{row.mom || '–'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: row.yellow_cards > 0 ? '#b45309' : 'var(--cfc-text-subtle)' }}>{row.yellow_cards || '–'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: row.red_cards > 0 ? '#e57373' : 'var(--cfc-text-subtle)' }}>{row.red_cards || '–'}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: (row.fines_amount || 0) > 0 ? '#9b59b6' : 'var(--cfc-text-subtle)' }}>
+                      {(row.fines_amount || 0) > 0 ? fmtKr(row.fines_amount) : '–'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
       {selectedPlayer && <PlayerProfileModal player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />}
     </>
@@ -740,7 +802,7 @@ function MatchOnlySeasonSection({ season, teamType }: { season: number; teamType
 }
 
 function TidligereSaesoner() {
-  const [subView, setSubView] = useState<'soeg' | 'oldboys' | 'senior'>('oldboys');
+  const [subView, setSubView] = useState<'oldboys' | 'senior'>('oldboys');
   const [obStandings, setObStandings] = useState<SeasonStanding[]>([]);
   const [senStandings, setSenStandings] = useState<SeasonStanding[]>([]);
   const [obMatchSeasons, setObMatchSeasons] = useState<number[]>([]);
@@ -798,36 +860,27 @@ function TidligereSaesoner() {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-        {([['soeg', 'Søg'], ['oldboys', 'Oldboys'], ['senior', 'Senior']] as const).map(([v, label]) => (
-          <button key={v} onClick={() => setSubView(v)} className="btn btn-sm" style={{
-            background: subView === v ? 'var(--cfc-bg-hover)' : 'transparent',
-            color: subView === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
-            border: `0.5px solid ${subView === v ? 'var(--cfc-border)' : 'transparent'}`,
-          }}>{label}</button>
-        ))}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <input
+          className="input" style={{ flex: 1, fontSize: 13 }}
+          placeholder="🔍 Søg på modstander, fx Lokomotiv..."
+          value={searchQ} onChange={e => setSearchQ(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && doSearch()}
+        />
+        <button className="btn btn-primary btn-sm" onClick={doSearch} disabled={searching}>
+          {searching ? '...' : 'Søg'}
+        </button>
       </div>
 
-      {subView === 'soeg' && (
-        <div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-            <input
-              className="input" style={{ flex: 1, fontSize: 13 }}
-              placeholder="Søg på modstander, fx Lokomotiv..."
-              value={searchQ} onChange={e => setSearchQ(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && doSearch()}
-            />
-            <button className="btn btn-primary btn-sm" onClick={doSearch} disabled={searching}>
-              {searching ? '...' : 'Søg'}
-            </button>
-          </div>
-          {searched && searchResults.length === 0 && (
+      {searched && (
+        <div style={{ marginBottom: 16 }}>
+          {searchResults.length === 0 ? (
             <div className="empty">Ingen resultater for "{searchQ}".</div>
-          )}
-          {searchResults.length > 0 && (
+          ) : (
             <div style={{ background: 'var(--cfc-bg-card)', border: '0.5px solid var(--cfc-border)', borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cfc-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '10px 14px', borderBottom: '0.5px solid var(--cfc-border)' }}>
-                {searchResults.length} kamp{searchResults.length !== 1 ? 'e' : ''} mod "{searchQ}"
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cfc-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '10px 14px', borderBottom: '0.5px solid var(--cfc-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{searchResults.length} kamp{searchResults.length !== 1 ? 'e' : ''} mod "{searchQ}"</span>
+                <button onClick={() => { setSearched(false); setSearchQ(''); setSearchResults([]); }} aria-label="Luk" style={{ background: 'none', border: 'none', color: 'var(--cfc-text-subtle)', fontSize: 16, padding: 4, cursor: 'pointer', lineHeight: 1 }}>×</button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
@@ -870,6 +923,16 @@ function TidligereSaesoner() {
         </div>
       )}
 
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {([['oldboys', 'Oldboys'], ['senior', 'Senior']] as const).map(([v, label]) => (
+          <button key={v} onClick={() => setSubView(v)} className="btn btn-sm" style={{
+            background: subView === v ? 'var(--cfc-bg-hover)' : 'transparent',
+            color: subView === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
+            border: `0.5px solid ${subView === v ? 'var(--cfc-border)' : 'transparent'}`,
+          }}>{label}</button>
+        ))}
+      </div>
+
       {(subView === 'oldboys' || subView === 'senior') && (
         !loaded ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
@@ -891,18 +954,18 @@ function TidligereSaesoner() {
   );
 }
 
-// ── Holdhistorik (wrapper med sub-tabs: Holdrekorder + Tidligere sæsoner) ────
+// ── Historie (wrapper med sub-tabs: Sæsonoversigt + Tidligere sæsoner + Holdrekorder) ────
 
-type HoldTab = 'rekorder' | 'saesoner';
+type HoldTab = 'saeson' | 'saesoner' | 'rekorder';
 
-function HoldhistorikTab() {
-  const [holdTab, setHoldTab] = useState<HoldTab>('saesoner');
+function HistorieTab() {
+  const [holdTab, setHoldTab] = useState<HoldTab>('saeson');
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {([['saesoner', 'Tidligere sæsoner'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
+        {([['saeson', 'Sæsonoversigt'], ['saesoner', 'Tidligere sæsoner'], ['rekorder', 'Holdrekorder']] as [HoldTab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setHoldTab(v)} className="btn btn-sm" style={{
             background: holdTab === v ? 'var(--cfc-bg-hover)' : 'transparent',
             color: holdTab === v ? 'var(--cfc-text-primary)' : 'var(--cfc-text-muted)',
@@ -914,6 +977,7 @@ function HoldhistorikTab() {
           📈 Aktuel stilling →
         </Link>
       </div>
+      {holdTab === 'saeson'   && <SaesonoversigtTab />}
       {holdTab === 'rekorder' && <HoldrekorderTab />}
       {holdTab === 'saesoner' && <TidligereSaesoner />}
     </>
@@ -922,14 +986,14 @@ function HoldhistorikTab() {
 
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 
-type MainTab = 'spillere' | 'hold';
+type MainTab = 'spillerstatistik' | 'historie';
 
 export default function Historie() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
   // Bagudkompatibilitet: gamle tabs redirectes
-  const tab: MainTab = (rawTab === 'rekorder' || rawTab === 'historik' || rawTab === 'hold') ? 'hold'
-    : 'spillere';
+  const tab: MainTab = (rawTab === 'rekorder' || rawTab === 'historik' || rawTab === 'hold') ? 'historie'
+    : 'spillerstatistik';
 
   function setTab(t: MainTab) { setSearchParams({ tab: t }); }
 
@@ -937,8 +1001,8 @@ export default function Historie() {
     <div className="page" style={{ color: 'var(--cfc-text-primary)' }}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
         {([
-          ['spillere', 'Spillerhistorik'],
-          ['hold',     'Holdhistorik'],
+          ['historie',         'Historie'],
+          ['spillerstatistik', 'Spillerstatistik'],
         ] as [MainTab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setTab(v)} className="btn btn-sm" style={{
             background: tab === v ? 'var(--cfc-bg-hover)' : 'transparent',
@@ -949,8 +1013,8 @@ export default function Historie() {
         ))}
       </div>
 
-      {tab === 'spillere' && <SpillerhistorikTab />}
-      {tab === 'hold'     && <HoldhistorikTab />}
+      {tab === 'spillerstatistik' && <SpillerstatistikTab />}
+      {tab === 'historie'         && <HistorieTab />}
     </div>
   );
 }
