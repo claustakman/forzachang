@@ -309,7 +309,7 @@ function RotateBanner() {
 type SpillerView = 'spiller' | 'top10' | 'haeder';
 
 function SpillerstatistikTab() {
-  const [view, setView] = useState<SpillerView>('spiller');
+  const [view, setView] = useState<SpillerView>('top10');
   const [seasonTop10, setSeasonTop10] = useState<string>('');
   const [seasonSpiller, setSeasonSpiller] = useState<string>('');
   const season = view === 'top10' ? seasonTop10 : seasonSpiller;

@@ -59,6 +59,78 @@ function highlightMentions(text: string): React.ReactNode {
   );
 }
 
+// Renderer for et lille markdown-unders\u00E6t: **bold**, *italic*, [link](url), "- " bullets, "1. " numre.
+// Mentions highlightes til sidst p\u00E5 de tiloversblevne plain-text-stykker.
+function renderInline(text: string, keyPrefix: string): React.ReactNode {
+  const tokenRe = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*(.+?)\*\*|\*(.+?)\*/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = tokenRe.exec(text))) {
+    if (m.index > lastIndex) {
+      nodes.push(<span key={`${keyPrefix}-t${i++}`}>{highlightMentions(text.slice(lastIndex, m.index))}</span>);
+    }
+    if (m[1] !== undefined) {
+      nodes.push(
+        <a key={`${keyPrefix}-l${i++}`} href={m[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#5b8dd9', textDecoration: 'underline' }}>
+          {highlightMentions(m[1])}
+        </a>
+      );
+    } else if (m[3] !== undefined) {
+      nodes.push(<strong key={`${keyPrefix}-b${i++}`}>{highlightMentions(m[3])}</strong>);
+    } else if (m[4] !== undefined) {
+      nodes.push(<em key={`${keyPrefix}-i${i++}`}>{highlightMentions(m[4])}</em>);
+    }
+    lastIndex = tokenRe.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    nodes.push(<span key={`${keyPrefix}-t${i++}`}>{highlightMentions(text.slice(lastIndex))}</span>);
+  }
+  return nodes;
+}
+
+function renderFormattedBody(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*-\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*-\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*-\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ul key={`b${key++}`} style={{ margin: '4px 0', paddingLeft: 22 }}>
+          {items.map((it, idx) => <li key={idx} style={{ marginBottom: 2 }}>{renderInline(it, `ul${key}-${idx}`)}</li>)}
+        </ul>
+      );
+      continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''));
+        i++;
+      }
+      blocks.push(
+        <ol key={`b${key++}`} style={{ margin: '4px 0', paddingLeft: 22 }}>
+          {items.map((it, idx) => <li key={idx} style={{ marginBottom: 2 }}>{renderInline(it, `ol${key}-${idx}`)}</li>)}
+        </ol>
+      );
+      continue;
+    }
+    blocks.push(<span key={`b${key++}`}>{renderInline(line, `l${key}`)}</span>);
+    if (i < lines.length - 1) blocks.push(<br key={`br${key++}`} />);
+    i++;
+  }
+  return blocks;
+}
+
 // Simple @-mention autocomplete textarea
 function MentionTextarea({
   value,
@@ -67,6 +139,7 @@ function MentionTextarea({
   placeholder,
   players,
   minHeight = 60,
+  showToolbar = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -74,6 +147,7 @@ function MentionTextarea({
   placeholder?: string;
   players: Player[];
   minHeight?: number;
+  showToolbar?: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<{ id: string; label: string }[]>([]);
   const [mentionStart, setMentionStart] = useState(-1);
@@ -131,8 +205,66 @@ function MentionTextarea({
     onKeyDown?.(e);
   }
 
+  function setSelectionLater(start: number, end: number) {
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = start;
+        textareaRef.current.selectionEnd = end;
+      }
+    }, 0);
+  }
+
+  function wrapSelection(marker: string) {
+    const ta = textareaRef.current;
+    const start = ta?.selectionStart ?? value.length;
+    const end = ta?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const newVal = value.slice(0, start) + marker + selected + marker + value.slice(end);
+    onChange(newVal);
+    if (selected) setSelectionLater(start + marker.length, end + marker.length);
+    else setSelectionLater(start + marker.length, start + marker.length);
+  }
+
+  function prefixLines(prefixFn: (i: number) => string) {
+    const ta = textareaRef.current;
+    const start = ta?.selectionStart ?? value.length;
+    const end = ta?.selectionEnd ?? value.length;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = value.indexOf('\n', end);
+    if (lineEnd === -1) lineEnd = value.length;
+    const block = value.slice(lineStart, lineEnd);
+    const lines = block.split('\n');
+    const prefixed = lines.map((l, i) => `${prefixFn(i)}${l}`).join('\n');
+    const newVal = value.slice(0, lineStart) + prefixed + value.slice(lineEnd);
+    onChange(newVal);
+    setSelectionLater(lineStart, lineStart + prefixed.length);
+  }
+
+  function insertLink() {
+    const ta = textareaRef.current;
+    const start = ta?.selectionStart ?? value.length;
+    const end = ta?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const linkText = selected || 'link';
+    const inserted = `[${linkText}](https://)`;
+    const newVal = value.slice(0, start) + inserted + value.slice(end);
+    onChange(newVal);
+    const urlStart = start + linkText.length + 3;
+    setSelectionLater(urlStart, urlStart + 8);
+  }
+
   return (
     <div style={{ position: 'relative' }}>
+      {showToolbar && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => wrapSelection('**')} title="Fed" className="btn btn-sm" style={{ minWidth: 44, minHeight: 36, fontWeight: 700 }}>B</button>
+          <button type="button" onClick={() => wrapSelection('*')} title="Kursiv" className="btn btn-sm" style={{ minWidth: 44, minHeight: 36, fontStyle: 'italic' }}>I</button>
+          <button type="button" onClick={() => prefixLines(() => '- ')} title="Punktliste" className="btn btn-sm" style={{ minWidth: 44, minHeight: 36 }}>• Liste</button>
+          <button type="button" onClick={() => prefixLines(i => `${i + 1}. `)} title="Nummereret liste" className="btn btn-sm" style={{ minWidth: 44, minHeight: 36 }}>1. Liste</button>
+          <button type="button" onClick={insertLink} title="Link" className="btn btn-sm" style={{ minWidth: 44, minHeight: 36 }}>🔗 Link</button>
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         value={value}
@@ -401,8 +533,8 @@ function PostCard({
       )}
 
       {/* Body */}
-      <div style={{ fontSize: 14, color: '#444444', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, marginBottom: 10 }}>
-        {highlightMentions(post.body)}
+      <div style={{ fontSize: 14, color: '#444444', wordBreak: 'break-word', lineHeight: 1.6, marginBottom: 10 }}>
+        {renderFormattedBody(post.body)}
       </div>
 
       {/* Attachments */}
@@ -562,7 +694,8 @@ function PostModal({
           onChange={setBody}
           placeholder="Hvad vil du dele?"
           players={players}
-          minHeight={100}
+          minHeight={200}
+          showToolbar
         />
         {!isEdit && (
           <div style={{ marginTop: 10 }}>

@@ -17,9 +17,9 @@ const DESKTOP_NAV = [
   { to: '/kalender',     label: 'Kalender'    },
   { to: '/opslagstavle', label: 'Opslagstavle' },
   { to: '/afstemning',   label: 'Afstemning'  },
+  { to: '/stilling',     label: 'Stilling'    },
   { to: '/historie',         label: 'Historie'         },
   { to: '/spillerstatistik', label: 'Spillerstatistik' },
-  { to: '/stilling',     label: 'Stilling'    },
   { to: '/bødekasse',    label: 'Bødekasse'   },
 ];
 
@@ -67,9 +67,9 @@ export default function Layout() {
 
   // Mere-panel items
   const moreItems = [
+    { to: '/stilling',  label: 'Stilling', icon: '📈' },
     { to: '/historie',         label: 'Historie',         icon: '📊' },
     { to: '/spillerstatistik', label: 'Spillerstatistik', icon: '⚽' },
-    { to: '/stilling',  label: 'Stilling', icon: '📈' },
     { to: '/bødekasse', label: 'Bøder',    icon: '💰' },
     ...(canAdmin ? [{ to: '/admin', label: 'Admin', icon: '⚙️' }] : []),
     { to: '/profil',    label: 'Profil',   icon: '👤' },
