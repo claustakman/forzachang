@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import logo from '../assets/logo.svg';
 import PwaBanner from './PwaBanner';
+import PasskeyPrompt from './PasskeyPrompt';
 
 // Faste 4 ikoner i bundnavigationen (mobil)
 const BOTTOM_FIXED = [
@@ -239,6 +240,7 @@ export default function Layout() {
       </nav>
 
       <PwaBanner />
+      <PasskeyPrompt />
 
       {/* Responsive CSS */}
       <style>{`

@@ -2,6 +2,7 @@
 // Deploy: wrangler deploy
 
 import { handleAuth } from './routes/auth';
+import { handleWebAuthn } from './routes/webauthn';
 import { handleMatches } from './routes/matches';
 import { handleSignups } from './routes/signups';
 import { handleStats, handleEventStats } from './routes/stats';
@@ -45,6 +46,10 @@ export default {
       }
 
       // Public routes (no auth needed)
+      // WebAuthn must be checked before the general auth handler (prefix match order)
+      if (path.startsWith('/api/auth/webauthn')) {
+        return await handleWebAuthn(request, env);
+      }
       if (path.startsWith('/api/auth')) {
         return await handleAuth(request, env);
       }

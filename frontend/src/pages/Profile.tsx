@@ -1,7 +1,14 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import type { WebAuthnCredential } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../lib/push';
+import {
+  isPlatformAuthenticatorAvailable,
+  registerPasskey,
+  markPasskeyEnrolled,
+} from '../lib/webauthn';
+import { fmtDate } from '../lib/format';
 
 export default function Profile() {
   const { player, updatePlayer } = useAuth();
@@ -25,11 +32,23 @@ export default function Profile() {
   const [notifySaving, setNotifySaving] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
 
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [passkeys, setPasskeys] = useState<WebAuthnCredential[]>([]);
+  const [passkeysLoading, setPasskeysLoading] = useState(true);
+  const [passkeyAdding, setPasskeyAdding] = useState(false);
+  const [passkeyMsg, setPasskeyMsg] = useState('');
+  const [deletingPasskeyId, setDeletingPasskeyId] = useState<string | null>(null);
+
   const [avatarPreview, setAvatarPreview] = useState<string | null>(player?.avatar_url || null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [avatarMsg, setAvatarMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    isPlatformAuthenticatorAvailable().then(setPasskeySupported);
+    api.webauthnCredentials().then(setPasskeys).catch(() => {}).finally(() => setPasskeysLoading(false));
+  }, []);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -39,6 +58,33 @@ export default function Profile() {
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
     setAvatarMsg('');
+  }
+
+  async function addPasskey() {
+    setPasskeyMsg('');
+    setPasskeyAdding(true);
+    try {
+      const deviceName = await registerPasskey();
+      markPasskeyEnrolled();
+      setPasskeyMsg(`✓ ${deviceName} tilføjet`);
+      const creds = await api.webauthnCredentials();
+      setPasskeys(creds);
+    } catch (e: any) {
+      setPasskeyMsg(e.message || 'Fejl');
+    } finally {
+      setPasskeyAdding(false);
+    }
+  }
+
+  async function deletePasskey(id: string) {
+    try {
+      await api.webauthnDeleteCredential(id);
+      setPasskeys(p => p.filter(c => c.id !== id));
+    } catch (e: any) {
+      setPasskeyMsg(e.message || 'Kunne ikke slette');
+    } finally {
+      setDeletingPasskeyId(null);
+    }
   }
 
   async function uploadAvatar() {
@@ -229,6 +275,63 @@ export default function Profile() {
           {notifySaving ? '...' : 'Gem notifikationsindstillinger'}
         </button>
       </div>
+
+      {passkeySupported && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Face ID / Touch ID</h2>
+          <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 14 }}>
+            Log ind uden kodeord ved hjælp af din enheds biometri.
+          </p>
+
+          {passkeysLoading ? (
+            <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)' }}>Henter enheder...</p>
+          ) : passkeys.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginBottom: 12 }}>
+              Ingen enheder tilmeldt endnu.
+            </p>
+          ) : (
+            <ul style={{ listStyle: 'none', marginBottom: 12 }}>
+              {passkeys.map(cred => (
+                <li key={cred.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--cfc-border)',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--cfc-text-primary)' }}>
+                      🔑 {cred.device_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)', marginTop: 2 }}>
+                      Tilføjet {fmtDate(cred.created_at)}
+                      {cred.last_used_at ? ` · Sidst brugt ${fmtDate(cred.last_used_at)}` : ''}
+                    </div>
+                  </div>
+                  {deletingPasskeyId === cred.id ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-danger btn-sm" onClick={() => deletePasskey(cred.id)}>Ja</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setDeletingPasskeyId(null)}>Nej</button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" onClick={() => setDeletingPasskeyId(cred.id)}>
+                      Fjern
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {passkeyMsg && (
+            <p style={{ fontSize: 13, color: passkeyMsg.startsWith('✓') ? 'var(--green)' : '#e57373', marginBottom: 10 }}>
+              {passkeyMsg}
+            </p>
+          )}
+
+          <button className="btn btn-primary" onClick={addPasskey} disabled={passkeyAdding} style={{ width: '100%', justifyContent: 'center' }}>
+            {passkeyAdding ? 'Aktiverer...' : '+ Tilføj denne enhed'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

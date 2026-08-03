@@ -80,6 +80,20 @@ export const api = {
   changePassword: (id: string, current: string, next: string) =>
     req<{ ok: boolean }>('POST', '/auth/change-password', { id, current, next }),
 
+  // WebAuthn / Passkeys
+  webauthnRegisterOptions: () =>
+    req<PublicKeyCredentialCreationOptionsJSON>('GET', '/auth/webauthn/register-options'),
+  webauthnRegisterVerify: (cred: RegistrationResponseJSON) =>
+    req<{ ok: boolean; device_name: string }>('POST', '/auth/webauthn/register-verify', cred),
+  webauthnLoginOptions: (username: string) =>
+    req<PublicKeyCredentialRequestOptionsJSON>('POST', '/auth/webauthn/login-options', { username }),
+  webauthnLoginVerify: (cred: AuthenticationResponseJSON) =>
+    req<{ token: string; player: Player }>('POST', '/auth/webauthn/login-verify', cred),
+  webauthnCredentials: () =>
+    req<WebAuthnCredential[]>('GET', '/auth/webauthn/credentials'),
+  webauthnDeleteCredential: (id: string) =>
+    req<{ ok: boolean }>('DELETE', `/auth/webauthn/credentials/${id}`),
+
   // Matches
   getMatches: (season?: string) =>
     req<Match[]>('GET', `/matches${season ? `?season=${season}` : ''}`),
@@ -653,6 +667,56 @@ export interface VoteSession {
 
 export interface VoteResult extends VotePlayer {
   votes: number;
+}
+
+// WebAuthn
+export interface WebAuthnCredential {
+  id: string;
+  device_name: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
+// Minimal JSON-serialisable shapes for WebAuthn browser API responses
+export interface PublicKeyCredentialCreationOptionsJSON {
+  rp: { id: string; name: string };
+  user: { id: string; name: string; displayName: string };
+  challenge: string;
+  pubKeyCredParams: { type: string; alg: number }[];
+  timeout?: number;
+  authenticatorSelection?: Record<string, unknown>;
+  attestation?: string;
+}
+
+export interface PublicKeyCredentialRequestOptionsJSON {
+  challenge: string;
+  timeout?: number;
+  rpId: string;
+  allowCredentials: { type: string; id: string; transports?: string[] }[];
+  userVerification?: string;
+}
+
+export interface RegistrationResponseJSON {
+  id: string;
+  rawId: string;
+  response: {
+    clientDataJSON: string;
+    attestationObject: string;
+    transports?: string[];
+  };
+  type: string;
+}
+
+export interface AuthenticationResponseJSON {
+  id: string;
+  rawId: string;
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle?: string;
+  };
+  type: string;
 }
 
 export interface VoteResults {
