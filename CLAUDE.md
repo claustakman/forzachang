@@ -24,6 +24,8 @@ Live på: https://forzachang.pages.dev
 forzachang/
 ├── database/
 │   ├── schema.sql              # D1 database schema + seed data
+│   ├── migrations/
+│   │   └── 0001_webauthn.sql   # WebAuthn tabeller (webauthn_credentials + webauthn_challenges)
 │   ├── seed_standings.sql      # Historiske stillinger + kampresultater (genereret af scrape_standings.py)
 │   ├── seed_records.sql        # Holdrekorder (manuelt indsat)
 │   ├── seed_stats.sql          # Historisk spillerstatistik (genereret af scrape_stats.py)
@@ -36,6 +38,7 @@ forzachang/
 │   │   ├── lib/sendPush.ts     # Fan-out helper: send push til én spiller (alle enheder)
 │   │   └── routes/
 │   │       ├── auth.ts
+│   │       ├── webauthn.ts     # WebAuthn/passkeys: register-options/verify, login-options/verify, credentials CRUD
 │   │       ├── players.ts      # Inkl. POST /:id/avatar → R2, notify_email/notify_push
 │   │       ├── events.ts       # Events + tilmeldinger + gæster + påmindelser
 │   │       ├── settings.ts     # App-indstillinger (webcal URL m.m.)
@@ -64,10 +67,12 @@ forzachang/
 │   │   │   ├── api.ts          # API client (BASE_URL skifter prod/dev)
 │   │   │   ├── auth.tsx        # Auth context (JWT i localStorage)
 │   │   │   ├── format.ts       # Fælles datoformateringshjælpere (fmtDate, fmtDateTime m.fl.)
-│   │   │   └── push.ts         # Browser-side push-subscription helpers
+│   │   │   ├── push.ts         # Browser-side push-subscription helpers
+│   │   │   └── webauthn.ts     # WebAuthn browser helpers: registerPasskey, authenticateWithPasskey, localStorage flags
 │   │   ├── components/
 │   │   │   ├── Avatar.tsx      # Fælles Avatar-komponent (initialer + farvepalette + foto)
 │   │   │   ├── Layout.tsx      # Navigation shell
+│   │   │   ├── PasskeyPrompt.tsx  # Post-login bottom-sheet: tilbyd Face ID/Touch ID efter kodeord-login
 │   │   │   └── PwaBanner.tsx   # Installationsbanner (iOS/Android instruktioner)
 │   │   └── pages/
 │   │       ├── Login.tsx
@@ -80,7 +85,7 @@ forzachang/
 │   │       ├── Admin.tsx       # Spillere + indstillinger (tabs: players, settings) + Licensliste
 │   │       ├── Afstemning.tsx  # Kampens Spiller afstemning (fase 12)
 │   │       ├── Stilling.tsx    # Aktuel ligastilling (hentet + parset fra DAI-sport af Worker)
-│   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger
+│   │       └── Profile.tsx     # Profil inkl. avatar-upload + notifikationsindstillinger + passkey-enheder
 │   └── vite.config.ts
 ├── scripts/
 │   ├── scrape_stats.py         # Scraper historisk statistik fra forzachang.dk → seed SQL
@@ -348,6 +353,29 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 | `notify_email`  | INTEGER | 1 = modtag email-påmindelser (default) |
 | `notify_push`   | INTEGER | 1 = modtag push-notifikationer (default) |
 
+### WebAuthn-credentials (`webauthn_credentials` tabel)
+
+| Felt             | Type    | Beskrivelse                                              |
+|------------------|---------|----------------------------------------------------------|
+| `id`             | TEXT    | Credential ID (base64url fra authenticator) — PRIMARY KEY |
+| `user_id`        | TEXT    | FK → players.id ON DELETE CASCADE                        |
+| `public_key_spki`| TEXT    | Base64url SPKI — importeres med SubtleCrypto.importKey   |
+| `algorithm`      | INTEGER | COSE alg: -7 = ES256, -257 = RS256 (default -7)          |
+| `counter`        | INTEGER | Signature counter (replay-beskyttelse)                   |
+| `transports`     | TEXT    | JSON-array af transports (fx `["internal"]`)             |
+| `device_name`    | TEXT    | Gættet fra User-Agent (fx "iPhone", "Mac")               |
+| `created_at`     | TEXT    | Oprettelsestidspunkt                                     |
+| `last_used_at`   | TEXT    | Tidsstempel for seneste brug                             |
+
+### WebAuthn-challenges (`webauthn_challenges` tabel)
+
+| Felt        | Type | Beskrivelse                                              |
+|-------------|------|----------------------------------------------------------|
+| `id`        | TEXT | Random base64url challenge-værdi — PRIMARY KEY           |
+| `user_id`   | TEXT | FK → players.id (NULL for anonyme login-challenges)      |
+| `type`      | TEXT | `register` eller `authenticate`                          |
+| `expires_at`| TEXT | Udløbstidspunkt (5 min) — slettes ved brug eller ved næste challenge-oprettelse |
+
 ### Legacy-tabeller (bruges stadig til gammel statistik-integration)
 - `matches` — gamle kampe (bruges af stats-integration)
 - `signups` — gamle tilmeldinger
@@ -593,6 +621,12 @@ wrangler secret put RESEND_API_KEY   # Fra resend.com
 | Method | Path                                    | Rolle          | Beskrivelse                                      |
 |--------|-----------------------------------------|----------------|--------------------------------------------------|
 | POST   | /api/auth/login                         | Alle           | Login, returnerer JWT                            |
+| GET    | /api/auth/webauthn/register-options     | player+        | Generer registreringsparametre (challenge)       |
+| POST   | /api/auth/webauthn/register-verify      | player+        | Verificér attestation + gem credential           |
+| GET    | /api/auth/webauthn/credentials          | player+        | Liste over egne registrerede enheder             |
+| DELETE | /api/auth/webauthn/credentials/:id      | player+        | Slet egen credential                             |
+| POST   | /api/auth/webauthn/login-options        | Alle           | Generer authentication-challenge (public)        |
+| POST   | /api/auth/webauthn/login-verify         | Alle           | Verificér assertion + udsted JWT (public)        |
 | GET    | /api/players                            | admin          | Liste over spillere                              |
 | POST   | /api/players                            | admin          | Opret spiller                                    |
 | PUT    | /api/players/:id                        | self/admin     | Opdater spiller                                  |
@@ -1372,3 +1406,53 @@ CFC spiller i Sort/Hvid. Hvis en modstander også spiller i hvid eller sort trø
 - `frontend/src/pages/Admin.tsx` — "👕 Hent spilletøjsfarver"-knap i Webcal-kortet (under sync-knapper, adskilt med border-top)
 - `frontend/src/pages/Matches.tsx` — `kitConflict()` + badge på kort + visning i detaljer
 - `frontend/src/lib/api.ts` — `opponent_kit?` på `Event`; `fetchOpponentKits()`
+
+---
+
+## Fase 15 — WebAuthn / Passkeys (Face ID / Touch ID)
+
+### Oversigt
+Biometrisk login oven på kodeord-login. Ingen eksterne biblioteker — `crypto.subtle` i Worker, `navigator.credentials` i browser.
+
+### Crypto-implementering (Worker)
+- **CBOR-decoder**: håndkodet for major types 0–5 (uint, negint, bytes, text, array, map)
+- **authenticatorData-parser**: rpIdHash (32 bytes) + flags (1 byte) + counter (4 bytes big-endian) + valgfri attested credential data
+- **COSE key → SubtleCrypto**: ES256 (alg -7, EC P-256, JWK x/y fra nøgle -2/-3) + RS256 (alg -257, RSA, JWK n/e fra nøgle -1/-2)
+- **DER → raw r‖s**: WebAuthn returnerer DER-kodet signatur; ECDSA verify kræver rå 64-byte r‖s
+- **`crypto.subtle` gotcha**: `@cloudflare/workers-types` kræver `ArrayBuffer` ikke `Uint8Array` — brug `.buffer as ArrayBuffer`
+
+### Routing-rækkefølge (kritisk)
+`/api/auth/webauthn`-routeren er registreret **før** `/api/auth` i `index.ts`. Ellers matcher prefix-tjekket `/api/auth` og WebAuthn-ruterne nås aldrig.
+
+### Challenge-håndtering
+- Challenges er single-use og udløber efter 5 min
+- Slettes ved brug (`consumeChallenge`) og ved oprettelse af ny challenge (kun én per bruger/type ad gangen)
+- `login-options` returnerer altid en challenge — selv hvis email ikke eksisterer — for ikke at lække om en email er registreret
+
+### Frontend-flow
+1. **Login**: email prefilles fra `localStorage` (`cfc_last_email`). Biometri-knap vises kun når `isUserVerifyingPlatformAuthenticatorAvailable()` → true
+2. **Post-login prompt**: `Login.tsx` sætter `sessionStorage`-flag (`cfc_show_passkey_prompt`) lige før `login()` kaldes. `PasskeyPrompt`-komponenten i `Layout.tsx` læser og konsumerer flaget på mount — bottom-sheet vises med tre valg: Aktiver / Ikke nu / Spørg mig ikke igen
+3. **Profil**: "Face ID / Touch ID"-kort viser registrerede enheder med add-dato + sidst brugt + Fjern-knap (inline confirm). "+ Tilføj denne enhed" kører enrollment-flow
+
+### localStorage-nøgler
+| Nøgle | Indhold |
+|-------|---------|
+| `cfc_last_email` | Seneste brugte email — prefilles på login-siden |
+| `cfc_passkey_enrolled` | `"1"` = enhed allerede tilmeldt (skjuler prompt) |
+| `cfc_passkey_never` | `"1"` = bruger har valgt "Spørg mig ikke igen" |
+
+### sessionStorage-nøgle
+| Nøgle | Indhold |
+|-------|---------|
+| `cfc_show_passkey_prompt` | `"1"` = vis bottom-sheet i Layout efter kodeord-login |
+
+### DB-migration
+Kørsel af `database/migrations/0001_webauthn.sql` mod prod **skal** ske før worker-deploy — ellers fejler første request mod de nye endpoints. CI/CD-steget i `deploy.yml` håndterer dette automatisk ved push til main (`CREATE TABLE IF NOT EXISTS` er idempotent).
+
+### Nøglefiler
+- `database/migrations/0001_webauthn.sql` — tabeldefinitioner
+- `worker/src/routes/webauthn.ts` — alle 6 endpoints + CBOR + crypto
+- `frontend/src/lib/webauthn.ts` — browser helpers + localStorage flags
+- `frontend/src/components/PasskeyPrompt.tsx` — post-login bottom-sheet
+- `frontend/src/pages/Login.tsx` — biometri-knap + email-prefill
+- `frontend/src/pages/Profile.tsx` — enhedsliste + enrollment
