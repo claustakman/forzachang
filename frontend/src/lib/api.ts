@@ -25,6 +25,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('fc_token');
+      localStorage.removeItem('fc_player');
+      window.location.href = '/login';
+    }
     const err = await res.json().catch(() => ({ error: 'Server error' }));
     throw new Error((err as any).error || 'Server error');
   }

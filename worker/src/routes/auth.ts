@@ -8,9 +8,10 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
   // POST /api/auth/login
   if (url.pathname === '/api/auth/login' && request.method === 'POST') {
     const { username, password } = await request.json() as { username: string; password: string };
+    const input = username.toLowerCase().trim();
     const player = await env.DB.prepare(
-      'SELECT * FROM players WHERE id = ? AND active = 1'
-    ).bind(username.toLowerCase().trim()).first();
+      'SELECT * FROM players WHERE (id = ? OR LOWER(email) = ?) AND active = 1'
+    ).bind(input, input).first();
     if (!player) return json({ error: 'Ukendt brugernavn eller kodeord' }, 401);
     const ok = await verifyPassword(password, player.password_hash as string);
     if (!ok) return json({ error: 'Ukendt brugernavn eller kodeord' }, 401);

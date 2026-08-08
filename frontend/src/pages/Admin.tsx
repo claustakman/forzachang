@@ -337,6 +337,12 @@ function PlayerRow({ player: p, isLast, onEdit, onInvite, inviteMsg, deactivatin
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Email</span> {p.email || '—'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+            <span style={{ color: 'var(--cfc-text-subtle)' }}>Telefon</span> {p.phone || '—'}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
+            <span style={{ color: 'var(--cfc-text-subtle)' }}>Fødselsdato</span> {p.birth_date || '—'}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--cfc-text-muted)' }}>
             <span style={{ color: 'var(--cfc-text-subtle)' }}>Sidst aktiv</span>{' '}
             {p.last_seen ? fmtDateTimeFull(p.last_seen) : '—'}
           </div>
