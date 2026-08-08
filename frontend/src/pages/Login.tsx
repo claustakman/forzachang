@@ -54,7 +54,7 @@ export default function Login() {
   async function loginWithBiometric() {
     const trimmed = username.trim();
     if (!trimmed) {
-      setError('Indtast dit brugernavn først');
+      setError('Indtast dit brugernavn eller email først');
       return;
     }
     setError('');
@@ -94,14 +94,14 @@ export default function Login() {
 
         <form onSubmit={submit} className="card" style={{ padding: '1.5rem' }}>
           <div className="form-row">
-            <label className="form-label">Brugernavn</label>
+            <label className="form-label">Brugernavn eller email</label>
             <input
               className="input"
               type="text"
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="dit.brugernavn"
+              placeholder="dit.brugernavn eller email"
               autoFocus={!username}
             />
           </div>
