@@ -495,6 +495,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     name:           player.name,
     alias:          player.alias || '',
     email:          player.email || '',
+    phone:          player.phone || '',
     role:           player.role,
     password:       '',
     birth_date:     player.birth_date || '',
@@ -536,7 +537,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
     setSaving(true);
     try {
       const update: any = {
-        name: form.name, alias: form.alias || null, email: form.email, role: form.role,
+        name: form.name, alias: form.alias || null, email: form.email, phone: form.phone || null, role: form.role,
         birth_date: form.birth_date || null,
         shirt_number: form.shirt_number ? Number(form.shirt_number) : null,
         license_number: form.license_number || null,
@@ -603,6 +604,7 @@ function EditPlayerModal({ player, onClose }: { player: Player; onClose: () => v
           { key: 'name',           label: 'Navn',             placeholder: '' },
           { key: 'alias',          label: 'Alias',            placeholder: 'Fx "Klatten" — vises i stedet for fornavn' },
           { key: 'email',          label: 'Email',            placeholder: 'anders@email.dk' },
+          { key: 'phone',          label: 'Telefon',          placeholder: '+45 ...' },
           { key: 'birth_date',     label: 'Fødselsdato',      placeholder: 'YYYY-MM-DD' },
           { key: 'shirt_number',   label: 'Trøjenummer',      placeholder: 'fx 10' },
           { key: 'license_number', label: 'DAI-licensnummer', placeholder: '' },
