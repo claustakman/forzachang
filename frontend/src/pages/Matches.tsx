@@ -233,7 +233,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
             <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>til {fmtDateTime(event.end_time)}</div>
           )}
           {event.location && (() => {
-            const isAway = isKamp && !event.location.toLowerCase().includes('valby idrætspark');
+            const isAway = isKamp && !event.location.toLowerCase().includes('valby');
             return isAway ? (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
