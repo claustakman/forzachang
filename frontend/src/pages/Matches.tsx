@@ -238,7 +238,7 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 marginTop: 6, padding: '2px 8px', borderRadius: 12,
-                background: '#3a1010', color: '#e57373',
+                background: '#3a1010', color: '#ffffff',
                 fontSize: 12, fontWeight: 500,
               }}>
                 📍 {event.location}
@@ -1714,7 +1714,7 @@ function EventRow({ event: ev, onClick }: {
           {ev.location && (ev.type === 'kamp' && !ev.location.toLowerCase().includes('valby') ? (
             <span style={{
               padding: '1px 7px', borderRadius: 10,
-              background: '#3a1010', color: '#e57373',
+              background: '#3a1010', color: '#ffffff',
               fontWeight: 500,
             }}>📍 {ev.location}</span>
           ) : (
