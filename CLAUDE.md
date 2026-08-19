@@ -389,6 +389,8 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Når en spiller sættes til pensioneret (`active=0`) → kan de ikke logge ind
 - Velkomst-email sendes **manuelt** af admin (knap på spillerkortet) — ikke automatisk ved oprettelse
 - Password reset sker via email-link (Resend) → `/reset?token=XYZ`
+- **Login accepterer både brugernavn (id) og email** — worker matcher `WHERE (id = ? OR LOWER(email) = ?) AND active = 1`
+- **Auto-logout ved 401**: `api.ts` fjerner token + player fra localStorage og redirecter til `/login` ved enhver 401-respons
 
 ### Admin-brugeren (id = 'admin')
 - Systembrugeren med id `'admin'` og navn `'Admin'` er udelukkende til administration
@@ -892,6 +894,8 @@ D1 returnerer integers (0/1) ikke booleans — brug altid `=== 1` (ikke blot `&&
 - Admin-siden har to tabs: **Spillere** og **Indstillinger**
 - Admin → Indstillinger har fem sektioner (i rækkefølge): **Webcal-sync**, **Aktuel stilling** (standings_url), **Tilmeldingsfrist** (signup_deadline_days + bulk-opdater), **Påmindelser** (reminder_days_before), **Kommentarfrist** (comment_cutoff_hours)
 - Admin → Spillere har tre sub-tabs: **Aktive**, **Pensionerede** og **Licensliste** (alle spillere sorteret stigende efter DAI-licensnummer)
+- Admin → Spillere → fold ud viser (i rækkefølge): Rolle, Brugernavn, Email, **Telefon**, **Fødselsdato**, Sidst aktiv — herefter knapper (Aktivitet, Send velkomst-email, Deaktiver)
+- Telefon redigeres i "Rediger spiller"-modalen (mellem Email og Fødselsdato). `GET /api/players` returnerer `phone` i SELECT
 - Spillere med `active=0` omtales som **pensionerede** (ikke "passive" eller "tidligere") — i Admin-faner, Stats-filtre og lister
 - Admin login: `admin` / `admin123` — **skift dette med det samme i prod!**
 
@@ -1399,6 +1403,7 @@ CFC spiller i Sort/Hvid. Hvis en modstander også spiller i hvid eller sort trø
 - **Kampkort** (`EventRow`): `⚠️ Tjek trøjer`-badge i højre kolonne ved konflikt (mørk amber, samme stil som andre badges)
 - **Kampdetaljer** (`EventDetailModal`): `👕 [kitfarve]` + `⚠️ Tjek trøjer`-badge efter resultat-linjen (kun for kampe, kun hvis `opponent_kit` er sat)
 - Intet vises hvis `opponent_kit` er NULL
+- **Udebane-lokation**: Kampkort viser lokationen som rød pill (`#3a1010` bg / `#ffffff` tekst) hvis lokationen IKKE indeholder "valby" (case-insensitiv). Hjemmekampe i Valby vises som normal grå tekst. Gælder kun events af typen `kamp`.
 
 ### Nøglefiler
 - `worker/src/routes/kitFetcher.ts` — henter + gemmer kitfarver
