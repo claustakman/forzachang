@@ -232,9 +232,21 @@ function EventDetailModal({ event, onClose, onRefresh, isTrainer, isAdmin, comme
           {event.end_time && event.end_time !== event.start_time && (
             <div style={{ fontSize: 12, color: 'var(--cfc-text-subtle)' }}>til {fmtDateTime(event.end_time)}</div>
           )}
-          {event.location && (
-            <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginTop: 4 }}>📍 {event.location}</div>
-          )}
+          {event.location && (() => {
+            const isAway = isKamp && !event.location.toLowerCase().includes('valby idrætspark');
+            return isAway ? (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                marginTop: 6, padding: '2px 8px', borderRadius: 12,
+                background: '#3a1010', color: '#e57373',
+                fontSize: 12, fontWeight: 500,
+              }}>
+                📍 {event.location}
+              </span>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--cfc-text-muted)', marginTop: 4 }}>📍 {event.location}</div>
+            );
+          })()}
           {event.result && (
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--cfc-text-primary)', marginTop: 6 }}>
               Resultat: {event.result}
