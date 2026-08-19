@@ -1711,7 +1711,15 @@ function EventRow({ event: ev, onClick }: {
           {ev.meeting_time && (
             <span>Mødetid {fmtTime(ev.meeting_time)}</span>
           )}
-          {ev.location && <span>📍 {ev.location}</span>}
+          {ev.location && (ev.type === 'kamp' && !ev.location.toLowerCase().includes('valby') ? (
+            <span style={{
+              padding: '1px 7px', borderRadius: 10,
+              background: '#3a1010', color: '#e57373',
+              fontWeight: 500,
+            }}>📍 {ev.location}</span>
+          ) : (
+            <span>📍 {ev.location}</span>
+          ))}
           {ev.result && <strong style={{ color: 'var(--cfc-text-primary)' }}>{ev.result}</strong>}
         </div>
       </div>
