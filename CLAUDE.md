@@ -1241,14 +1241,18 @@ Filnavn sendes fra frontend som `X-Filename`-header (URL-encoded) og bevares i d
 ### Frontend — Board.tsx
 - Opslag-liste: fastgjorte øverst, derefter faldende created_at
 - Quickfilter for admin: **Aktive** / **Arkiverede** (`?archived=1`)
-- Arkivér-knap i oplagsfooter — kun synlig for admin, viser "↩ De-arkivér" for arkiverede
 - "Nyt opslag"-modal med `@`-autocomplete og filvedhæftning
-- Oplagskort med avatar, navn, tidsstempel, titel (hvis sat), tekst (highlights @-mentions), vedhæftningslinje
-- Pin/unpin-knap (📌) for trainer/admin
 - Foldbar kommentarsektion per opslag med inline editor og @-autocomplete
 - `localStorage` nøgle `cfc_board_last_read` til unread-tracking
 - `pinned === 1` (ikke `pinned &&`) bruges til conditional rendering (D1 returnerer integers)
 - Vedhæftninger hentes via `JSON_GROUP_ARRAY(JSON_OBJECT(...))` i alle GET-queries og udpakkes med `parseAttachments()`-helper
+
+#### Oplagskort-layout
+- **Header-række**: Avatar · Navn · tidsstempel · 📌 pin/unpin-knap (kun trainer/admin, ingen ramme)
+- **Indhold**: titel (hvis sat) · brødtekst med @-mention highlights · vedhæftninger
+- **Footer-række** (border-top): 💬 Kommenter til venstre — Rediger · Slet · 🗄 Arkivér til højre (`marginLeft: auto`)
+  - Rediger + Slet: kun synlig for oplagets forfatter
+  - Arkivér / ↩ De-arkivér: kun synlig for admin
 
 ### Vedhæftninger — download i PWA
 `target="_blank"` og `download`-attributten på cross-origin URLs virker ikke i PWA standalone-mode på iOS/Android. Løsning: `DownloadButton`-komponent der henter via `fetch()`, opretter en blob-URL og klikker et midlertidigt `<a download>`-element programmatisk. Fallback til `window.open()` hvis fetch fejler.
