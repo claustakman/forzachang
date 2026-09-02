@@ -485,48 +485,28 @@ function PostCard({
         }}>📌 Fastgjort</div>
       )}
 
-      {/* Header: avatar + navn + tidsstempel */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 6 }}>
+      {/* Header: avatar + navn + tidsstempel + pin */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
         <Avatar name={post.author_name} url={post.author_avatar_url} size={36} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{post.author_name}</span>
             <span style={{ fontSize: 12, color: '#999999', flexShrink: 0 }}>
               {fmtDate(post.created_at)}{post.edited_at ? ' · redigeret' : ''}
             </span>
+            {isTrainer && (
+              <button
+                onClick={() => onPin(post.id)}
+                className="btn btn-sm"
+                title={post.pinned === 1 ? 'Frigør' : 'Fastgør'}
+                style={{ padding: '2px 4px', fontSize: 13, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 0, minWidth: 0, lineHeight: 1 }}
+              >
+                📌
+              </button>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Handlingsknapper — egen række så de ikke overlapper tidsstempel */}
-      {(isTrainer || post.player_id === currentPlayerId) && (
-        <div style={{ display: 'flex', gap: 4, marginBottom: 6, marginLeft: 46 }}>
-          {isTrainer && (
-            <button
-              onClick={() => onPin(post.id)}
-              className="btn btn-sm"
-              title={post.pinned === 1 ? 'Frigør' : 'Fastgør'}
-              style={{ padding: '4px 8px', fontSize: 14, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 36, minWidth: 36 }}
-            >
-              📌
-            </button>
-          )}
-          {post.player_id === currentPlayerId && (
-            deleting ? (
-              <>
-                <span style={{ fontSize: 12, color: '#d32f2f', alignSelf: 'center' }}>Slet?</span>
-                <button onClick={() => onDeleteConfirm(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Ja</button>
-                <button onClick={onDeleteCancel} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Nej</button>
-              </>
-            ) : (
-              <>
-                <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Rediger</button>
-                <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Slet</button>
-              </>
-            )
-          )}
-        </div>
-      )}
 
       {/* Titel */}
       {post.title && (
@@ -577,7 +557,7 @@ function PostCard({
       )}
 
       {/* Footer — separeret med border-top */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #e0e0e0', paddingTop: 8, marginTop: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid #e0e0e0', paddingTop: 8, marginTop: 4 }}>
         <button
           onClick={() => setCommentsOpen(o => !o)}
           className="btn btn-sm"
@@ -585,16 +565,32 @@ function PostCard({
         >
           💬 {post.comment_count > 0 ? `${post.comment_count} kommentar${post.comment_count !== 1 ? 'er' : ''}` : 'Kommenter'}
         </button>
-        {isAdmin && (
-          <button
-            onClick={() => onArchive(post.id)}
-            className="btn btn-sm"
-            style={{ padding: '6px 10px', fontSize: 12, color: post.archived === 1 ? '#1D9E75' : '#999999', background: 'transparent', border: 'none', marginLeft: 'auto', minHeight: 44 }}
-            title={post.archived === 1 ? 'De-arkivér opslag' : 'Arkivér opslag'}
-          >
-            {post.archived === 1 ? '↩ De-arkivér' : '🗄 Arkivér'}
-          </button>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {post.player_id === currentPlayerId && (
+            deleting ? (
+              <>
+                <span style={{ fontSize: 12, color: '#d32f2f' }}>Slet?</span>
+                <button onClick={() => onDeleteConfirm(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Ja</button>
+                <button onClick={onDeleteCancel} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Nej</button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Rediger</button>
+                <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Slet</button>
+              </>
+            )
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => onArchive(post.id)}
+              className="btn btn-sm"
+              style={{ padding: '4px 10px', fontSize: 12, color: post.archived === 1 ? '#1D9E75' : '#999999', background: 'transparent', border: 'none', minHeight: 36 }}
+              title={post.archived === 1 ? 'De-arkivér opslag' : 'Arkivér opslag'}
+            >
+              {post.archived === 1 ? '↩ De-arkivér' : '🗄 Arkivér'}
+            </button>
+          )}
+        </div>
       </div>
 
       {commentsOpen && (
