@@ -485,8 +485,8 @@ function PostCard({
         }}>📌 Fastgjort</div>
       )}
 
-      {/* Header: avatar + navn til venstre, tidsstempel til højre */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+      {/* Header: avatar + navn + tidsstempel */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 6 }}>
         <Avatar name={post.author_name} url={post.author_avatar_url} size={36} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -496,14 +496,17 @@ function PostCard({
             </span>
           </div>
         </div>
-        {/* Handlingsknapper */}
-        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+      </div>
+
+      {/* Handlingsknapper — egen række så de ikke overlapper tidsstempel */}
+      {(isTrainer || post.player_id === currentPlayerId) && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 6, marginLeft: 46 }}>
           {isTrainer && (
             <button
               onClick={() => onPin(post.id)}
               className="btn btn-sm"
               title={post.pinned === 1 ? 'Frigør' : 'Fastgør'}
-              style={{ padding: '6px 10px', fontSize: 14, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 44, minWidth: 44 }}
+              style={{ padding: '4px 8px', fontSize: 14, color: post.pinned === 1 ? '#1D9E75' : 'var(--cfc-text-muted)', background: 'transparent', border: 'none', minHeight: 36, minWidth: 36 }}
             >
               📌
             </button>
@@ -511,19 +514,19 @@ function PostCard({
           {post.player_id === currentPlayerId && (
             deleting ? (
               <>
-                <span style={{ fontSize: 12, color: '#d32f2f' }}>Slet?</span>
-                <button onClick={() => onDeleteConfirm(post.id)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, color: '#d32f2f', minHeight: 44 }}>Ja</button>
-                <button onClick={onDeleteCancel} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, minHeight: 44 }}>Nej</button>
+                <span style={{ fontSize: 12, color: '#d32f2f', alignSelf: 'center' }}>Slet?</span>
+                <button onClick={() => onDeleteConfirm(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Ja</button>
+                <button onClick={onDeleteCancel} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Nej</button>
               </>
             ) : (
               <>
-                <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, minHeight: 44 }}>Rediger</button>
-                <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '6px 10px', fontSize: 12, color: '#d32f2f', minHeight: 44 }}>Slet</button>
+                <button onClick={() => onEdit(post)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, minHeight: 36 }}>Rediger</button>
+                <button onClick={() => onDelete(post.id)} className="btn btn-sm" style={{ padding: '4px 10px', fontSize: 12, color: '#d32f2f', minHeight: 36 }}>Slet</button>
               </>
             )
           )}
         </div>
-      </div>
+      )}
 
       {/* Titel */}
       {post.title && (
