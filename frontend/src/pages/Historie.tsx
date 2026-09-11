@@ -848,7 +848,7 @@ function TidligereSaesoner() {
     setSearched(false);
     try {
       const data = await api.getStandingMatches({ opponent: searchQ });
-      setSearchResults(data);
+      setSearchResults([...data].sort((a, b) => (b.match_date || '').localeCompare(a.match_date || '')));
     } catch { setSearchResults([]); }
     setSearching(false);
     setSearched(true);
