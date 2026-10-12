@@ -423,6 +423,7 @@ UNIQUE constraint på `(player_id, fine_type_id, event_id)` — forhindrer dupli
 - Sync-logik: tilføj nye, opdater ændrede, markér slettede som `aflyst`
 - Baseret på `webcal_uid` (iCal UID-felt)
 - Nye events fra webcal får automatisk: `meeting_time = start − 40 min`, `signup_deadline = start − N dage` (N = `signup_deadline_days`-setting, default 5)
+- Hvis en eksisterende kamp rykkes (start_time ændrer sig), genberegnes `meeting_time` og `signup_deadline` automatisk med samme regler
 - Alle webcal-events sættes altid til type `kamp`
 - Manuel trigger: "Synkroniser nu"-knap under Admin → Indstillinger (kalder `POST /api/settings/sync`)
 
@@ -1326,6 +1327,7 @@ Fire tilstande:
 2. **Setup** (trainer/admin): Konfigurer kandidater, vælgere og varighed (slider 15–180 sek) — pre-udfyldt fra tilmeldingslisten ved kampvalg, tom ved ad-hoc
 3. **Voting**: SVG-nedtællingscirkel + kandidatliste — klik på spiller for at stemme
 4. **Results**: Rangeret liste med stemmebar og 🏆 til vinder; sektion "Har ikke stemt (N)" i amber nederst; trainer/admin ser "🗑 Slet afstemning"-knap
+   - **Stemmelighed (omvalg)**: Hvis afstemningen er lukket og der er uafgjort (flere deler førstepladsen), vises "🔁 Start omvalg"-knap for trainer/admin i vinderkortet. Klik pre-sætter ny setup-fase med: **kandidater** = kun topscorerne, **vælgere** = originale vælgere minus topscorerne (de der fik flest stemmer kan ikke stemme i omvalget). Trainer kan justere listen og starte som en normal afstemning.
 
 #### Rollebaseret adgang
 - **Trainer/admin**: fuld adgang — idle-skærm med kampliste, setup, voting, results

@@ -330,6 +330,38 @@ export default function Afstemning() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // ── Start omvalg ved stemmelighed ─────────────────────────────────────────
+  async function handleStartTiebreak(tiedResults: VoteResult[], originalVoters: VotePlayer[]) {
+    setError(null);
+    setLoading(true);
+    try {
+      const allPlayersData = await api.getPlayers();
+      const allPlayers: VotePlayer[] = allPlayersData
+        .filter(p => p.active && p.id !== 'admin')
+        .map(p => ({ id: p.id, name: p.alias?.trim() || p.name, avatar_url: p.avatar_url }));
+
+      const tiedIds = new Set(tiedResults.map(r => r.id));
+
+      // Kandidater = kun dem der fik flest stemmer
+      const tieCandidates: VotePlayer[] = tiedResults.map(r => ({
+        id: r.id, name: r.name, avatar_url: r.avatar_url,
+      }));
+
+      // Vælgere = originale vælgere minus topscorerne
+      const tieVoters: VotePlayer[] = originalVoters.filter(v => !tiedIds.has(v.id));
+
+      setCandidatesList(tieCandidates);
+      setVotersList(tieVoters);
+      setCandidatesEnabled(new Set(tiedIds));
+      setVotersEnabled(new Set(tieVoters.map(v => v.id)));
+      setAdHocTitle('Omvalg');
+      setState({ kind: 'setup', event: null, allPlayers });
+    } catch (e: any) {
+      setError(e.message || 'Fejl');
+    }
+    setLoading(false);
+  }
+
   async function handleDeleteSession(sessionId: string) {
     try {
       await api.deleteVoteSession(sessionId);
@@ -596,6 +628,7 @@ export default function Afstemning() {
           onDeleteRequest={() => setConfirmDelete(true)}
           onDeleteConfirm={() => handleDeleteSession(state.session.id)}
           onDeleteCancel={() => setConfirmDelete(false)}
+          onStartTiebreak={isTrainerRole(player?.role) ? (tiedResults) => handleStartTiebreak(tiedResults, state.session.voters) : undefined}
         />
       )}
     </div>
@@ -604,7 +637,7 @@ export default function Afstemning() {
 
 // ── ResultsView ───────────────────────────────────────────────────────────────
 
-function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDelete, confirmDelete, onDeleteRequest, onDeleteConfirm, onDeleteCancel }: {
+function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDelete, confirmDelete, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onStartTiebreak }: {
   session: VoteSession;
   results: VoteResult[];
   total: number;
@@ -616,6 +649,7 @@ function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDe
   onDeleteRequest?: () => void;
   onDeleteConfirm?: () => void;
   onDeleteCancel?: () => void;
+  onStartTiebreak?: (tiedResults: VoteResult[]) => void;
 }) {
   const isClosed = session.status === 'closed';
   const topVotes = results[0]?.votes ?? 0;
@@ -679,6 +713,15 @@ function ResultsView({ session, results, total, myVote, nonVoters, onBack, canDe
                 <div style={{ fontSize: 13, color: '#1D9E75', marginTop: 4, fontWeight: 600 }}>
                   🥇 Uafgjort · {topVotes} stemme{topVotes !== 1 ? 'r' : ''} hver
                 </div>
+                {isClosed && onStartTiebreak && (
+                  <button
+                    onClick={() => onStartTiebreak(winners)}
+                    className="btn btn-primary"
+                    style={{ marginTop: 12, fontSize: 13, minHeight: 40, padding: '8px 14px' }}
+                  >
+                    🔁 Start omvalg
+                  </button>
+                )}
               </>
             ) : (
               <>

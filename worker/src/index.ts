@@ -238,18 +238,39 @@ export async function syncWebcal(env: Env): Promise<void> {
     if (existing) {
       // Opdater title, tid, sted — og result hvis webcal har score i titlen
       // result sættes kun hvis webcal leverer det (overskriv ikke manuelt sat result med null)
+      // Hvis start_time har ændret sig (kamp rykket), genberegn meeting_time og signup_deadline
+      const startChanged = (existing as any).start_time !== ev.start_time;
+      const meetingTime = startChanged ? addMinutes(ev.start_time, -40) : undefined;
+      const signupDeadline = startChanged ? addDays(ev.start_time, -deadlineDays) : undefined;
+
       if (ev.result) {
-        await env.DB.prepare(`
-          UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?, result=?
-          WHERE webcal_uid=?
-        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
-          ev.season || now, ev.result, ev.uid).run();
+        if (startChanged) {
+          await env.DB.prepare(`
+            UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?, result=?, meeting_time=?, signup_deadline=?
+            WHERE webcal_uid=?
+          `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+            ev.season || now, ev.result, meetingTime!, signupDeadline!, ev.uid).run();
+        } else {
+          await env.DB.prepare(`
+            UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?, result=?
+            WHERE webcal_uid=?
+          `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+            ev.season || now, ev.result, ev.uid).run();
+        }
       } else {
-        await env.DB.prepare(`
-          UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?
-          WHERE webcal_uid=?
-        `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
-          ev.season || now, ev.uid).run();
+        if (startChanged) {
+          await env.DB.prepare(`
+            UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?, meeting_time=?, signup_deadline=?
+            WHERE webcal_uid=?
+          `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+            ev.season || now, meetingTime!, signupDeadline!, ev.uid).run();
+        } else {
+          await env.DB.prepare(`
+            UPDATE events SET type='kamp', title=?, start_time=?, end_time=?, location=?, season=?
+            WHERE webcal_uid=?
+          `).bind(ev.title, ev.start_time, ev.end_time || null, ev.location || null,
+            ev.season || now, ev.uid).run();
+        }
       }
       // Synkronisér til season_matches hvis der er et resultat
       if (ev.result) {
