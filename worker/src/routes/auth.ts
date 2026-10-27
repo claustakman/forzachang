@@ -35,11 +35,11 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
     ).bind(email.toLowerCase().trim()).first();
     // Always return ok to avoid email enumeration
     if (!player) return json({ ok: true });
-    const token = await createJWT(
-      { sub: player.id as string, name: player.name as string, role: 'reset' },
-      env.JWT_SECRET,
-      3600 // 1 hour
-    );
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + 3600_000).toISOString();
+    await env.DB.prepare(
+      'INSERT INTO password_reset_tokens (token, player_id, expires_at) VALUES (?, ?, ?)'
+    ).bind(token, player.id as string, expiresAt).run();
     await sendEmail(env, {
       to: player.email as string,
       subject: 'Nulstil dit kodeord — Copenhagen Forza Chang',
@@ -51,10 +51,17 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
   // POST /api/auth/reset — set new password with token
   if (url.pathname === '/api/auth/reset' && request.method === 'POST') {
     const { token, password } = await request.json() as { token: string; password: string };
-    const payload = await verifyJWT(token, env.JWT_SECRET);
-    if (!payload || payload.role !== 'reset') return json({ error: 'Ugyldigt eller udløbet link' }, 400);
+    const row = await env.DB.prepare(
+      'SELECT player_id, expires_at, used_at FROM password_reset_tokens WHERE token = ?'
+    ).bind(token).first();
+    if (!row || row.used_at || (row.expires_at as string) < new Date().toISOString()) {
+      return json({ error: 'Ugyldigt eller udløbet link' }, 400);
+    }
     const hash = await hashPassword(password);
-    await env.DB.prepare('UPDATE players SET password_hash=? WHERE id=?').bind(hash, payload.sub).run();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE players SET password_hash=? WHERE id=?').bind(hash, row.player_id as string),
+      env.DB.prepare('UPDATE password_reset_tokens SET used_at=? WHERE token=?').bind(new Date().toISOString(), token),
+    ]);
     return json({ ok: true });
   }
 
@@ -84,11 +91,11 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
     const { player_id } = await request.json() as { player_id: string };
     const player = await env.DB.prepare('SELECT id, name, email FROM players WHERE id=?').bind(player_id).first();
     if (!player || !player.email) return json({ error: 'Spiller ikke fundet eller mangler email' }, 404);
-    const resetToken = await createJWT(
-      { sub: player.id as string, name: player.name as string, role: 'reset' },
-      env.JWT_SECRET,
-      7 * 24 * 3600 // 7 days
-    );
+    const resetToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+    await env.DB.prepare(
+      'INSERT INTO password_reset_tokens (token, player_id, expires_at) VALUES (?, ?, ?)'
+    ).bind(resetToken, player.id as string, inviteExpiresAt).run();
     await sendEmail(env, {
       to: player.email as string,
       subject: 'Velkommen til Copenhagen Forza Chang',

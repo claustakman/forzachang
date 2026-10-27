@@ -310,15 +310,16 @@ export async function syncWebcal(env: Env): Promise<void> {
 
   // Markér events der er forsvundet fra feed som aflyst (kun fremtidige)
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  const uids = events.map(e => `'${e.uid.replace(/'/g, "''")}'`).join(',');
-  if (uids) {
+  if (events.length > 0) {
+    const placeholders = events.map(() => '?').join(',');
+    const uids = events.map(e => e.uid);
     await env.DB.prepare(`
       UPDATE events SET status='aflyst'
       WHERE webcal_uid IS NOT NULL
       AND start_time > ?
-      AND webcal_uid NOT IN (${uids})
+      AND webcal_uid NOT IN (${placeholders})
       AND status = 'aktiv'
-    `).bind(tomorrow).run();
+    `).bind(tomorrow, ...uids).run();
   }
 }
 

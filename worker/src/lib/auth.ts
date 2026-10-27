@@ -10,20 +10,35 @@ export function corsHeaders() {
 
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 200_000 },
+    keyMaterial,
+    256
+  );
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `pbkdf2:${saltHex}:${hashHex}`;
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  // Support both SHA-256 (new) and bcrypt placeholder (legacy)
-  if (hash.startsWith('$2a$')) {
-    // For initial setup: accept 'admin123' for the seeded admin
-    return password === 'admin123';
-  }
-  const computed = await hashPassword(password);
-  return computed === hash;
+  if (!hash.startsWith('pbkdf2:')) return false;
+  const [, saltHex, expectedHex] = hash.split(':');
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 200_000 },
+    keyMaterial,
+    256
+  );
+  const computed = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  // Constant-time comparison
+  if (computed.length !== expectedHex.length) return false;
+  let diff = 0;
+  for (let i = 0; i < computed.length; i++) diff |= computed.charCodeAt(i) ^ expectedHex.charCodeAt(i);
+  return diff === 0;
 }
 
 export interface JWTPayload {

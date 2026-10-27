@@ -98,10 +98,9 @@ INSERT OR IGNORE INTO fine_types (id, name, amount, auto_assign, active, sort_or
   ('ft-kenneth',      'Afbud til kamp (Kennethgebyr)',         30, 'absence',     1, 13),
   ('discount-injury', 'Langtidsskaderabat',                     0, NULL,          0, 999); -- Systemtype: bruges til negative bøder (rabatter), skjult i katalog
 
--- Default admin user (password: admin123 — CHANGE THIS)
--- password_hash is bcrypt of 'admin123'
+-- Default admin user (password: ChangeMe! — CHANGE THIS IMMEDIATELY)
 INSERT OR IGNORE INTO players (id, name, email, password_hash, role) VALUES
-  ('admin', 'Admin', 'admin@forzachang.dk', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin');
+  ('admin', 'Admin', 'admin@forzachang.dk', 'pbkdf2:3a9f12c4772e8b05d163af4482c79e31:d482632177e143d26d330e5bde6ef8eb64c6a5f2accee5ea625337e692f815b2', 'admin');
 
 -- ── Fase 3: Events og tilmeldinger ──────────────────────────────────────────
 
